@@ -1,0 +1,20 @@
+{
+  "name": "nav-sync-worker",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail",
+    "db:init:local": "wrangler d1 execute nav-sync --local --file=./schema.sql",
+    "db:init:remote": "wrangler d1 execute nav-sync --remote --file=./schema.sql",
+    "token": "wrangler secret put SYNC_TOKEN"
+  },
+  "devDependencies": {
+    "wrangler": "^4.136.2"
+  },
+  "dependencies": {
+    "nav": "file:.."
+  }
+}

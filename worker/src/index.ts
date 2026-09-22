@@ -1,0 +1,243 @@
+/**
+ * nav-sync —— 个人导航页的远程数据服务（Cloudflare Worker + D1 / 托管 SQLite）
+ *
+ * 设计要点：
+ * 1. 单行文档模型。整个导航页快照（分类/书签/备忘录/TOTP/外观设置）序列化成
+ *    一个 JSON 存在 nav_docs 里，写入是原子的，不需要增量 diff。
+ * 2. 冲突策略是 last-write-wins，但拒绝静默覆盖：客户端的 updatedAt 不比服务端
+ *    新时返回 409 并把服务端当前版本一起带回去，由前端决定用哪边。
+ * 3. 鉴权用 Authorization: Bearer <SYNC_TOKEN>。token 只存在于 Worker secret 和
+ *    用户自己浏览器的 localStorage 里，从不写进仓库。
+ * 4. 没配 SYNC_TOKEN 时直接 500 拒绝服务（fail closed），不会变成公开数据库。
+ */
+
+type D1PreparedLike = {
+  bind(...values: unknown[]): D1PreparedLike
+  first<T = Record<string, unknown>>(): Promise<T | null>
+  run(): Promise<{ success: boolean; meta?: { changes?: number } }>
+  all<T = Record<string, unknown>>(): Promise<{ results: T[] }>
+}
+
+type D1Like = {
+  prepare(query: string): D1PreparedLike
+}
+
+type Env = {
+  DB: D1Like
+  SYNC_TOKEN?: string
+  ALLOWED_ORIGIN?: string
+}
+
+const DOC_ID = 'default'
+const MAX_BODY_BYTES = 4 * 1024 * 1024
+
+type DocRow = {
+  doc: string
+  updated_at: number
+  rev: number
+}
+
+function corsHeaders(request: Request, env: Env): Record<string, string> {
+  const allowed = env.ALLOWED_ORIGIN || '*'
+  const origin = request.headers.get('Origin')
+  const allowOrigin = allowed === '*' ? '*' : origin === allowed ? allowed : allowed
+
+  return {
+    'Access-Control-Allow-Origin': allowOrigin,
+    'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS',
+    'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+    'Access-Control-Max-Age': '86400',
+    Vary: 'Origin',
+  }
+}
+
+function json(
+  body: unknown,
+  status: number,
+  request: Request,
+  env: Env,
+): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': 'no-store',
+      ...corsHeaders(request, env),
+    },
+  })
+}
+
+/** 定长比较，避免 token 校验提前 return 泄露前缀长度信息 */
+function safeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false
+  let diff = 0
+  for (let i = 0; i < a.length; i += 1) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i)
+  }
+  return diff === 0
+}
+
+function authorized(request: Request, env: Env): boolean {
+  const expected = (env.SYNC_TOKEN || '').trim()
+  if (!expected) return false
+
+  const header = request.headers.get('Authorization') || ''
+  const match = /^Bearer\s+(.+)$/i.exec(header.trim())
+  if (!match) return false
+  return safeEqual(match[1].trim(), expected)
+}
+
+async function readRow(env: Env): Promise<DocRow | null> {
+  return env.DB.prepare(
+    'SELECT doc, updated_at, rev FROM nav_docs WHERE id = ?',
+  )
+    .bind(DOC_ID)
+    .first<DocRow>()
+}
+
+function parseDoc(row: DocRow | null): unknown {
+  if (!row) return null
+  try {
+    return JSON.parse(row.doc)
+  } catch {
+    return null
+  }
+}
+
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const url = new URL(request.url)
+
+    if (request.method === 'OPTIONS') {
+      return new Response(null, { status: 204, headers: corsHeaders(request, env) })
+    }
+
+    // 健康检查：不鉴权，但也不泄露任何数据
+    if (url.pathname === '/' && request.method === 'GET') {
+      return json(
+        {
+          ok: true,
+          service: 'nav-sync',
+          configured: Boolean((env.SYNC_TOKEN || '').trim()),
+          endpoints: ['GET /api/data', 'PUT /api/data'],
+        },
+        200,
+        request,
+        env,
+      )
+    }
+
+    if (url.pathname !== '/api/data') {
+      return json({ ok: false, error: 'not_found' }, 404, request, env)
+    }
+
+    if (!(env.SYNC_TOKEN || '').trim()) {
+      return json(
+        { ok: false, error: 'server_not_configured', hint: 'run: npx wrangler secret put SYNC_TOKEN' },
+        500,
+        request,
+        env,
+      )
+    }
+
+    if (!authorized(request, env)) {
+      return json({ ok: false, error: 'unauthorized' }, 401, request, env)
+    }
+
+    if (request.method === 'GET') {
+      const row = await readRow(env)
+      return json(
+        {
+          ok: true,
+          doc: parseDoc(row),
+          updatedAt: row?.updated_at ?? 0,
+          rev: row?.rev ?? 0,
+        },
+        200,
+        request,
+        env,
+      )
+    }
+
+    if (request.method === 'PUT') {
+      const raw = await request.text()
+      if (raw.length > MAX_BODY_BYTES) {
+        return json({ ok: false, error: 'payload_too_large' }, 413, request, env)
+      }
+
+      let payload: {
+        doc?: unknown
+        updatedAt?: unknown
+        expectedUpdatedAt?: unknown
+        force?: unknown
+      }
+      try {
+        payload = JSON.parse(raw)
+      } catch {
+        return json({ ok: false, error: 'invalid_json' }, 400, request, env)
+      }
+
+      if (!payload.doc || typeof payload.doc !== 'object') {
+        return json({ ok: false, error: 'missing_doc' }, 400, request, env)
+      }
+
+      const current = await readRow(env)
+      const now = Date.now()
+      const incoming =
+        typeof payload.updatedAt === 'number' && Number.isFinite(payload.updatedAt)
+          ? payload.updatedAt
+          : now
+      const force = payload.force === true
+      const expected =
+        typeof payload.expectedUpdatedAt === 'number' &&
+        Number.isFinite(payload.expectedUpdatedAt)
+          ? payload.expectedUpdatedAt
+          : null
+
+      /**
+       * 乐观并发：客户端必须声明它是在哪个云端版本的基础上写的。
+       * 只要云端已经不是那个版本，说明别的设备推进过数据，就拒绝这次写入并
+       * 把当前版本原样返回 —— 由人决定用哪边，而不是让同步逻辑猜。
+       * 这一步是「清 cookie 不丢数据」的前提：宁可报冲突，也不能静默覆盖。
+       */
+      if (current && !force && expected !== null && expected !== current.updated_at) {
+        return json(
+          {
+            ok: false,
+            error: 'conflict',
+            doc: parseDoc(current),
+            updatedAt: current.updated_at,
+            rev: current.rev,
+          },
+          409,
+          request,
+          env,
+        )
+      }
+
+      const nextUpdatedAt = current ? Math.max(incoming, current.updated_at + 1) : incoming
+
+      await env.DB.prepare(
+        `INSERT INTO nav_docs (id, doc, updated_at, rev, updated_by)
+         VALUES (?, ?, ?, 1, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           doc = excluded.doc,
+           updated_at = excluded.updated_at,
+           rev = nav_docs.rev + 1,
+           updated_by = excluded.updated_by`,
+      )
+        .bind(DOC_ID, JSON.stringify(payload.doc), nextUpdatedAt, request.headers.get('User-Agent') || '')
+        .run()
+
+      const saved = await readRow(env)
+      return json(
+        { ok: true, updatedAt: saved?.updated_at ?? nextUpdatedAt, rev: saved?.rev ?? 1 },
+        200,
+        request,
+        env,
+      )
+    }
+
+    return json({ ok: false, error: 'method_not_allowed' }, 405, request, env)
+  },
+}

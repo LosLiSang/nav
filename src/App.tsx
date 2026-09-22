@@ -63,6 +63,19 @@ export default function App() {
     exportBackup,
     importBackup,
     resetToDefaults,
+    syncConfig,
+    autoSync,
+    syncStatus,
+    syncMessage,
+    lastSyncedAt,
+    localUpdatedAt,
+    remoteUpdatedAt,
+    configureSync,
+    setAutoSync,
+    disconnectSync,
+    syncNow,
+    pushToCloud,
+    pullFromCloud,
   } = useNavStore()
 
   const searchBarRef = useRef<SearchBarHandle>(null)
@@ -231,7 +244,8 @@ export default function App() {
           />
 
           {/* 3. Bottom Multi-tier Categories Section + Right Widgets Section */}
-          <div id="tools-section">
+          {/* z-20 让工具卡片及其上方的猫咪插画盖住上方主分类卡片，避免插画被卡片裁掉 */}
+          <div id="tools-section" className="relative z-20">
             <BottomSection
               memos={memos}
               totpAccounts={totpAccounts}
@@ -325,6 +339,21 @@ export default function App() {
             settings={settings}
             onClose={() => setSettingsOpen(false)}
             onChange={updateSettings}
+            sync={{
+              config: syncConfig,
+              autoSync,
+              status: syncStatus,
+              message: syncMessage,
+              lastSyncedAt,
+              localUpdatedAt,
+              remoteUpdatedAt,
+              onConfigure: configureSync,
+              onToggleAuto: setAutoSync,
+              onDisconnect: disconnectSync,
+              onSyncNow: syncNow,
+              onPush: pushToCloud,
+              onPull: pullFromCloud,
+            }}
           />
         )}
 

@@ -12,6 +12,13 @@ dist
 dist-ssr
 *.local
 
+# Worker / Cloudflare 本地状态与密钥，绝不入库
+worker/node_modules
+worker/.wrangler
+worker/.dev.vars
+.env
+.env.local
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

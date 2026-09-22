@@ -21,6 +21,24 @@ import type {
   SubSection,
   TotpItem,
 } from '../types'
+import {
+  buildSyncDoc,
+  clearSyncConfig,
+  describeSyncError,
+  loadAutoSync,
+  loadLocalTimestamp,
+  loadSyncConfig,
+  normalizeSyncUrl,
+  remoteGet,
+  remotePut,
+  saveAutoSync,
+  saveLocalTimestamp,
+  saveSyncConfig,
+  syncDocSignature,
+  type SyncConfig,
+} from '../lib/sync'
+
+export type SyncStatus = 'off' | 'idle' | 'syncing' | 'synced' | 'error' | 'conflict'
 
 type NavState = {
   ready: boolean
@@ -34,6 +52,15 @@ type NavState = {
   searchQuery: string
   cachedIcons: Record<string, string>
 
+  // 云同步（Cloudflare Worker + D1）
+  syncConfig: SyncConfig | null
+  autoSync: boolean
+  syncStatus: SyncStatus
+  syncMessage: string
+  localUpdatedAt: number
+  remoteUpdatedAt: number
+  lastSyncedAt: number
+
   initialize: () => Promise<void>
   setActiveCategory: (categoryId: string) => void
   setActiveSearchEngine: (engineId: string) => void
@@ -45,6 +72,14 @@ type NavState = {
   toggleSortMode: () => void
   dismissNotice: () => void
   toggleFavorite: (bookmarkId: string) => Promise<void>
+
+  // Cloud sync
+  configureSync: (url: string, token: string) => Promise<void>
+  setAutoSync: (enabled: boolean) => void
+  disconnectSync: () => void
+  syncNow: () => Promise<void>
+  pushToCloud: (force?: boolean) => Promise<void>
+  pullFromCloud: () => Promise<void>
 
   // Categories
   addCategory: (name: string) => Promise<void>
@@ -115,6 +150,177 @@ async function saveSettings(value: Settings): Promise<void> {
   await db.settings.put({ key: SETTINGS_KEY, value })
 }
 
+// ---------------------------------------------------------------------------
+// 云同步运行时（刻意放在 React state 之外，避免这些内部标记触发重渲染）
+// ---------------------------------------------------------------------------
+
+const PUSH_DEBOUNCE_MS = 1200
+
+/** 应用云端数据期间要抑制自动上传，否则刚拉下来就会被原样推回去 */
+let suppressPush = false
+let pushTimer: ReturnType<typeof setTimeout> | null = null
+/** 最近一次「已确认与云端一致」的内容指纹，用来过滤只改 UI 状态的空转推送 */
+let lastPushedSignature = ''
+/** 本次会话是否已经读到过云端权威时间戳；没确认过就不允许直接写云端 */
+let remoteConfirmed = false
+/** 启动同步的进行中句柄：自动上传要排在它后面，避免「拉取」和「推送」互相踩 */
+let bootstrapPromise: Promise<void> | null = null
+
+function currentSignature(): string {
+  return syncDocSignature(buildSyncDoc(useNavStore.getState()))
+}
+
+async function replaceTable<T>(
+  table: { clear: () => Promise<void>; bulkAdd: (rows: readonly T[]) => Promise<unknown> },
+  rows: T[] | undefined,
+): Promise<void> {
+  await table.clear()
+  if (rows && rows.length > 0) {
+    await table.bulkAdd(rows)
+  }
+}
+
+/** 把云端快照落到本地：IndexedDB 全量替换 + 内存状态更新（本机 UI 状态保持不动） */
+async function applyRemoteDoc(doc: NavData, updatedAt: number): Promise<void> {
+  const current = useNavStore.getState().settings
+  const categories = doc.categories ?? []
+
+  suppressPush = true
+  try {
+    await Promise.all([
+      replaceTable(db.categories, doc.categories),
+      replaceTable(db.subSections, doc.subSections),
+      replaceTable(db.subCategories, doc.subCategories),
+      replaceTable(db.bookmarks, doc.bookmarks),
+      replaceTable(db.memos, doc.memos),
+      replaceTable(db.totpAccounts, doc.totpAccounts),
+    ])
+
+    const settings: Settings = {
+      ...current,
+      ...(doc.settings ?? {}),
+      // 这几项是「这台设备现在看到哪一屏」，不被云端覆盖
+      activeCategoryId: current.activeCategoryId,
+      activeSubSectionId: current.activeSubSectionId,
+      activeSubCategoryId: current.activeSubCategoryId,
+      activeWidgetTab: current.activeWidgetTab,
+      isSortMode: current.isSortMode,
+      showNotice: current.showNotice,
+    }
+
+    if (!categories.some((category) => category.id === settings.activeCategoryId)) {
+      settings.activeCategoryId = categories[0]?.id ?? settings.activeCategoryId
+    }
+
+    await saveSettings(settings)
+    saveLocalTimestamp(updatedAt)
+    lastPushedSignature = syncDocSignature(
+      buildSyncDoc({ ...doc, settings: doc.settings ?? settings }),
+    )
+
+    useNavStore.setState({
+      categories: [...categories].sort((a, b) => a.order - b.order),
+      subSections: [...(doc.subSections ?? [])].sort((a, b) => a.order - b.order),
+      subCategories: [...(doc.subCategories ?? [])].sort((a, b) => a.order - b.order),
+      bookmarks: [...(doc.bookmarks ?? [])].sort((a, b) => a.order - b.order),
+      memos: [...(doc.memos ?? [])].sort((a, b) => b.createdAt - a.createdAt),
+      totpAccounts: [...(doc.totpAccounts ?? [])].sort((a, b) => a.createdAt - b.createdAt),
+      settings,
+      localUpdatedAt: updatedAt,
+      ready: true,
+    })
+  } finally {
+    suppressPush = false
+  }
+}
+
+/**
+ * 启动时的首次同步。规则的核心是「不确定就不要覆盖」：
+ * - 云端为空 → 把本地推上去（老设备接入云同步的迁移路径）
+ * - 本机是空库（新浏览器 / 清过站点数据）→ 云端为准，直接恢复
+ * - 两边都有真实数据但本机从未同步过 → 报冲突，交给人选
+ * - 否则比时间戳，新的赢
+ */
+async function bootstrapSync(hadLocalData: boolean): Promise<void> {
+  const config = useNavStore.getState().syncConfig
+  if (!config) return
+
+  useNavStore.setState({ syncStatus: 'syncing', syncMessage: '正在检查云端数据…' })
+  try {
+    const signatureAtStart = currentSignature()
+    const remote = await remoteGet(config)
+    remoteConfirmed = true
+    useNavStore.setState({ remoteUpdatedAt: remote.updatedAt })
+
+    if (!remote.doc) {
+      await useNavStore.getState().pushToCloud()
+      return
+    }
+
+    if (!hadLocalData) {
+      // 本机只是默认种子，云端为准；但若这期间用户已经动过手，就不硬盖
+      if (currentSignature() !== signatureAtStart) {
+        useNavStore.setState({
+          syncStatus: 'conflict',
+          syncMessage: '刚连上云端时你本机也改动过数据，没有自动覆盖。请选择用哪一边。',
+        })
+        return
+      }
+      await useNavStore.getState().pullFromCloud()
+      return
+    }
+
+    const localUpdatedAt = useNavStore.getState().localUpdatedAt
+    if (localUpdatedAt === 0) {
+      useNavStore.setState({
+        syncStatus: 'conflict',
+        syncMessage:
+          '本机数据和云端数据没有共同的同步记录，需要你选一次：上传本地，或从云端恢复。',
+      })
+      return
+    }
+
+    if (remote.updatedAt > localUpdatedAt) {
+      // 网络往返期间如果本机又产生了新改动，就不要用云端盖掉它
+      if (currentSignature() !== signatureAtStart) {
+        useNavStore.setState({
+          syncStatus: 'conflict',
+          syncMessage: '云端有更新的版本，而本机刚刚也改动过，没有自动覆盖。请选择用哪一边。',
+        })
+        return
+      }
+      await useNavStore.getState().pullFromCloud()
+      return
+    }
+    if (localUpdatedAt > remote.updatedAt) {
+      await useNavStore.getState().pushToCloud()
+      return
+    }
+
+    lastPushedSignature = currentSignature()
+    useNavStore.setState({
+      syncStatus: 'synced',
+      syncMessage: '本地与云端一致',
+      lastSyncedAt: Date.now(),
+    })
+  } catch (error) {
+    useNavStore.setState({ syncStatus: 'error', syncMessage: describeSyncError(error) })
+  }
+}
+
+function scheduleSyncPush(): void {
+  if (pushTimer) clearTimeout(pushTimer)
+  pushTimer = setTimeout(() => {
+    pushTimer = null
+    // 排在启动同步之后，避免「正在拉取」和「刚推送」同时改状态
+    const gate = bootstrapPromise ?? Promise.resolve()
+    bootstrapPromise = gate
+      .catch(() => {})
+      .then(() => useNavStore.getState().pushToCloud())
+      .catch(() => {})
+  }, PUSH_DEBOUNCE_MS)
+}
+
 export const useNavStore = create<NavState>((set, get) => ({
   ready: false,
   categories: [],
@@ -126,12 +332,23 @@ export const useNavStore = create<NavState>((set, get) => ({
   settings: DEFAULT_SETTINGS,
   searchQuery: '',
   cachedIcons: {},
+  syncConfig: null,
+  autoSync: true,
+  syncStatus: 'off',
+  syncMessage: '',
+  localUpdatedAt: 0,
+  remoteUpdatedAt: 0,
+  lastSyncedAt: 0,
 
   initialize() {
     if (get().ready) return Promise.resolve()
 
     if (!initializationPromise) {
       initializationPromise = (async () => {
+        const syncConfig = loadSyncConfig()
+        const autoSync = loadAutoSync()
+        const localUpdatedAt = loadLocalTimestamp()
+
         const [
           categories,
           subSections,
@@ -195,6 +412,9 @@ export const useNavStore = create<NavState>((set, get) => ({
           nextSettings.activeCategoryId = 'cat-prod'
         }
 
+        // 本机在这一次加载之前是否已经有真实数据（用来区分「新浏览器」和「老设备首次接入云同步」）
+        let hadLocalData = nextCategories.length > 0 || nextBookmarks.length > 0
+
         // If empty database, populate full default seed
         if (nextCategories.length === 0 && nextBookmarks.length === 0) {
           nextCategories = defaultCategories()
@@ -212,6 +432,8 @@ export const useNavStore = create<NavState>((set, get) => ({
             db.memos.bulkAdd(nextMemos),
             db.totpAccounts.bulkAdd(nextTotpAccounts),
           ])
+
+          hadLocalData = false
         }
 
         await saveSettings(nextSettings)
@@ -225,7 +447,19 @@ export const useNavStore = create<NavState>((set, get) => ({
           totpAccounts: [...nextTotpAccounts].sort((a, b) => a.createdAt - b.createdAt),
           settings: nextSettings,
           cachedIcons: nextCachedIcons,
+          syncConfig,
+          autoSync,
+          localUpdatedAt,
+          remoteUpdatedAt: 0,
+          syncStatus: syncConfig ? 'idle' : 'off',
+          syncMessage: syncConfig ? '' : '未开启云同步',
         })
+
+        // 首次同步放到后台跑，不阻塞首屏渲染
+        if (syncConfig && autoSync) {
+          lastPushedSignature = currentSignature()
+          bootstrapPromise = bootstrapSync(hadLocalData).catch(() => {})
+        }
       })().catch((error) => {
         initializationPromise = null
         throw error
@@ -535,6 +769,201 @@ export const useNavStore = create<NavState>((set, get) => ({
     set((state) => ({ totpAccounts: state.totpAccounts.filter((a) => a.id !== id) }))
   },
 
+  // -------------------------------------------------------------------------
+  // 云同步
+  // -------------------------------------------------------------------------
+
+  async configureSync(url, token) {
+    const normalized = normalizeSyncUrl(url)
+    const trimmedToken = token.trim()
+    if (!normalized || !trimmedToken) {
+      set({ syncStatus: 'error', syncMessage: '同步地址和 token 都要填' })
+      return
+    }
+
+    const config: SyncConfig = { url: normalized, token: trimmedToken }
+    saveSyncConfig(config)
+    remoteConfirmed = false
+    lastPushedSignature = ''
+    set({ syncConfig: config, syncStatus: 'idle', syncMessage: '已保存，正在首次连接…' })
+    await get().syncNow()
+  },
+
+  setAutoSync(enabled) {
+    saveAutoSync(enabled)
+    set({
+      autoSync: enabled,
+      syncMessage: enabled ? '已开启自动同步' : '已暂停自动同步（改动只留在本机）',
+    })
+  },
+
+  disconnectSync() {
+    clearSyncConfig()
+    remoteConfirmed = false
+    lastPushedSignature = ''
+    set({
+      syncConfig: null,
+      remoteUpdatedAt: 0,
+      syncStatus: 'off',
+      syncMessage: '已关闭云同步，云端数据仍保留',
+    })
+  },
+
+  /** 手动「立即同步」：先读云端，再按时间戳决定谁覆盖谁（不确定时以云端为准） */
+  async syncNow() {
+    const config = get().syncConfig
+    if (!config) {
+      set({ syncStatus: 'off', syncMessage: '还没配置同步地址' })
+      return
+    }
+
+    if (bootstrapPromise) await bootstrapPromise.catch(() => {})
+
+    set({ syncStatus: 'syncing', syncMessage: '正在同步…' })
+    try {
+      const remote = await remoteGet(config)
+      remoteConfirmed = true
+      set({ remoteUpdatedAt: remote.updatedAt })
+
+      if (!remote.doc) {
+        await get().pushToCloud()
+        return
+      }
+
+      const localUpdatedAt = get().localUpdatedAt
+      if (localUpdatedAt === 0) {
+        await get().pullFromCloud()
+        return
+      }
+      if (remote.updatedAt > localUpdatedAt) {
+        await get().pullFromCloud()
+        return
+      }
+      if (localUpdatedAt > remote.updatedAt) {
+        await get().pushToCloud()
+        return
+      }
+
+      lastPushedSignature = currentSignature()
+      set({ syncStatus: 'synced', syncMessage: '本地与云端一致', lastSyncedAt: Date.now() })
+    } catch (error) {
+      set({ syncStatus: 'error', syncMessage: describeSyncError(error) })
+    }
+  },
+
+  /**
+   * 上传。默认是 fast-forward：只有本地基线不落后于云端才允许写，
+   * 否则宁可报冲突也不覆盖 —— 这是「清 cookie 不丢数据」的前提。
+   * force = true 是用户明确选择的「用本地覆盖云端」。
+   */
+  async pushToCloud(force = false) {
+    const config = get().syncConfig
+    if (!config) return
+
+    set({ syncStatus: 'syncing', syncMessage: force ? '正在强制上传本地…' : '正在上传…' })
+    try {
+      if (!force && !remoteConfirmed) {
+        // 本会话还没读到过云端版本，先确认一次，绝不盲写
+        const remote = await remoteGet(config)
+        remoteConfirmed = true
+        set({ remoteUpdatedAt: remote.updatedAt })
+
+        if (remote.doc && remote.updatedAt > get().localUpdatedAt) {
+          set({
+            syncStatus: 'conflict',
+            syncMessage:
+              '云端有比本地更新的版本，本地这次改动没有上传。可以选择「从云端恢复」或「强制上传本地」。',
+          })
+          return
+        }
+      }
+
+      if (!force && get().remoteUpdatedAt > get().localUpdatedAt) {
+        set({
+          syncStatus: 'conflict',
+          syncMessage:
+            '云端有比本地更新的版本，本地这次改动没有上传。可以选择「从云端恢复」或「强制上传本地」。',
+        })
+        return
+      }
+
+      const doc = buildSyncDoc(get())
+      const signature = syncDocSignature(doc)
+      const result = await remotePut(config, doc, {
+        updatedAt: Math.max(Date.now(), get().localUpdatedAt + 1),
+        expectedUpdatedAt: get().remoteUpdatedAt,
+        force,
+      })
+
+      if (result.status === 'conflict') {
+        // 内容其实一致，只是版本号被别的设备推进过：直接对齐，不算冲突
+        if (result.doc && syncDocSignature(buildSyncDoc(result.doc)) === signature) {
+          remoteConfirmed = true
+          saveLocalTimestamp(result.updatedAt)
+          lastPushedSignature = signature
+          set({
+            localUpdatedAt: result.updatedAt,
+            remoteUpdatedAt: result.updatedAt,
+            syncStatus: 'synced',
+            syncMessage: '已与云端对齐',
+            lastSyncedAt: Date.now(),
+          })
+          return
+        }
+
+        set({
+          remoteUpdatedAt: result.updatedAt,
+          syncStatus: 'conflict',
+          syncMessage:
+            '云端和你本机都改过了，没有自动覆盖。可以选择「从云端恢复」或「强制上传本地」。',
+        })
+        return
+      }
+
+      remoteConfirmed = true
+      saveLocalTimestamp(result.updatedAt)
+      lastPushedSignature = signature
+      set({
+        localUpdatedAt: result.updatedAt,
+        remoteUpdatedAt: result.updatedAt,
+        syncStatus: 'synced',
+        syncMessage: force ? '已用本地覆盖云端' : '已同步到云端',
+        lastSyncedAt: Date.now(),
+      })
+    } catch (error) {
+      set({ syncStatus: 'error', syncMessage: describeSyncError(error) })
+    }
+  },
+
+  async pullFromCloud() {
+    const config = get().syncConfig
+    if (!config) return
+
+    set({ syncStatus: 'syncing', syncMessage: '正在从云端恢复…' })
+    try {
+      const remote = await remoteGet(config)
+      remoteConfirmed = true
+      if (!remote.doc) {
+        set({
+          remoteUpdatedAt: 0,
+          syncStatus: 'error',
+          syncMessage: '云端还没有数据，先「上传本地」建立第一份。',
+        })
+        return
+      }
+
+      await applyRemoteDoc(remote.doc, remote.updatedAt)
+      set({
+        remoteUpdatedAt: remote.updatedAt,
+        syncStatus: 'synced',
+        syncMessage: '已从云端恢复',
+        lastSyncedAt: Date.now(),
+      })
+    } catch (error) {
+      set({ syncStatus: 'error', syncMessage: describeSyncError(error) })
+    }
+  },
+
   async exportBackup() {
     const { categories, subSections, subCategories, bookmarks, memos, totpAccounts, settings } =
       get()
@@ -577,6 +1006,8 @@ export const useNavStore = create<NavState>((set, get) => ({
     if (data.settings) {
       await saveSettings(data.settings)
     }
+    // 这是本机的主动覆盖，标记成「刚刚改过」，避免紧接着的启动同步把它当成旧数据拉回去
+    saveLocalTimestamp(Math.max(Date.now(), get().remoteUpdatedAt + 1))
     initializationPromise = null
     set({ ready: false })
     await get().initialize()
@@ -592,6 +1023,7 @@ export const useNavStore = create<NavState>((set, get) => ({
       db.totpAccounts.clear(),
       db.settings.clear(),
     ])
+    saveLocalTimestamp(Math.max(Date.now(), get().remoteUpdatedAt + 1))
     initializationPromise = null
     set({ ready: false })
     await get().initialize()
@@ -604,3 +1036,31 @@ export function activeEngine(settings: Settings) {
     SEARCH_ENGINES[0]
   )
 }
+
+/**
+ * 改动自动上传（防抖）。
+ *
+ * 这里用「引用比较 + 内容指纹」两层过滤：
+ * - 引用比较是 O(1) 的，先把点击分类、切 tab、输入搜索词这类不产生数据变化的 set 挡掉；
+ * - 内容指纹用来判断真正参与同步的那份数据有没有变，所以本机 UI 状态变动不会产生任何上传。
+ */
+useNavStore.subscribe((state, prev) => {
+  if (suppressPush) return
+  if (!state.ready || !prev.ready) return
+
+  const dataChanged =
+    state.categories !== prev.categories ||
+    state.subSections !== prev.subSections ||
+    state.subCategories !== prev.subCategories ||
+    state.bookmarks !== prev.bookmarks ||
+    state.memos !== prev.memos ||
+    state.totpAccounts !== prev.totpAccounts ||
+    state.settings !== prev.settings
+  if (!dataChanged) return
+
+  if (!state.syncConfig || !state.autoSync) return
+  if (state.syncStatus === 'syncing') return
+  if (syncDocSignature(buildSyncDoc(state)) === lastPushedSignature) return
+
+  scheduleSyncPush()
+})

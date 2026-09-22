@@ -1,0 +1,17 @@
+name = "nav-sync"
+main = "src/index.ts"
+compatibility_date = "2025-09-22"
+
+# 本地开发（npm run dev）会自动在 .wrangler/state 下建一个本地 SQLite，
+# 不需要填真实的 database_id 也能跑通。
+#
+# 部署前必须把 database_id 换成 `npx wrangler d1 create nav-sync` 返回的 id。
+[[d1_databases]]
+binding = "DB"
+database_name = "nav-sync"
+database_id = "880e5230-2474-41a2-a7cb-ea6bb2fffe13"
+
+# 允许跨域访问的来源。前端在 GitHub Pages 上，保持默认 "*" 即可，
+# 鉴权靠 SYNC_TOKEN（Authorization: Bearer）而不是 cookie。
+[vars]
+ALLOWED_ORIGIN = "*"
