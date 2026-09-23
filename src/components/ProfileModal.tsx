@@ -1,6 +1,6 @@
 import { createPortal } from 'react-dom'
-import { useState } from 'react'
-import { AlertTriangle, Check, Database, Download, RefreshCw, Upload, User, X } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { AlertTriangle, Camera, Check, Database, Download, Loader2, RefreshCw, RotateCcw, Upload, User, X } from 'lucide-react'
 import type { NavData, Settings } from '../types'
 
 type Props = {
@@ -17,13 +17,54 @@ type TabType = 'profile' | 'data'
 const AVATAR_PRESETS = [
   'https://api.dicebear.com/7.x/bottts/svg?seed=star&backgroundColor=ffd5dc',
   'https://api.dicebear.com/7.x/bottts/svg?seed=ideal&backgroundColor=b6e3f4',
-  'https://api.dicebear.com/7.x/cyber&backgroundColor=c0aede',
+  'https://api.dicebear.com/7.x/bottts/svg?seed=cyber&backgroundColor=c0aede',
   'https://api.dicebear.com/7.x/bottts/svg?seed=spark&backgroundColor=d1d4f9',
   'https://api.dicebear.com/7.x/adventurer/svg?seed=Felix&backgroundColor=ffdfbf',
   'https://api.dicebear.com/7.x/adventurer/svg?seed=Aneka&backgroundColor=b6e3f4',
   'https://api.dicebear.com/7.x/notionists/svg?seed=Lucky&backgroundColor=ffd5dc',
   'https://api.dicebear.com/7.x/notionists/svg?seed=Oliver&backgroundColor=c0aede',
 ]
+
+function processAvatarFile(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    if (!file.type.startsWith('image/')) {
+      reject(new Error('请选择有效的图片文件'))
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const src = String(e.target?.result || '')
+      if (file.type === 'image/svg+xml' || file.size < 60 * 1024) {
+        resolve(src)
+        return
+      }
+      const img = new Image()
+      img.onload = () => {
+        const maxSide = 256
+        const w = img.width
+        const h = img.height
+        const size = Math.min(w, h)
+        const sx = (w - size) / 2
+        const sy = (h - size) / 2
+
+        const canvas = document.createElement('canvas')
+        canvas.width = Math.min(maxSide, size)
+        canvas.height = Math.min(maxSide, size)
+        const ctx = canvas.getContext('2d')
+        if (!ctx) {
+          resolve(src)
+          return
+        }
+        ctx.drawImage(img, sx, sy, size, size, 0, 0, canvas.width, canvas.height)
+        resolve(canvas.toDataURL('image/jpeg', 0.88))
+      }
+      img.onerror = () => resolve(src)
+      img.src = src
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
 
 export function ProfileModal({
   settings,
@@ -37,7 +78,27 @@ export function ProfileModal({
   const [customAvatar, setCustomAvatar] = useState(settings.avatarUrl || AVATAR_PRESETS[0])
   const [userName, setUserName] = useState(settings.userName || 'Nav 探索者')
   const [importing, setImporting] = useState(false)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const [isDraggingOver, setIsDraggingOver] = useState(false)
   const [showConfirmReset, setShowConfirmReset] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  async function handleAvatarFile(file: File) {
+    if (!file.type.startsWith('image/')) {
+      alert('请选择有效的图片文件 (PNG/JPG/WebP/GIF/SVG)！')
+      return
+    }
+    setUploadingAvatar(true)
+    try {
+      const dataUrl = await processAvatarFile(file)
+      setCustomAvatar(dataUrl)
+      onChangeSettings({ avatarUrl: dataUrl })
+    } catch {
+      alert('头像处理失败，请重试！')
+    } finally {
+      setUploadingAvatar(false)
+    }
+  }
 
   async function handleExport() {
     const data = await onExportBackup()
@@ -128,16 +189,68 @@ export function ProfileModal({
             <>
               {/* Avatar & Nickname */}
               <div>
-                <label className="block font-medium text-neutral-800 dark:text-neutral-200 mb-2">
-                  头像与昵称
-                </label>
-                <div className="flex items-center gap-3.5 rounded-xl border border-neutral-200 dark:border-neutral-700 p-3 bg-neutral-50/50 dark:bg-neutral-800/40">
-                  <img
-                    src={customAvatar}
-                    alt="Avatar"
-                    className="h-14 w-14 rounded-full border-2 border-white dark:border-neutral-700 shadow object-cover flex-shrink-0"
-                  />
-                  <div className="flex-1 space-y-1.5">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block font-medium text-neutral-800 dark:text-neutral-200">
+                    头像与昵称
+                  </label>
+                  <span className="text-[11px] text-neutral-400 dark:text-neutral-500">
+                    支持点击头像或拖拽图片上传
+                  </span>
+                </div>
+
+                <div
+                  onDragOver={(e) => {
+                    e.preventDefault()
+                    setIsDraggingOver(true)
+                  }}
+                  onDragLeave={() => setIsDraggingOver(false)}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    setIsDraggingOver(false)
+                    const file = e.dataTransfer.files?.[0]
+                    if (file) void handleAvatarFile(file)
+                  }}
+                  className={`flex items-center gap-3.5 rounded-2xl border p-3.5 transition ${
+                    isDraggingOver
+                      ? 'border-orange-500 bg-orange-50/70 dark:bg-orange-950/40 ring-2 ring-orange-500/20'
+                      : 'border-neutral-200 dark:border-neutral-700 bg-neutral-50/50 dark:bg-neutral-800/40'
+                  }`}
+                >
+                  {/* Interactive Avatar Upload Box */}
+                  <label
+                    title="点击上传本地头像图片"
+                    className="group relative flex h-14 w-14 flex-shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full border-2 border-white dark:border-neutral-700 shadow transition hover:scale-105"
+                  >
+                    <img
+                      src={customAvatar}
+                      alt="Avatar"
+                      className="h-full w-full object-cover transition group-hover:blur-[1px]"
+                    />
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/45 text-white opacity-0 transition group-hover:opacity-100">
+                      {uploadingAvatar ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          <Camera className="h-4 w-4" />
+                          <span className="text-[9px] font-medium mt-0.5 scale-90">更换</span>
+                        </>
+                      )}
+                    </div>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      disabled={uploadingAvatar}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) void handleAvatarFile(file)
+                        e.target.value = ''
+                      }}
+                    />
+                  </label>
+
+                  <div className="flex-1 min-w-0 space-y-2">
                     <input
                       value={userName}
                       onChange={(e) => {
@@ -145,11 +258,38 @@ export function ProfileModal({
                         onChangeSettings({ userName: e.target.value })
                       }}
                       placeholder="输入昵称"
-                      className="w-full rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2.5 py-1.5 text-xs font-medium text-neutral-800 dark:text-neutral-200 outline-none focus:border-orange-500"
+                      className="w-full rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-1.5 text-xs font-medium text-neutral-800 dark:text-neutral-200 outline-none focus:border-orange-500"
                     />
-                    <span className="text-[11px] text-neutral-400 dark:text-neutral-500 block">
-                      用于主页顶部问候与个性化标识
-                    </span>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploadingAvatar}
+                        className="inline-flex items-center gap-1 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2.5 py-1 text-[11px] font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition shadow-sm"
+                      >
+                        {uploadingAvatar ? (
+                          <Loader2 className="h-3 w-3 animate-spin text-orange-500" />
+                        ) : (
+                          <Upload className="h-3 w-3 text-orange-500" />
+                        )}
+                        <span>{uploadingAvatar ? '处理中...' : '上传本地头像'}</span>
+                      </button>
+
+                      {customAvatar !== AVATAR_PRESETS[0] && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCustomAvatar(AVATAR_PRESETS[0])
+                            onChangeSettings({ avatarUrl: AVATAR_PRESETS[0] })
+                          }}
+                          className="inline-flex items-center gap-1 text-[11px] text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition"
+                        >
+                          <RotateCcw className="h-3 w-3" />
+                          <span>恢复预设</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
 
