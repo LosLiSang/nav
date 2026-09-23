@@ -123,10 +123,17 @@ export function getBrandIcon(
   }
 
   // QQ 邮箱 / 腾讯
-  if (lowerTitle.includes('qq') || lowerTitle.includes('腾讯') || lowerUrl.includes('qq.com')) {
+  if (
+    lowerTitle.includes('qq') ||
+    lowerTitle.includes('腾讯') ||
+    lowerTitle.includes('服务器') ||
+    lowerTitle.includes('server') ||
+    lowerUrl.includes('qq.com') ||
+    lowerUrl.includes('tencent.com')
+  ) {
     return (
-      <div className={`flex h-5 w-5 items-center justify-center ${shapeClass} bg-[#ff5722] text-white font-bold text-[9px]`}>
-        QQ
+      <div className={`flex h-5 w-5 items-center justify-center ${shapeClass} bg-[#0052d9] text-white font-bold text-[10px]`}>
+        腾
       </div>
     )
   }
