@@ -1,5 +1,5 @@
 import type { Settings } from '../types'
-import { loadSyncConfig } from './sync'
+import { DEFAULT_SYNC_URL, loadSyncConfig } from './sync'
 
 /**
  * 书签文字在暗色模式下的实际渲染颜色。
@@ -83,8 +83,9 @@ export function getFaviconCandidates(url: string, customIconUrl?: string): strin
 
   // 2. 如果用户配置了 Cloudflare Worker 同步端点，优先走专属 Worker（无并发限制、边缘缓存 30 天）
   const syncConfig = typeof window !== 'undefined' ? loadSyncConfig() : null
-  if (syncConfig?.url) {
-    candidates.push(`${syncConfig.url}/api/icon?domain=${host}`)
+  const workerUrl = syncConfig?.url || DEFAULT_SYNC_URL || ''
+  if (workerUrl) {
+    candidates.push(`${workerUrl.replace(/\/+$/, '')}/api/icon?domain=${host}`)
   }
 
   // 3. 高质量公共 Favicon API (原生开放 CORS Access-Control-Allow-Origin: *，无图标时返回真实 404)
