@@ -16,7 +16,10 @@ export function getBrandIcon(
         : 'rounded-lg'
 
   // 1. Custom placeholder icon if specified
-  if (settings?.fallbackIconMode === 'custom' && settings.defaultPlaceholderIconUrl) {
+  if (
+    (settings?.fallbackIconMode === 'custom' || (!settings?.fallbackIconMode && settings?.defaultPlaceholderIconUrl)) &&
+    settings?.defaultPlaceholderIconUrl
+  ) {
     return (
       <img
         src={settings.defaultPlaceholderIconUrl}

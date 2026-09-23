@@ -38,6 +38,7 @@ type Props = {
   onClose: () => void
   onChange: (values: Partial<Settings>) => void
   sync: SyncProps
+  onClearIconCache?: () => Promise<void>
 }
 
 type TabType = 'appearance' | 'sync'
@@ -58,12 +59,13 @@ function formatTime(ts: number): string {
   return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
 }
 
-export function SettingsPanel({ settings, onClose, onChange, sync }: Props) {
+export function SettingsPanel({ settings, onClose, onChange, sync, onClearIconCache }: Props) {
   const [activeTab, setActiveTab] = useState<TabType>('appearance')
   const [showFallbackIconPicker, setShowFallbackIconPicker] = useState(false)
   const [customUrl, setCustomUrl] = useState(settings.wallpaperUrl)
   const [syncUrl, setSyncUrl] = useState(sync.config?.url ?? DEFAULT_SYNC_URL)
   const [syncToken, setSyncToken] = useState(sync.config?.token ?? '')
+  const [cacheCleared, setCacheCleared] = useState(false)
 
   const statusStyle = STATUS_STYLE[sync.status]
   const maskedToken = sync.config
@@ -301,7 +303,7 @@ export function SettingsPanel({ settings, onClose, onChange, sync }: Props) {
                       </div>
                       <input
                         value={settings.defaultPlaceholderIconUrl || ''}
-                        onChange={(e) => onChange({ defaultPlaceholderIconUrl: e.target.value })}
+                        onChange={(e) => onChange({ defaultPlaceholderIconUrl: e.target.value, fallbackIconMode: 'custom' })}
                         placeholder="输入图片链接 (https://... 或 data:image/...)"
                         className="min-w-0 flex-1 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2.5 py-1.5 text-xs outline-none focus:border-orange-500 text-neutral-800 dark:text-neutral-100"
                       />
@@ -313,6 +315,23 @@ export function SettingsPanel({ settings, onClose, onChange, sync }: Props) {
                         从图标库选
                       </button>
                     </div>
+                  </div>
+                )}
+
+                {onClearIconCache && (
+                  <div className="mt-2 flex items-center justify-between text-[11px] text-neutral-400 dark:text-neutral-500">
+                    <span>清理已缓存的地球或旧图标：</span>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await onClearIconCache()
+                        setCacheCleared(true)
+                        setTimeout(() => setCacheCleared(false), 2000)
+                      }}
+                      className="rounded-lg border border-neutral-200 dark:border-neutral-700 px-2 py-1 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+                    >
+                      {cacheCleared ? '✓ 已清空缓存' : '清空图标缓存'}
+                    </button>
                   </div>
                 )}
               </div>
@@ -510,7 +529,7 @@ export function SettingsPanel({ settings, onClose, onChange, sync }: Props) {
           <IconPickerModal
             currentIconUrl={settings.defaultPlaceholderIconUrl}
             onSelectIcon={(url) => {
-              onChange({ defaultPlaceholderIconUrl: url })
+              onChange({ defaultPlaceholderIconUrl: url, fallbackIconMode: 'custom' })
               setShowFallbackIconPicker(false)
             }}
             onClose={() => setShowFallbackIconPicker(false)}

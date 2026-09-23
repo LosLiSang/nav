@@ -356,6 +356,7 @@ export default function App() {
             settings={settings}
             onClose={() => setSettingsOpen(false)}
             onChange={updateSettings}
+            onClearIconCache={refreshAllIcons}
             sync={{
               config: syncConfig,
               autoSync,

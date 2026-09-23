@@ -482,10 +482,10 @@ export function BookmarkStyleModal({
                       <ImageIcon className="h-4 w-4 text-neutral-400" />
                     )}
                   </div>
-                  <input
-                    value={settings.defaultPlaceholderIconUrl || ''}
-                    onChange={(e) => onChangeSettings({ defaultPlaceholderIconUrl: e.target.value })}
-                    placeholder="输入图片链接 (https://... 或 data:image/...)"
+                   <input
+                     value={settings.defaultPlaceholderIconUrl || ''}
+                     onChange={(e) => onChangeSettings({ defaultPlaceholderIconUrl: e.target.value, fallbackIconMode: 'custom' })}
+                     placeholder="输入图片链接 (https://... 或 data:image/...)"
                     className="min-w-0 flex-1 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-xs outline-none focus:border-orange-500 text-neutral-800 dark:text-neutral-100"
                   />
                   <button
@@ -703,17 +703,17 @@ export function BookmarkStyleModal({
             完成
           </button>
         </div>
-        {/* Fallback Icon Picker Modal */}
-        {showFallbackIconPicker && (
-          <IconPickerModal
-            currentIconUrl={settings.defaultPlaceholderIconUrl}
-            onSelectIcon={(url) => {
-              onChangeSettings({ defaultPlaceholderIconUrl: url })
-              setShowFallbackIconPicker(false)
-            }}
-            onClose={() => setShowFallbackIconPicker(false)}
-          />
-        )}
+         {/* Fallback Icon Picker Modal */}
+         {showFallbackIconPicker && (
+           <IconPickerModal
+             currentIconUrl={settings.defaultPlaceholderIconUrl}
+             onSelectIcon={(url) => {
+               onChangeSettings({ defaultPlaceholderIconUrl: url, fallbackIconMode: 'custom' })
+               setShowFallbackIconPicker(false)
+             }}
+             onClose={() => setShowFallbackIconPicker(false)}
+           />
+         )}
       </div>
     </div>
   )
