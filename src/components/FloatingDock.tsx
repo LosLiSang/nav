@@ -26,30 +26,6 @@ export function FloatingDock({
 }: Props) {
   return (
     <aside className="fixed right-3 top-1/2 z-30 hidden -translate-y-1/2 flex-col items-center gap-2 rounded-full border border-white/60 dark:border-white/10 bg-white/80 dark:bg-[#18181b]/80 p-1.5 shadow-xl backdrop-blur-md lg:flex">
-      {/* JD */}
-      <a
-        href="https://www.jd.com"
-        target="_blank"
-        rel="noopener noreferrer"
-        title="京东"
-        className="flex h-7 w-7 items-center justify-center rounded-full bg-[#e1251b] text-[10px] font-bold text-white shadow-sm transition hover:scale-110"
-      >
-        JD
-      </a>
-
-      {/* Taobao */}
-      <a
-        href="https://www.taobao.com"
-        target="_blank"
-        rel="noopener noreferrer"
-        title="淘宝"
-        className="flex h-7 w-7 items-center justify-center rounded-full bg-[#ff5000] text-[10px] font-bold text-white shadow-sm transition hover:scale-110"
-      >
-        淘
-      </a>
-
-      <div className="my-0.5 h-[1px] w-4 bg-neutral-200 dark:bg-neutral-700" />
-
       {/* Note */}
       <button
         type="button"
