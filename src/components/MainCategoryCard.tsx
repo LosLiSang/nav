@@ -21,7 +21,7 @@ import {
   Type,
   X,
 } from 'lucide-react'
-import { fetchFaviconBlob, getFaviconCandidates, hostnameOf, resolveTextColor } from '../lib/utils'
+import { fetchFaviconBlob, getFaviconCandidates, hostnameOf, normalizeIconUrl, resolveTextColor } from '../lib/utils'
 import { getBrandIcon } from '../lib/brandIcons'
 import { ConfirmModal } from './ConfirmModal'
 import type { Bookmark, Category, Settings } from '../types'
@@ -166,16 +166,20 @@ function BookmarkCardItem({
   // 与样式面板里的实时预览共用同一套判断，避免两边显示不一致
   const effectiveTextColor = resolveTextColor(settings)
 
+  const normalizedIconUrl = useMemo(
+    () => normalizeIconUrl(bookmark.iconUrl),
+    [bookmark.iconUrl],
+  )
   const iconShape = settings.iconShape ?? 'rounded'
   const brandIcon = getBrandIcon(bookmark.title, bookmark.url, iconShape, settings)
   const candidates = useMemo(
-    () => getFaviconCandidates(bookmark.url, bookmark.iconUrl),
-    [bookmark.url, bookmark.iconUrl],
+    () => getFaviconCandidates(bookmark.url, normalizedIconUrl),
+    [bookmark.url, normalizedIconUrl],
   )
   const [fetchFailed, setFetchFailed] = useState(isFailedDomain ?? false)
 
   useEffect(() => {
-    if (bookmark.iconUrl || cachedIcon || isFailedDomain) {
+    if (normalizedIconUrl || cachedIcon || isFailedDomain) {
       setFetchFailed(isFailedDomain ?? false)
       return
     }
@@ -202,9 +206,9 @@ function BookmarkCardItem({
     return () => {
       cancelled = true
     }
-  }, [bookmark.url, bookmark.iconUrl, cachedIcon, isFailedDomain, domain, candidates, onSaveCachedIcon, onSaveFailedIcon])
+  }, [bookmark.url, normalizedIconUrl, cachedIcon, isFailedDomain, domain, candidates, onSaveCachedIcon, onSaveFailedIcon])
 
-  const effectiveIconUrl = bookmark.iconUrl || cachedIcon
+  const effectiveIconUrl = normalizedIconUrl || cachedIcon
   const hasIcon = Boolean(effectiveIconUrl) && !fetchFailed && !isFailedDomain
 
   const shapeClass =

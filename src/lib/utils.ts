@@ -40,8 +40,27 @@ export function normalizeUrl(value: string): string {
  * 这里把 %2523 还原成单次编码的 %23，已存的书签刷新后即可正常显示，无需手动重选。
  */
 export function normalizeIconUrl(url: string | undefined): string | undefined {
-  if (!url || !url.startsWith('data:image/') || !url.includes('%2523')) return url
-  return url.replace(/%2523/g, '%23')
+  if (!url) return url
+  if (!url.startsWith('data:image/svg+xml')) return url
+
+  let fixed = url
+  // 1. 修复 %2523 双重编码为 %23 (#)
+  if (fixed.includes('%2523')) {
+    fixed = fixed.replace(/%2523/g, '%23')
+  }
+  // 2. 补全缺少 xmlns 命名空间导致 SVG 无法独立作为 img 渲染
+  if (fixed.includes('%3Csvg') && !fixed.includes('xmlns')) {
+    fixed = fixed.replace(
+      /%3Csvg(%20|\s)/i,
+      '%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20',
+    )
+  } else if (fixed.includes('<svg') && !fixed.includes('xmlns=')) {
+    fixed = fixed.replace(
+      /<svg(\s)/i,
+      '<svg xmlns="http://www.w3.org/2000/svg" ',
+    )
+  }
+  return fixed
 }
 
 export function isUrlLike(value: string): boolean {
@@ -92,7 +111,7 @@ export function getFaviconCandidates(url: string, customIconUrl?: string): strin
 }
 
 export function faviconFor(url: string, customIconUrl?: string): string {
-  if (customIconUrl) return customIconUrl
+  if (customIconUrl) return normalizeIconUrl(customIconUrl) || customIconUrl
   const candidates = getFaviconCandidates(url)
   return candidates[0] || ''
 }

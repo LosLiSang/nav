@@ -77,10 +77,13 @@ const LUCIDE_COLOR = '#ea580c'
  */
 function svgToIconUri(svg: SVGSVGElement | null, name: string): string | null {
   if (!svg) return null
-  const raw = svg.outerHTML
+  let raw = svg.outerHTML
     .replace(/\s?class="[^"]*"/g, '')
     .replace(/currentColor/g, LUCIDE_COLOR)
-    .replace('<svg ', `<svg data-icon="${name}" `)
+  if (!raw.includes('xmlns=')) {
+    raw = raw.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" ')
+  }
+  raw = raw.replace('<svg ', `<svg data-icon="${name}" `)
   return `data:image/svg+xml;utf8,${encodeURIComponent(raw)}`
 }
 
