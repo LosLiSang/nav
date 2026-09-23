@@ -102,3 +102,38 @@ export function faviconFor(url: string, customIconUrl?: string): string {
   const candidates = getFaviconCandidates(url)
   return candidates[0] || ''
 }
+
+/**
+ * 方案 A：异步拉取候选源二进制 Blob，跳过 Canvas 与 Base64 转换
+ * 直接支持 SVG / ICO / PNG 原始高画质持久化
+ */
+export async function fetchFaviconBlob(
+  candidates: string[],
+): Promise<{ blob: Blob; objectUrl: string } | null> {
+  for (const url of candidates) {
+    try {
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), 3500)
+      const res = await fetch(url, { signal: controller.signal })
+      clearTimeout(timer)
+
+      if (!res.ok) continue
+      const blob = await res.blob()
+      if (!blob || blob.size < 40) continue
+
+      // 过滤常见默认地球占位图特征 (如 DuckDuckGo 占位图特定大小 1478/1444/726/519 字节)
+      if (
+        url.includes('duckduckgo.com') &&
+        (blob.size === 1478 || blob.size === 1444 || blob.size === 726 || blob.size === 519)
+      ) {
+        continue
+      }
+
+      const objectUrl = URL.createObjectURL(blob)
+      return { blob, objectUrl }
+    } catch {
+      continue
+    }
+  }
+  return null
+}

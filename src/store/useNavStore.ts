@@ -103,7 +103,7 @@ type NavState = {
   deleteBookmark: (bookmarkId: string) => Promise<void>
   reorderBookmark: (bookmarkId: string, overBookmarkId: string) => Promise<void>
   moveBookmarkToCategory: (bookmarkId: string, categoryId: string) => Promise<void>
-  saveCachedIcon: (domain: string, dataUrl: string) => Promise<void>
+  saveCachedIcon: (domain: string, dataOrBlob: string | Blob, objectUrl?: string) => Promise<void>
   refreshIcon: (domain: string) => Promise<void>
   refreshAllIcons: () => Promise<void>
 
@@ -124,7 +124,12 @@ type NavState = {
 
 const SETTINGS_KEY = 'app'
 let initializationPromise: Promise<void> | null = null
-let pendingIconBatch: Record<string, string> = {}
+type PendingIconItem = {
+  dataUrl?: string
+  blob?: Blob
+  objectUrl: string
+}
+let pendingIconBatch: Record<string, PendingIconItem> = {}
 let iconBatchTimer: ReturnType<typeof setTimeout> | null = null
 
 function flushIconBatch(set: any) {
@@ -134,15 +139,21 @@ function flushIconBatch(set: any) {
   const entries = Object.entries(batch)
   if (entries.length === 0) return
 
-  const rows = entries.map(([domain, dataUrl]) => ({
+  const rows = entries.map(([domain, item]) => ({
     domain,
-    dataUrl,
+    dataUrl: item.dataUrl,
+    blob: item.blob,
     updatedAt: Date.now(),
   }))
   void db.iconCache.bulkPut(rows)
 
+  const newCachedIcons: Record<string, string> = {}
+  for (const [domain, item] of entries) {
+    newCachedIcons[domain] = item.objectUrl || item.dataUrl || ''
+  }
+
   set((state: any) => ({
-    cachedIcons: { ...state.cachedIcons, ...batch },
+    cachedIcons: { ...state.cachedIcons, ...newCachedIcons },
   }))
 }
 
@@ -371,7 +382,11 @@ export const useNavStore = create<NavState>((set, get) => ({
 
         const nextCachedIcons: Record<string, string> = {}
         for (const row of cachedIconRows) {
-          nextCachedIcons[row.domain] = row.dataUrl
+          if (row.blob && row.blob instanceof Blob) {
+            nextCachedIcons[row.domain] = URL.createObjectURL(row.blob)
+          } else if (row.dataUrl && (row.dataUrl.startsWith('data:') || row.dataUrl.startsWith('blob:'))) {
+            nextCachedIcons[row.domain] = row.dataUrl
+          }
         }
 
         let nextCategories = categories
@@ -700,11 +715,16 @@ export const useNavStore = create<NavState>((set, get) => ({
     }))
   },
 
-  saveCachedIcon(domain, dataUrl) {
-    if (!domain || !dataUrl) return Promise.resolve()
-    pendingIconBatch[domain] = dataUrl
+  saveCachedIcon(domain, dataOrBlob, customObjectUrl) {
+    if (!domain || !dataOrBlob) return Promise.resolve()
+    if (dataOrBlob instanceof Blob) {
+      const objUrl = customObjectUrl || URL.createObjectURL(dataOrBlob)
+      pendingIconBatch[domain] = { blob: dataOrBlob, objectUrl: objUrl }
+    } else {
+      pendingIconBatch[domain] = { dataUrl: dataOrBlob, objectUrl: dataOrBlob }
+    }
     if (!iconBatchTimer) {
-      iconBatchTimer = setTimeout(() => flushIconBatch(set), 300)
+      iconBatchTimer = setTimeout(() => flushIconBatch(set), 200)
     }
     return Promise.resolve()
   },

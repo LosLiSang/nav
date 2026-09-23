@@ -233,7 +233,7 @@ export default function App() {
             cardOpacity={settings.cardOpacity}
             settings={settings}
             cachedIcons={cachedIcons}
-            onSaveCachedIcon={(domain, dataUrl) => void saveCachedIcon(domain, dataUrl)}
+            onSaveCachedIcon={(domain, dataOrBlob, objectUrl) => void saveCachedIcon(domain, dataOrBlob, objectUrl)}
             onSelectCategory={setActiveCategory}
             onAddCategory={(name) => void addCategory(name)}
             onDeleteCategory={(id) => void deleteCategory(id)}

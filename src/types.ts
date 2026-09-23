@@ -34,7 +34,8 @@ export type SubCategory = {
 
 export type CachedIcon = {
   domain: string
-  dataUrl: string
+  dataUrl?: string
+  blob?: Blob
   updatedAt: number
 }
 

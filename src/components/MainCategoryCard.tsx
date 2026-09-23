@@ -21,7 +21,7 @@ import {
   Type,
   X,
 } from 'lucide-react'
-import { getFaviconCandidates, hostnameOf, resolveTextColor } from '../lib/utils'
+import { fetchFaviconBlob, getFaviconCandidates, hostnameOf, resolveTextColor } from '../lib/utils'
 import { getBrandIcon } from '../lib/brandIcons'
 import { ConfirmModal } from './ConfirmModal'
 import type { Bookmark, Category, Settings } from '../types'
@@ -34,7 +34,7 @@ type Props = {
   cardOpacity: number
   settings: Settings
   cachedIcons?: Record<string, string>
-  onSaveCachedIcon?: (domain: string, dataUrl: string) => void
+  onSaveCachedIcon?: (domain: string, dataOrBlob: string | Blob, objectUrl?: string) => void
   onSelectCategory: (id: string) => void
   onAddCategory: (name: string) => void
   onDeleteCategory: (id: string) => void
@@ -148,7 +148,7 @@ function BookmarkCardItem({
   isSortMode: boolean
   settings: Settings
   cachedIcon?: string
-  onSaveCachedIcon?: (domain: string, dataUrl: string) => void
+  onSaveCachedIcon?: (domain: string, dataOrBlob: string | Blob, objectUrl?: string) => void
   onContextMenu: (x: number, y: number) => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -166,72 +166,39 @@ function BookmarkCardItem({
     () => getFaviconCandidates(bookmark.url, bookmark.iconUrl),
     [bookmark.url, bookmark.iconUrl],
   )
-  const [candidateIndex, setCandidateIndex] = useState(0)
-  const [isLoaded, setIsLoaded] = useState(false)
-  const [isTimedOut, setIsTimedOut] = useState(false)
+  const [fetchFailed, setFetchFailed] = useState(false)
 
   useEffect(() => {
-    setCandidateIndex(0)
-    setIsLoaded(false)
-    setIsTimedOut(false)
-  }, [bookmark.url, bookmark.iconUrl, cachedIcon])
+    if (bookmark.iconUrl || cachedIcon) {
+      setFetchFailed(false)
+      return
+    }
 
-  // 5秒拉取超时机制：如果尝试拉取远程图标超过 5 秒仍未成功，立即放弃并回退到自定义占位图/品牌图标
-  useEffect(() => {
-    if (bookmark.iconUrl || cachedIcon || isLoaded || isTimedOut) return
-    if (candidateIndex >= candidates.length) return
+    if (!domain || !onSaveCachedIcon || candidates.length === 0) {
+      setFetchFailed(true)
+      return
+    }
 
-    const overallTimer = setTimeout(() => {
-      setIsTimedOut(true)
-    }, 5000)
+    let cancelled = false
+    setFetchFailed(false)
 
-    const candidateTimer = setTimeout(() => {
-      setCandidateIndex((prev) => {
-        const next = prev + 1
-        if (next >= candidates.length) {
-          setIsTimedOut(true)
-        }
-        return next
-      })
-    }, 2500)
+    fetchFaviconBlob(candidates).then((result) => {
+      if (cancelled) return
+      if (result) {
+        onSaveCachedIcon(domain, result.blob, result.objectUrl)
+        setFetchFailed(false)
+      } else {
+        setFetchFailed(true)
+      }
+    })
 
     return () => {
-      clearTimeout(overallTimer)
-      clearTimeout(candidateTimer)
+      cancelled = true
     }
-  }, [candidateIndex, candidates.length, isLoaded, isTimedOut, bookmark.iconUrl, cachedIcon])
+  }, [bookmark.url, bookmark.iconUrl, cachedIcon, domain, candidates, onSaveCachedIcon])
 
-  // If custom iconUrl exists, use it. Else if cached in IndexedDB, use it! Else candidates.
-  const effectiveIconUrl =
-    !isTimedOut && candidateIndex < candidates.length
-      ? (bookmark.iconUrl || cachedIcon || candidates[candidateIndex])
-      : (bookmark.iconUrl || cachedIcon)
-  const hasIcon = Boolean(effectiveIconUrl) && !isTimedOut
-  const isUnavatar = typeof effectiveIconUrl === 'string' && effectiveIconUrl.includes('unavatar.io')
-
-  function handleImageLoad(img: HTMLImageElement) {
-    setIsLoaded(true)
-    if (cachedIcon || bookmark.iconUrl || !domain || !onSaveCachedIcon) return
-    try {
-      const canvas = document.createElement('canvas')
-      canvas.width = img.naturalWidth || 32
-      canvas.height = img.naturalHeight || 32
-      const ctx = canvas.getContext('2d')
-      if (ctx) {
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-        const dataUrl = canvas.toDataURL('image/png')
-        if (dataUrl && dataUrl.length > 50) {
-          onSaveCachedIcon(domain, dataUrl)
-          return
-        }
-      }
-    } catch {
-      // If canvas tainted, remember working URL
-      if (effectiveIconUrl) {
-        onSaveCachedIcon(domain, effectiveIconUrl)
-      }
-    }
-  }
+  const effectiveIconUrl = bookmark.iconUrl || cachedIcon
+  const hasIcon = Boolean(effectiveIconUrl) && !fetchFailed
 
   const shapeClass =
     iconShape === 'square'
@@ -279,20 +246,12 @@ function BookmarkCardItem({
           <img
             src={effectiveIconUrl}
             alt=""
-            crossOrigin={isUnavatar ? 'anonymous' : undefined}
             referrerPolicy="no-referrer"
-            onLoad={(e) => handleImageLoad(e.currentTarget)}
             onError={() => {
               if (cachedIcon && onSaveCachedIcon && domain) {
                 onSaveCachedIcon(domain, '')
               }
-              setCandidateIndex((prev) => {
-                const next = prev + 1
-                if (next >= candidates.length) {
-                  setIsTimedOut(true)
-                }
-                return next
-              })
+              setFetchFailed(true)
             }}
             className={`h-4.5 w-4.5 flex-shrink-0 object-contain ${shapeClass}`}
             loading="lazy"
