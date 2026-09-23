@@ -186,16 +186,16 @@ export function IconPickerModal({ currentIconUrl, onSelectIcon, onClose }: Props
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-2xl bg-white p-5 text-neutral-800 shadow-2xl max-h-[85vh] flex flex-col animate-in fade-in zoom-in-95 duration-150">
-        <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
+      <div className="w-full max-w-md rounded-2xl bg-white dark:bg-neutral-900 p-5 text-neutral-800 dark:text-neutral-200 shadow-2xl max-h-[85vh] flex flex-col animate-in fade-in zoom-in-95 duration-150">
+        <div className="flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 pb-3">
           <div className="flex items-center gap-2">
             <Camera className="h-4 w-4 text-orange-500" />
-            <h3 className="font-semibold text-neutral-800 text-sm">选择书签图标</h3>
+            <h3 className="font-semibold text-neutral-800 dark:text-neutral-200 text-sm">选择书签图标</h3>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="text-neutral-400 hover:text-neutral-600"
+            className="text-neutral-400 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300"
           >
             <X className="h-4 w-4" />
           </button>
@@ -203,12 +203,12 @@ export function IconPickerModal({ currentIconUrl, onSelectIcon, onClose }: Props
 
         <div className="mt-3.5 space-y-2.5 flex-shrink-0">
           <div className="relative">
-            <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-neutral-400" />
+            <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-neutral-400 dark:text-neutral-500" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="搜索图标或品牌..."
-              className="w-full rounded-xl border border-neutral-200 bg-neutral-50 pl-9 pr-3 py-1.5 text-xs outline-none focus:border-orange-500 focus:bg-white"
+              className="w-full rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 pl-9 pr-3 py-1.5 text-xs outline-none focus:border-orange-500 focus:bg-white"
             />
           </div>
 
@@ -220,7 +220,7 @@ export function IconPickerModal({ currentIconUrl, onSelectIcon, onClose }: Props
                 className={`rounded-full px-3 py-1 text-xs font-medium transition ${
                   activeTab === 'brands'
                     ? 'bg-orange-500 text-white shadow-sm'
-                    : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+                    : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700'
                 }`}
               >
                 常用品牌 ({filteredBrands.length})
@@ -231,7 +231,7 @@ export function IconPickerModal({ currentIconUrl, onSelectIcon, onClose }: Props
                 className={`rounded-full px-3 py-1 text-xs font-medium transition ${
                   activeTab === 'lucide'
                     ? 'bg-orange-500 text-white shadow-sm'
-                    : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+                    : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700'
                 }`}
               >
                 分类图标 ({filteredLucide.length})
@@ -245,7 +245,7 @@ export function IconPickerModal({ currentIconUrl, onSelectIcon, onClose }: Props
                   onSelectIcon('')
                   onClose()
                 }}
-                className="flex items-center gap-1 text-[11px] text-orange-600 hover:underline"
+                className="flex items-center gap-1 text-[11px] text-orange-600 dark:text-orange-400 hover:underline"
               >
                 <RotateCcw className="h-3 w-3" />
                 <span>恢复自动拉取</span>
@@ -270,8 +270,8 @@ export function IconPickerModal({ currentIconUrl, onSelectIcon, onClose }: Props
                     }}
                     className={`group relative flex flex-col items-center justify-center rounded-xl border p-2 text-center transition hover:scale-105 ${
                       isSelected
-                        ? 'border-orange-500 bg-orange-50 ring-1 ring-orange-500/20'
-                        : 'border-neutral-200/80 bg-neutral-50/50 hover:bg-white hover:shadow-sm'
+                        ? 'border-orange-500 bg-orange-50 dark:bg-orange-950/40 ring-1 ring-orange-500/20'
+                        : 'border-neutral-200/80 dark:border-neutral-700 bg-neutral-50/50 dark:bg-neutral-800/40 hover:bg-white dark:hover:bg-neutral-800 hover:shadow-sm'
                     }`}
                   >
                     <div
@@ -280,7 +280,7 @@ export function IconPickerModal({ currentIconUrl, onSelectIcon, onClose }: Props
                     >
                       {brand.char}
                     </div>
-                    <span className="mt-1 truncate text-[10px] text-neutral-700 w-full">
+                    <span className="mt-1 truncate text-[10px] text-neutral-700 dark:text-neutral-200 w-full">
                       {brand.name}
                     </span>
                     {isSelected && (
@@ -311,14 +311,14 @@ export function IconPickerModal({ currentIconUrl, onSelectIcon, onClose }: Props
                     }}
                     className={`group flex flex-col items-center justify-center rounded-xl border p-2 text-center transition hover:scale-105 ${
                       isSelected
-                        ? 'border-orange-500 bg-orange-50 ring-1 ring-orange-500/20'
-                        : 'border-neutral-200/80 bg-neutral-50/50 hover:bg-white hover:shadow-sm'
+                        ? 'border-orange-500 bg-orange-50 dark:bg-orange-950/40 ring-1 ring-orange-500/20'
+                        : 'border-neutral-200/80 dark:border-neutral-700 bg-neutral-50/50 dark:bg-neutral-800/40 hover:bg-white dark:hover:bg-neutral-800 hover:shadow-sm'
                     }`}
                   >
-                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-orange-50 text-orange-600">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-orange-50 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400">
                       <IconComponent className="h-4 w-4" />
                     </div>
-                    <span className="mt-1 truncate text-[10px] text-neutral-700 w-full">
+                    <span className="mt-1 truncate text-[10px] text-neutral-700 dark:text-neutral-200 w-full">
                       {def.label}
                     </span>
                   </button>
@@ -328,8 +328,8 @@ export function IconPickerModal({ currentIconUrl, onSelectIcon, onClose }: Props
           )}
         </div>
 
-        <div className="mt-3.5 border-t border-neutral-100 pt-3 flex-shrink-0">
-          <span className="text-[11px] font-medium text-neutral-600 block mb-1">
+        <div className="mt-3.5 border-t border-neutral-100 dark:border-neutral-800 pt-3 flex-shrink-0">
+          <span className="text-[11px] font-medium text-neutral-600 dark:text-neutral-300 block mb-1">
             或输入自定义图片 URL：
           </span>
           <div className="flex items-center gap-2">
@@ -337,7 +337,7 @@ export function IconPickerModal({ currentIconUrl, onSelectIcon, onClose }: Props
               value={customInput}
               onChange={(e) => setCustomInput(e.target.value)}
               placeholder="https://... 或 data:image/..."
-              className="flex-1 rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-xs outline-none focus:border-orange-500 focus:bg-white"
+              className="flex-1 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 px-3 py-1.5 text-xs outline-none focus:border-orange-500 focus:bg-white"
             />
             <button
               type="button"

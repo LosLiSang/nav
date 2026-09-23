@@ -19,7 +19,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
-import { getFaviconCandidates, hostnameOf } from '../lib/utils'
+import { getFaviconCandidates, hostnameOf, resolveTextColor } from '../lib/utils'
 import { getBrandIcon } from '../lib/brandIcons'
 import { ConfirmModal } from './ConfirmModal'
 import type { Bookmark, Category, Settings } from '../types'
@@ -188,16 +188,8 @@ function BookmarkCardItem({
   })
 
   const domain = useMemo(() => hostnameOf(bookmark.url), [bookmark.url])
-  const isDark = settings.themeMode === 'dark'
-  const effectiveTextColor = useMemo(() => {
-    if (isDark) {
-      if (!settings.textColor || settings.textColor === '#1f2937' || settings.textColor === '#000000') {
-        return '#f3f4f6'
-      }
-      return settings.textColor
-    }
-    return settings.textColor || '#1f2937'
-  }, [isDark, settings.textColor])
+  // 与样式面板里的实时预览共用同一套判断，避免两边显示不一致
+  const effectiveTextColor = resolveTextColor(settings)
 
   const iconShape = settings.iconShape ?? 'rounded'
   const brandIcon = getBrandIcon(bookmark.title, bookmark.url, iconShape)

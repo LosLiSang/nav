@@ -9,6 +9,7 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "check:sync": "node scripts/check-sync-remote.mjs",
+    "check:dark": "node scripts/check-dark-mode.mjs",
     "smoke:sync": "node scripts/smoke-sync-local.mjs"
   },
   "dependencies": {

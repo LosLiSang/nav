@@ -1,3 +1,23 @@
+import type { Settings } from '../types'
+
+/**
+ * 书签文字在暗色模式下的实际渲染颜色。
+ *
+ * 用户存的是一个"浅色模式用"的文字色（默认 #1f2937 深灰）。暗色下照用会变成
+ * 深灰压深底、几乎看不见，所以默认深色要翻成浅色；用户显式选过的其他颜色则尊重原值。
+ *
+ * 抽成共用函数的原因：书签卡片（MainCategoryCard）和样式面板里的实时预览
+ * 必须用同一套判断，否则预览会显示成卡片实际渲染不出来的颜色，等于骗人。
+ */
+export function resolveTextColor(settings: Settings): string {
+  if (settings.themeMode === 'dark') {
+    const color = settings.textColor
+    if (!color || color === '#1f2937' || color === '#000000') return '#f3f4f6'
+    return color
+  }
+  return settings.textColor || '#1f2937'
+}
+
 export function createId(prefix: string): string {
   const random = crypto.randomUUID().slice(0, 8)
   return `${prefix}-${random}`

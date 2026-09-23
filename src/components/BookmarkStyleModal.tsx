@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Bold, Check, Download, Edit2, Italic, RotateCcw, Trash2, Type, X } from 'lucide-react'
+import { resolveTextColor } from '../lib/utils'
 import type { Bookmark, Category, IconShape, Settings } from '../types'
 
 type Props = {
@@ -105,17 +106,17 @@ export function BookmarkStyleModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-lg rounded-2xl bg-white p-6 text-neutral-800 shadow-2xl max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
+      <div className="w-full max-w-lg rounded-2xl bg-white dark:bg-neutral-900 p-6 text-neutral-800 dark:text-neutral-200 shadow-2xl max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-neutral-100 pb-3.5">
+        <div className="flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 pb-3.5">
           <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-orange-50 text-orange-600">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-orange-50 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400">
               <Type className="h-4 w-4" />
             </div>
             <div>
-              <h2 className="text-base font-semibold text-neutral-900">书签展示与排版样式</h2>
+              <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-100">书签展示与排版样式</h2>
               {currentCategory && (
-                <span className="text-[11px] text-neutral-400">
+                <span className="text-[11px] text-neutral-400 dark:text-neutral-500">
                   当前分类：{currentCategory.name}
                 </span>
               )}
@@ -124,7 +125,7 @@ export function BookmarkStyleModal({
           <button
             type="button"
             onClick={onClose}
-            className="text-neutral-400 hover:text-neutral-700"
+            className="text-neutral-400 dark:text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-200"
           >
             <X className="h-5 w-5" />
           </button>
@@ -219,7 +220,8 @@ export function BookmarkStyleModal({
                   fontSize: settings.fontSize ? `${settings.fontSize}px` : undefined,
                   fontWeight: settings.isBold ? 700 : undefined,
                   fontStyle: settings.isItalic ? 'italic' : undefined,
-                  color: settings.textColor || undefined,
+                  // 用与书签卡片一致的解析结果，否则暗色下预览会显示成实际渲染不出来的颜色
+                  color: resolveTextColor(settings),
                 }}
                 className="rounded-lg border border-neutral-200/80 dark:border-neutral-700 bg-white dark:bg-neutral-900/90 p-2.5 text-xs leading-relaxed"
               >
@@ -236,11 +238,11 @@ export function BookmarkStyleModal({
             <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-neutral-200 dark:border-neutral-700 p-3 bg-neutral-50/50 dark:bg-neutral-800/40">
               {/* Font size */}
               <div className="flex items-center gap-1.5">
-                <span className="text-neutral-500 font-medium">字号:</span>
+                <span className="text-neutral-500 dark:text-neutral-400 font-medium">字号:</span>
                 <select
                   value={settings.fontSize}
                   onChange={(e) => onChangeSettings({ fontSize: Number(e.target.value) })}
-                  className="rounded-lg border border-neutral-200 bg-white px-2.5 py-1.5 text-xs outline-none focus:border-orange-500"
+                  className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2.5 py-1.5 text-xs outline-none focus:border-orange-500"
                 >
                   <option value={12}>12px (紧凑)</option>
                   <option value={13}>13px (默认)</option>
@@ -256,8 +258,8 @@ export function BookmarkStyleModal({
                 onClick={() => onChangeSettings({ isBold: !settings.isBold })}
                 className={`flex h-8 w-8 items-center justify-center rounded-lg border text-xs font-bold transition ${
                   settings.isBold
-                    ? 'border-orange-500 bg-orange-50 text-orange-600'
-                    : 'border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50'
+                    ? 'border-orange-500 bg-orange-50 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400'
+                    : 'border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800'
                 }`}
                 title="文字加粗"
               >
@@ -270,8 +272,8 @@ export function BookmarkStyleModal({
                 onClick={() => onChangeSettings({ isItalic: !settings.isItalic })}
                 className={`flex h-8 w-8 items-center justify-center rounded-lg border text-xs italic transition ${
                   settings.isItalic
-                    ? 'border-orange-500 bg-orange-50 text-orange-600'
-                    : 'border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50'
+                    ? 'border-orange-500 bg-orange-50 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400'
+                    : 'border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800'
                 }`}
                 title="文字斜体"
               >
@@ -306,10 +308,10 @@ export function BookmarkStyleModal({
 
           {/* Highlight Color (书签栏展示的高亮色) */}
           <div>
-            <label className="block font-medium text-neutral-800 mb-2">
+            <label className="block font-medium text-neutral-800 dark:text-neutral-200 mb-2">
               书签栏展示的高亮色
             </label>
-            <div className="flex flex-wrap items-center gap-2 rounded-xl border border-neutral-200 p-3 bg-neutral-50/50">
+            <div className="flex flex-wrap items-center gap-2 rounded-xl border border-neutral-200 dark:border-neutral-700 p-3 bg-neutral-50/50 dark:bg-neutral-800/40">
               {[
                 { label: '经典蓝', color: '#2563eb' },
                 { label: '活力橙', color: '#ff6900' },
@@ -334,7 +336,7 @@ export function BookmarkStyleModal({
                   </button>
                 )
               })}
-              <label className="ml-auto flex items-center gap-1.5 cursor-pointer text-neutral-600 text-[11px]">
+              <label className="ml-auto flex items-center gap-1.5 cursor-pointer text-neutral-600 dark:text-neutral-300 text-[11px]">
                 <span>自定义:</span>
                 <input
                   type="color"
@@ -348,7 +350,7 @@ export function BookmarkStyleModal({
 
           {/* 2. Icon Shape */}
           <div>
-            <label className="block font-medium text-neutral-800 mb-1.5">
+            <label className="block font-medium text-neutral-800 dark:text-neutral-200 mb-1.5">
               图标角标形状
             </label>
             <div className="grid grid-cols-3 gap-2">
@@ -365,12 +367,12 @@ export function BookmarkStyleModal({
                     onClick={() => onChangeSettings({ iconShape: opt.id as IconShape })}
                     className={`flex flex-col items-center justify-center rounded-xl border py-2.5 text-xs transition ${
                       isSelected
-                        ? 'border-orange-500 bg-orange-50/60 text-orange-600 ring-1 ring-orange-500 font-semibold'
-                        : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50'
+                        ? 'border-orange-500 bg-orange-50/60 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400 ring-1 ring-orange-500 font-semibold'
+                        : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800'
                     }`}
                   >
                     <span>{opt.label}</span>
-                    <span className="text-[10px] text-neutral-400 mt-0.5">{opt.desc}</span>
+                    <span className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5">{opt.desc}</span>
                   </button>
                 )
               })}
@@ -380,10 +382,10 @@ export function BookmarkStyleModal({
           {/* 3. Card Opacity & Columns */}
           <div className="grid grid-cols-2 gap-3">
             {/* Card Opacity */}
-            <div className="rounded-xl border border-neutral-200 p-3 bg-neutral-50/50">
+            <div className="rounded-xl border border-neutral-200 dark:border-neutral-700 p-3 bg-neutral-50/50 dark:bg-neutral-800/40">
               <div className="flex items-center justify-between mb-1.5">
-                <span className="font-medium text-neutral-800">卡片底色不透明度</span>
-                <span className="font-mono text-neutral-600 font-bold">{settings.cardOpacity}%</span>
+                <span className="font-medium text-neutral-800 dark:text-neutral-200">卡片底色不透明度</span>
+                <span className="font-mono text-neutral-600 dark:text-neutral-300 font-bold">{settings.cardOpacity}%</span>
               </div>
               <input
                 type="range"
@@ -396,10 +398,10 @@ export function BookmarkStyleModal({
             </div>
 
             {/* Columns */}
-            <div className="rounded-xl border border-neutral-200 p-3 bg-neutral-50/50">
+            <div className="rounded-xl border border-neutral-200 dark:border-neutral-700 p-3 bg-neutral-50/50 dark:bg-neutral-800/40">
               <div className="flex items-center justify-between mb-1.5">
-                <span className="font-medium text-neutral-800">单行书签列数</span>
-                <span className="font-mono text-neutral-600 font-bold">
+                <span className="font-medium text-neutral-800 dark:text-neutral-200">单行书签列数</span>
+                <span className="font-mono text-neutral-600 dark:text-neutral-300 font-bold">
                   {settings.columnMode === 'auto' ? '自适应' : `${settings.manualColumns || 7} 列`}
                 </span>
               </div>
@@ -410,7 +412,7 @@ export function BookmarkStyleModal({
                   className={`rounded-lg px-2.5 py-1 text-[11px] font-medium transition ${
                     settings.columnMode === 'auto'
                       ? 'bg-orange-500 text-white'
-                      : 'bg-white border border-neutral-200 text-neutral-600'
+                      : 'bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300'
                   }`}
                 >
                   自适应
@@ -421,7 +423,7 @@ export function BookmarkStyleModal({
                   className={`rounded-lg px-2.5 py-1 text-[11px] font-medium transition ${
                     settings.columnMode !== 'auto'
                       ? 'bg-orange-500 text-white'
-                      : 'bg-white border border-neutral-200 text-neutral-600'
+                      : 'bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300'
                   }`}
                 >
                   固定
@@ -435,7 +437,7 @@ export function BookmarkStyleModal({
                           manualColumns: Math.max(3, (settings.manualColumns || 7) - 1),
                         })
                       }
-                      className="flex h-6 w-6 items-center justify-center rounded bg-white border border-neutral-200 text-xs font-bold"
+                      className="flex h-6 w-6 items-center justify-center rounded bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 text-xs font-bold"
                     >
                       -
                     </button>
@@ -447,7 +449,7 @@ export function BookmarkStyleModal({
                           manualColumns: Math.min(12, (settings.manualColumns || 7) + 1),
                         })
                       }
-                      className="flex h-6 w-6 items-center justify-center rounded bg-white border border-neutral-200 text-xs font-bold"
+                      className="flex h-6 w-6 items-center justify-center rounded bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 text-xs font-bold"
                     >
                       +
                     </button>
@@ -459,8 +461,8 @@ export function BookmarkStyleModal({
 
           {/* 4. Category Quick Actions */}
           {currentCategory && (
-            <div className="border-t border-neutral-100 pt-3.5">
-              <span className="font-medium text-neutral-700 block mb-2">
+            <div className="border-t border-neutral-100 dark:border-neutral-800 pt-3.5">
+              <span className="font-medium text-neutral-700 dark:text-neutral-200 block mb-2">
                 当前分类快捷管理
               </span>
               <div className="flex flex-wrap gap-2">
@@ -471,9 +473,9 @@ export function BookmarkStyleModal({
                       setNewCatName(currentCategory.name)
                       setRenaming(true)
                     }}
-                    className="flex items-center gap-1.5 rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-neutral-700 hover:bg-neutral-100"
+                    className="flex items-center gap-1.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 px-3 py-1.5 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800"
                   >
-                    <Edit2 className="h-3.5 w-3.5 text-neutral-500" />
+                    <Edit2 className="h-3.5 w-3.5 text-neutral-500 dark:text-neutral-400" />
                     <span>重命名分类</span>
                   </button>
                 ) : (
@@ -499,7 +501,7 @@ export function BookmarkStyleModal({
                     <button
                       type="button"
                       onClick={() => setRenaming(false)}
-                      className="rounded-lg border border-neutral-200 px-2 py-1 text-neutral-500"
+                      className="rounded-lg border border-neutral-200 dark:border-neutral-700 px-2 py-1 text-neutral-500 dark:text-neutral-400"
                     >
                       取消
                     </button>
@@ -518,9 +520,9 @@ export function BookmarkStyleModal({
                     a.click()
                     URL.revokeObjectURL(u)
                   }}
-                  className="flex items-center gap-1.5 rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-neutral-700 hover:bg-neutral-100"
+                  className="flex items-center gap-1.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 px-3 py-1.5 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800"
                 >
-                  <Download className="h-3.5 w-3.5 text-neutral-500" />
+                  <Download className="h-3.5 w-3.5 text-neutral-500 dark:text-neutral-400" />
                   <span>导出此分类 ({categoryBookmarks.length} 个网址)</span>
                 </button>
 
@@ -533,9 +535,9 @@ export function BookmarkStyleModal({
                         alert('已清除图标缓存，正在重新抓取！')
                       }
                     }}
-                    className="flex items-center gap-1.5 rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-neutral-700 hover:bg-neutral-100"
+                    className="flex items-center gap-1.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 px-3 py-1.5 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800"
                   >
-                    <RotateCcw className="h-3.5 w-3.5 text-neutral-500" />
+                    <RotateCcw className="h-3.5 w-3.5 text-neutral-500 dark:text-neutral-400" />
                     <span>重新获取全部图标</span>
                   </button>
                 )}
@@ -549,7 +551,7 @@ export function BookmarkStyleModal({
                         onClose()
                       }
                     }}
-                    className="flex items-center gap-1.5 rounded-xl border border-red-200 bg-red-50/50 px-3 py-1.5 text-red-600 hover:bg-red-50 ml-auto"
+                    className="flex items-center gap-1.5 rounded-xl border border-red-200 dark:border-red-900/60 bg-red-50/50 dark:bg-red-950/40 px-3 py-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 ml-auto"
                   >
                     <Trash2 className="h-3.5 w-3.5 text-red-500" />
                     <span>删除分类</span>
@@ -560,7 +562,7 @@ export function BookmarkStyleModal({
           )}
         </div>
 
-        <div className="mt-6 flex justify-end border-t border-neutral-100 pt-3.5">
+        <div className="mt-6 flex justify-end border-t border-neutral-100 dark:border-neutral-800 pt-3.5">
           <button
             type="button"
             onClick={onClose}

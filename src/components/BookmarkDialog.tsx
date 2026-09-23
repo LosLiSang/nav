@@ -89,16 +89,16 @@ export function BookmarkDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+      <div className="w-full max-w-lg rounded-2xl bg-white dark:bg-neutral-900 p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-neutral-100">
-          <h2 className="text-lg font-semibold text-neutral-800">
+        <div className="flex items-center justify-between pb-4 border-b border-neutral-100 dark:border-neutral-800">
+          <h2 className="text-lg font-semibold text-neutral-800 dark:text-neutral-200">
             {bookmark ? '编辑网址' : '添加网址'}
           </h2>
           <button
             type="button"
             onClick={onCancel}
-            className="text-neutral-400 hover:text-neutral-600 transition"
+            className="text-neutral-400 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300 transition"
           >
             <X className="h-5 w-5" />
           </button>
@@ -109,7 +109,7 @@ export function BookmarkDialog({
             e.preventDefault()
             void handleSubmit(false)
           }}
-          className="mt-5 space-y-4 text-xs text-neutral-700"
+          className="mt-5 space-y-4 text-xs text-neutral-700 dark:text-neutral-200"
         >
           {/* Row 1: Website Address + 抓取标题 Button */}
           <div className="flex items-center gap-2">
@@ -127,7 +127,7 @@ export function BookmarkDialog({
               type="button"
               onClick={handleFetchTitle}
               disabled={fetchingTitle || !url.trim()}
-              className="flex items-center gap-1.5 rounded-xl border border-neutral-200 bg-white px-4 py-2.5 font-medium text-neutral-700 shadow-sm transition hover:bg-neutral-50 disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-4 py-2.5 font-medium text-neutral-700 dark:text-neutral-200 shadow-sm transition hover:bg-neutral-50 dark:hover:bg-neutral-800 disabled:opacity-50"
             >
               {fetchingTitle && <Loader2 className="h-3.5 w-3.5 animate-spin text-orange-500" />}
               <span>{fetchingTitle ? '抓取中...' : '抓取标题'}</span>
@@ -142,8 +142,8 @@ export function BookmarkDialog({
               title="从图标库选择或自定义图标"
               className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl border transition ${
                 iconUrl
-                  ? 'border-orange-500 bg-orange-50 text-orange-600'
-                  : 'border-neutral-200 bg-neutral-50 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600'
+                  ? 'border-orange-500 bg-orange-50 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400'
+                  : 'border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-600 dark:hover:text-neutral-300'
               }`}
             >
               {iconUrl ? (
@@ -160,7 +160,7 @@ export function BookmarkDialog({
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="网站名称"
                 required
-                className="w-full rounded-xl border border-neutral-200 bg-white px-3.5 py-2.5 pr-14 text-xs outline-none focus:border-orange-500"
+                className="w-full rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3.5 py-2.5 pr-14 text-xs outline-none focus:border-orange-500"
               />
               <span className="absolute right-3 top-3 text-[11px] text-neutral-300">
                 {title.length}/100
@@ -173,15 +173,15 @@ export function BookmarkDialog({
             <button
               type="button"
               onClick={() => setShowNote((prev) => !prev)}
-              className="flex items-center gap-1 text-neutral-600 hover:text-neutral-900"
+              className="flex items-center gap-1 text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white"
             >
               <Edit3 className="h-3.5 w-3.5" />
               <span>{showNote ? '收起备注' : '添加备注'}</span>
             </button>
 
-            <div className="relative flex items-center gap-1 text-neutral-600">
-              <Folder className="h-3.5 w-3.5 text-neutral-400" />
-              <span className="font-medium text-neutral-800">{currentCategory.name}</span>
+            <div className="relative flex items-center gap-1 text-neutral-600 dark:text-neutral-300">
+              <Folder className="h-3.5 w-3.5 text-neutral-400 dark:text-neutral-500" />
+              <span className="font-medium text-neutral-800 dark:text-neutral-200">{currentCategory.name}</span>
               <button
                 type="button"
                 onClick={() => setShowCategorySelect((prev) => !prev)}
@@ -194,13 +194,13 @@ export function BookmarkDialog({
 
           {/* Category Dropdown (if 切换 clicked) */}
           {showCategorySelect && (
-            <div className="rounded-2xl border border-neutral-200/90 bg-neutral-50/70 p-3 animate-in fade-in zoom-in-95 duration-100">
-              <div className="flex items-center justify-between pb-2 mb-2 border-b border-neutral-200/60 text-[11px] text-neutral-500">
+            <div className="rounded-2xl border border-neutral-200/90 dark:border-neutral-700 bg-neutral-50/70 dark:bg-neutral-800/50 p-3 animate-in fade-in zoom-in-95 duration-100">
+              <div className="flex items-center justify-between pb-2 mb-2 border-b border-neutral-200/60 dark:border-neutral-700 text-[11px] text-neutral-500 dark:text-neutral-400">
                 <span>选择归属分类：</span>
                 <button
                   type="button"
                   onClick={() => setShowCategorySelect(false)}
-                  className="hover:text-neutral-800"
+                  className="hover:text-neutral-800 dark:hover:text-neutral-200"
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
@@ -217,11 +217,11 @@ export function BookmarkDialog({
                     className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition ${
                       c.id === categoryId
                         ? 'bg-orange-500 text-white shadow-sm ring-2 ring-orange-500/20'
-                        : 'bg-white border border-neutral-200 text-neutral-700 hover:bg-neutral-100 hover:border-neutral-300'
+                        : 'bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:border-neutral-300'
                     }`}
                   >
                     <span
-                      className={`h-2 w-2 rounded-full ${c.id === categoryId ? 'bg-white' : ''}`}
+                      className={`h-2 w-2 rounded-full ${c.id === categoryId ? 'bg-white dark:bg-neutral-900' : ''}`}
                       style={c.id !== categoryId ? { backgroundColor: c.color } : undefined}
                     />
                     <span>{c.name}</span>
@@ -239,25 +239,25 @@ export function BookmarkDialog({
               onChange={(e) => setNote(e.target.value)}
               rows={2}
               placeholder="添加书签描述或备注..."
-              className="w-full rounded-xl border border-neutral-200 bg-white p-3 text-xs outline-none focus:border-orange-500"
+              className="w-full rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-3 text-xs outline-none focus:border-orange-500"
             />
           )}
 
           {/* Row 4: Privacy Settings (Left) & Action Buttons (Right) */}
-          <div className="flex items-center justify-between border-t border-neutral-100 pt-4">
+          <div className="flex items-center justify-between border-t border-neutral-100 dark:border-neutral-800 pt-4">
             <div className="relative">
               <button
                 type="button"
                 onClick={() => setShowPrivacy((prev) => !prev)}
-                className="flex items-center gap-1 text-neutral-600 hover:text-neutral-900"
+                className="flex items-center gap-1 text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white"
               >
-                <Shield className="h-3.5 w-3.5 text-neutral-400" />
+                <Shield className="h-3.5 w-3.5 text-neutral-400 dark:text-neutral-500" />
                 <span>隐私设置</span>
                 <ChevronDown className="h-3 w-3" />
               </button>
 
               {showPrivacy && (
-                <div className="absolute left-0 top-7 z-20 w-44 rounded-xl border border-neutral-100 bg-white p-2.5 shadow-xl">
+                <div className="absolute left-0 top-7 z-20 w-44 rounded-xl border border-neutral-100 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-2.5 shadow-xl">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
@@ -265,7 +265,7 @@ export function BookmarkDialog({
                       onChange={(e) => setIsPrivate(e.target.checked)}
                       className="rounded text-orange-500"
                     />
-                    <span className="text-neutral-700">仅自己可见</span>
+                    <span className="text-neutral-700 dark:text-neutral-200">仅自己可见</span>
                   </label>
                 </div>
               )}
@@ -277,7 +277,7 @@ export function BookmarkDialog({
                   type="button"
                   disabled={saving || !title.trim() || !url.trim()}
                   onClick={() => void handleSubmit(true)}
-                  className="rounded-xl border border-neutral-200 bg-white px-4 py-2 font-medium text-neutral-700 shadow-sm transition hover:bg-neutral-50 disabled:opacity-50"
+                  className="rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-4 py-2 font-medium text-neutral-700 dark:text-neutral-200 shadow-sm transition hover:bg-neutral-50 dark:hover:bg-neutral-800 disabled:opacity-50"
                 >
                   保存并继续添加
                 </button>
