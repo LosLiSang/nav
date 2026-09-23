@@ -107,6 +107,10 @@ function SubBookmarkItem({
     () => normalizeIconUrl(bookmark.iconUrl),
     [bookmark.iconUrl],
   )
+  const normalizedCachedIcon = useMemo(
+    () => normalizeIconUrl(cachedIcon),
+    [cachedIcon],
+  )
   const candidates = useMemo(
     () => getFaviconCandidates(bookmark.url, normalizedIconUrl),
     [bookmark.url, normalizedIconUrl],
@@ -114,7 +118,7 @@ function SubBookmarkItem({
   const [fetchFailed, setFetchFailed] = useState(isFailedDomain ?? false)
 
   useEffect(() => {
-    if (normalizedIconUrl || cachedIcon || isFailedDomain) {
+    if (normalizedIconUrl || normalizedCachedIcon || isFailedDomain) {
       setFetchFailed(isFailedDomain ?? false)
       return
     }
@@ -137,9 +141,9 @@ function SubBookmarkItem({
     return () => {
       cancelled = true
     }
-  }, [bookmark.url, normalizedIconUrl, cachedIcon, isFailedDomain, domain, candidates, onSaveCachedIcon, onSaveFailedIcon])
+  }, [bookmark.url, normalizedIconUrl, normalizedCachedIcon, isFailedDomain, domain, candidates, onSaveCachedIcon, onSaveFailedIcon])
 
-  const effectiveIconUrl = normalizedIconUrl || cachedIcon
+  const effectiveIconUrl = normalizedIconUrl || normalizedCachedIcon
   const hasIcon = Boolean(effectiveIconUrl) && !fetchFailed && !isFailedDomain
 
   const shapeClass =

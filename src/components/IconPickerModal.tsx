@@ -146,20 +146,20 @@ const LUCIDE_ICONS: Record<string, { label: string; icon: React.ComponentType<{ 
 }
 
 const BRAND_PRESETS = [
-  { name: 'GitHub', bg: '#24292e', color: '#fff', char: 'GH' },
+  { name: 'GitHub', bg: '#1e293b', color: '#fff', char: 'GH' },
   { name: 'Google', bg: '#4285f4', color: '#fff', char: 'G' },
   { name: 'Bilibili', bg: '#fb7299', color: '#fff', char: 'B' },
   { name: '知乎', bg: '#0066ff', color: '#fff', char: '知' },
   { name: '百度', bg: '#2932e1', color: '#fff', char: '度' },
   { name: 'LeetCode', bg: '#ffa116', color: '#fff', char: 'LC' },
-  { name: 'LINUX DO', bg: '#171717', color: '#f59e0b', char: '🐧' },
+  { name: 'LINUX DO', bg: '#d97706', color: '#fff', char: 'DO' },
   { name: '掘金', bg: '#1e80ff', color: '#fff', char: '掘' },
   { name: 'V2EX', bg: '#333333', color: '#fff', char: 'V2' },
   { name: 'Discord', bg: '#5865f2', color: '#fff', char: 'DC' },
   { name: 'Telegram', bg: '#229ed9', color: '#fff', char: 'TG' },
   { name: 'YouTube', bg: '#ff0000', color: '#fff', char: 'YT' },
-  { name: 'Twitter/X', bg: '#000000', color: '#fff', char: '𝕏' },
-  { name: 'Notion', bg: '#000000', color: '#fff', char: 'N' },
+  { name: 'Twitter/X', bg: '#0284c7', color: '#fff', char: 'X' },
+  { name: 'Notion', bg: '#334155', color: '#fff', char: 'N' },
   { name: 'ChatGPT', bg: '#10a37f', color: '#fff', char: 'AI' },
   { name: '网易云音乐', bg: '#e60026', color: '#fff', char: '音' },
   { name: '高德地图', bg: '#0091ff', color: '#fff', char: '德' },
@@ -169,8 +169,8 @@ const BRAND_PRESETS = [
   { name: '飞书', bg: '#00d6b9', color: '#fff', char: '飞' },
   { name: '阿里云', bg: '#ff6a00', color: '#fff', char: '云' },
   { name: '腾讯云', bg: '#0052d9', color: '#fff', char: '腾' },
-  { name: 'Docker', bg: '#0db7ed', color: '#fff', char: '🐳' },
-  { name: 'React', bg: '#23272f', color: '#149eca', char: '⚛' },
+  { name: 'Docker', bg: '#0db7ed', color: '#fff', char: 'DK' },
+  { name: 'React', bg: '#0284c7', color: '#fff', char: 'Re' },
   { name: 'Vue', bg: '#42b883', color: '#fff', char: 'V' },
   { name: 'Python', bg: '#3776ab', color: '#ffd43b', char: 'Py' },
   { name: 'Boss直聘', bg: '#00bebd', color: '#fff', char: '直' },
@@ -201,7 +201,9 @@ export function IconPickerModal({ currentIconUrl, onSelectIcon, onClose }: Props
   }, [search])
 
   function makeSvgDataUri(bg: string, color: string, text: string) {
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"><rect width="48" height="48" rx="12" fill="${bg}"/><text x="50%" y="54%" font-family="system-ui,-apple-system,sans-serif" font-size="20" font-weight="bold" fill="${color}" dominant-baseline="middle" text-anchor="middle">${text}</text></svg>`
+    const safeBg = bg.startsWith('#') ? `#${bg.slice(1)}` : bg
+    const safeColor = color.startsWith('#') ? `#${color.slice(1)}` : color
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"><rect width="48" height="48" rx="12" fill="${safeBg}"/><text x="50%" y="54%" font-family="system-ui,-apple-system,sans-serif" font-size="20" font-weight="bold" fill="${safeColor}" dominant-baseline="middle" text-anchor="middle">${text}</text></svg>`
     return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
   }
 

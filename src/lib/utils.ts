@@ -48,6 +48,16 @@ export function normalizeIconUrl(url: string | undefined): string | undefined {
   if (fixed.includes('%2523')) {
     fixed = fixed.replace(/%2523/g, '%23')
   }
+  // 2. 修复多重转义
+  if (fixed.includes('%25')) {
+    try {
+      const prefix = 'data:image/svg+xml;utf8,'
+      if (fixed.startsWith(prefix)) {
+        const body = decodeURIComponent(fixed.slice(prefix.length))
+        fixed = `${prefix}${encodeURIComponent(body)}`
+      }
+    } catch {}
+  }
   // 2. 补全缺少 xmlns 命名空间导致 SVG 无法独立作为 img 渲染
   if (fixed.includes('%3Csvg') && !fixed.includes('xmlns')) {
     fixed = fixed.replace(
@@ -59,6 +69,21 @@ export function normalizeIconUrl(url: string | undefined): string | undefined {
       /<svg(\s)/i,
       '<svg xmlns="http://www.w3.org/2000/svg" ',
     )
+  }
+  // 3. 修复历史遗留的纯黑背景在 img 中 emoji 丢失变成黑块的问题
+  if (
+    fixed.includes('fill=%22%23000000%22') ||
+    fixed.includes('fill=%22%23171717%22') ||
+    fixed.includes('fill=%22%2324292e%22') ||
+    fixed.includes('fill="%23000000"') ||
+    fixed.includes('fill="#000000"')
+  ) {
+    fixed = fixed
+      .replace(/fill=%22%23000000%22/g, 'fill=%22%232563eb%22')
+      .replace(/fill=%22%23171717%22/g, 'fill=%22%232563eb%22')
+      .replace(/fill=%22%2324292e%22/g, 'fill=%22%232563eb%22')
+      .replace(/fill="%23000000"/g, 'fill="#2563eb"')
+      .replace(/fill="#000000"/g, 'fill="#2563eb"')
   }
   return fixed
 }

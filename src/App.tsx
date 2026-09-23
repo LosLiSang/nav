@@ -359,6 +359,9 @@ export default function App() {
               void toggleFavorite(id)
             }}
             onRefreshIcon={(b) => {
+              if (b.iconUrl) {
+                void updateBookmark(b.id, { iconUrl: undefined })
+              }
               void refreshIcon(hostnameOf(b.url))
             }}
           />
@@ -369,7 +372,10 @@ export default function App() {
           <IconPickerModal
             currentIconUrl={iconPickerBookmark.iconUrl}
             onSelectIcon={(url) => {
-              void updateBookmark(iconPickerBookmark.id, { iconUrl: url })
+              void updateBookmark(iconPickerBookmark.id, { iconUrl: url || undefined })
+              if (!url) {
+                void refreshIcon(hostnameOf(iconPickerBookmark.url))
+              }
               setIconPickerBookmark(null)
             }}
             onClose={() => setIconPickerBookmark(null)}
