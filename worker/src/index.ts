@@ -133,41 +133,98 @@ export default {
       if (!domain) {
         return new Response('Missing domain', { status: 400, headers: corsHeaders(request, env) })
       }
+      // 1. 直连目标站点根目录 (HTTPS / HTTP)
+      for (const proto of ['https', 'http']) {
+        try {
+          const targetUrl = `${proto}://${domain}/favicon.ico`
+          const res = await fetch(targetUrl, {
+            headers: {
+              'User-Agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            },
+            cf: { cacheTtl: 2592000, cacheEverything: true },
+          })
+          if (res.ok) {
+            const buf = await res.arrayBuffer()
+            if (buf.byteLength > 50) {
+              const contentType = res.headers.get('content-type') || 'image/x-icon'
+              return new Response(buf, {
+                status: 200,
+                headers: {
+                  'Content-Type': contentType,
+                  'Cache-Control': 'public, max-age=2592000',
+                  ...corsHeaders(request, env),
+                },
+              })
+            }
+          }
+        } catch {}
+      }
+
+      // 2. Unavatar 高清源
       try {
-        const targetUrl = `https://${domain}/favicon.ico`
-        const iconRes = await fetch(targetUrl, {
-          headers: {
-            'User-Agent':
-              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          },
+        const uRes = await fetch(`https://unavatar.io/${domain}?fallback=false`, {
           cf: { cacheTtl: 2592000, cacheEverything: true },
         })
-        if (iconRes.ok) {
-          const contentType = iconRes.headers.get('content-type') || 'image/x-icon'
-          return new Response(iconRes.body, {
-            status: 200,
-            headers: {
-              'Content-Type': contentType,
-              'Cache-Control': 'public, max-age=2592000',
-              ...corsHeaders(request, env),
-            },
-          })
+        if (uRes.ok) {
+          const buf = await uRes.arrayBuffer()
+          if (buf.byteLength > 50) {
+            const contentType = uRes.headers.get('content-type') || 'image/png'
+            return new Response(buf, {
+              status: 200,
+              headers: {
+                'Content-Type': contentType,
+                'Cache-Control': 'public, max-age=2592000',
+                ...corsHeaders(request, env),
+              },
+            })
+          }
         }
       } catch {}
 
+      // 3. DuckDuckGo (带占位图字节过滤)
       try {
-        const unavatarUrl = `https://unavatar.io/${domain}?fallback=false`
-        const uRes = await fetch(unavatarUrl, { cf: { cacheTtl: 2592000, cacheEverything: true } })
-        if (uRes.ok) {
-          const contentType = uRes.headers.get('content-type') || 'image/png'
-          return new Response(uRes.body, {
-            status: 200,
-            headers: {
-              'Content-Type': contentType,
-              'Cache-Control': 'public, max-age=2592000',
-              ...corsHeaders(request, env),
-            },
-          })
+        const ddgRes = await fetch(`https://icons.duckduckgo.com/ip3/${domain}.ico`, {
+          cf: { cacheTtl: 2592000, cacheEverything: true },
+        })
+        if (ddgRes.ok) {
+          const buf = await ddgRes.arrayBuffer()
+          const isPlaceholder =
+            buf.byteLength === 1478 ||
+            buf.byteLength === 1444 ||
+            buf.byteLength === 726 ||
+            buf.byteLength === 519 ||
+            buf.byteLength < 50
+          if (!isPlaceholder) {
+            return new Response(buf, {
+              status: 200,
+              headers: {
+                'Content-Type': 'image/x-icon',
+                'Cache-Control': 'public, max-age=2592000',
+                ...corsHeaders(request, env),
+              },
+            })
+          }
+        }
+      } catch {}
+
+      // 4. Favicon.im
+      try {
+        const fimRes = await fetch(`https://favicon.im/${domain}`, {
+          cf: { cacheTtl: 2592000, cacheEverything: true },
+        })
+        if (fimRes.ok) {
+          const buf = await fimRes.arrayBuffer()
+          if (buf.byteLength > 300) {
+            return new Response(buf, {
+              status: 200,
+              headers: {
+                'Content-Type': 'image/png',
+                'Cache-Control': 'public, max-age=2592000',
+                ...corsHeaders(request, env),
+              },
+            })
+          }
         }
       } catch {}
 
