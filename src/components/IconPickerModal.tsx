@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom'
 import { useMemo, useState } from 'react'
 import {
   Bell,
@@ -201,8 +202,8 @@ export function IconPickerModal({ currentIconUrl, onSelectIcon, onClose }: Props
     return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+  return createPortal(
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
       <div className="w-full max-w-md rounded-2xl bg-white dark:bg-neutral-900 p-5 text-neutral-800 dark:text-neutral-200 shadow-2xl max-h-[85vh] flex flex-col animate-in fade-in zoom-in-95 duration-150">
         <div className="flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 pb-3">
           <div className="flex items-center gap-2">
@@ -378,5 +379,5 @@ export function IconPickerModal({ currentIconUrl, onSelectIcon, onClose }: Props
         </div>
       </div>
     </div>
-  )
+  , document.body)
 }

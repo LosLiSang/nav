@@ -102,6 +102,7 @@ export type Settings = {
   showBookmarkIcon?: boolean
   columnMode?: 'auto' | 'manual'
   manualColumns?: number
+  cardWidth?: number
   avatarUrl?: string
   userName?: string
   highlightColor?: string

@@ -215,7 +215,15 @@ export default function App() {
         />
 
         {/* Main Content Area */}
-        <main className="relative z-10 mx-auto w-full max-w-[1380px] px-3.5 py-3.5 sm:px-6 space-y-3.5">
+        <main
+          className="relative z-10 mx-auto w-full px-3.5 py-3.5 sm:px-6 space-y-3.5 transition-[max-width] duration-200"
+          style={{
+            maxWidth:
+              settings.cardWidth === 0
+                ? '100%'
+                : `${settings.cardWidth ?? 1380}px`,
+          }}
+        >
           {/* 1. Search Box */}
           <SearchBar
             ref={searchBarRef}

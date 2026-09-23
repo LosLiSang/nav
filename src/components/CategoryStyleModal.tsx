@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom'
 import { useState } from 'react'
 import { Bold, Circle, Italic, Square, X } from 'lucide-react'
 import type { CategoryStyle } from '../types'
@@ -28,7 +29,7 @@ export function CategoryStyleModal({
     ...(currentStyle ?? {}),
   })
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-3 backdrop-blur-sm">
       <div className="w-full max-w-sm rounded-2xl bg-white p-4.5 shadow-2xl max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-100">
         <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
@@ -227,5 +228,5 @@ export function CategoryStyleModal({
         </div>
       </div>
     </div>
-  )
+  , document.body)
 }

@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom'
 import { useRef, useState } from 'react'
 import { Camera, Check, ChevronDown, Edit3, Folder, Loader2, Shield, X } from 'lucide-react'
 import { normalizeIconUrl, normalizeUrl } from '../lib/utils'
@@ -88,7 +89,7 @@ export function BookmarkDialog({
     }
   }
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
       <div className="w-full max-w-lg rounded-2xl bg-white dark:bg-neutral-900 p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
@@ -304,5 +305,5 @@ export function BookmarkDialog({
         />
       )}
     </div>
-  )
+  , document.body)
 }

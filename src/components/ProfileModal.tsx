@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom'
 import { useState } from 'react'
 import { AlertTriangle, Check, Database, Download, RefreshCw, Upload, User, X } from 'lucide-react'
 import type { NavData, Settings } from '../types'
@@ -69,7 +70,7 @@ export function ProfileModal({
     reader.readAsText(file)
   }
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
       <div className="flex flex-col w-full max-w-md rounded-2xl bg-white dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200 shadow-2xl max-h-[85vh] overflow-hidden animate-in fade-in zoom-in-95 duration-150 border border-neutral-200/80 dark:border-neutral-800">
         
@@ -303,5 +304,5 @@ export function ProfileModal({
         </div>
       </div>
     </div>
-  )
+  , document.body)
 }

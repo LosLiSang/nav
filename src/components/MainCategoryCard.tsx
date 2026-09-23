@@ -662,6 +662,55 @@ export function MainCategoryCard({
                 </div>
               </div>
 
+              {/* Row 3: 卡片区宽度 */}
+              <div className="mt-3.5 border-t border-neutral-100 dark:border-neutral-800 pt-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1">
+                    <span className="font-medium text-neutral-800 dark:text-neutral-100 text-sm">卡片区宽度</span>
+                    <span className="h-1.5 w-1.5 rounded-full bg-orange-500" />
+                  </div>
+                  <span className="font-mono text-[11px] font-bold text-orange-600 dark:text-orange-400">
+                    {settings.cardWidth === 0 ? '100% 铺满' : `${settings.cardWidth ?? 1380}px`}
+                  </span>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {[
+                    { label: '紧凑', value: 1100 },
+                    { label: '标准', value: 1380 },
+                    { label: '宽屏', value: 1600 },
+                    { label: '铺满', value: 0 },
+                  ].map((preset) => {
+                    const isSelected =
+                      preset.value === 0
+                        ? settings.cardWidth === 0
+                        : (settings.cardWidth ?? 1380) === preset.value
+                    return (
+                      <button
+                        key={preset.label}
+                        type="button"
+                        onClick={() => onUpdateSettings?.({ cardWidth: preset.value })}
+                        className={`rounded-full px-2.5 py-0.5 text-xs transition ${
+                          isSelected
+                            ? 'bg-[#ff6900] text-white shadow-sm font-medium'
+                            : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700'
+                        }`}
+                      >
+                        {preset.label}
+                      </button>
+                    )
+                  })}
+                </div>
+                <input
+                  type="range"
+                  min={800}
+                  max={2200}
+                  step={20}
+                  value={settings.cardWidth === 0 ? 2200 : (settings.cardWidth ?? 1380)}
+                  onChange={(e) => onUpdateSettings?.({ cardWidth: Number(e.target.value) })}
+                  className="mt-2 w-full accent-orange-500 cursor-pointer"
+                />
+              </div>
+
               {/* Clear customization */}
               <div className="mt-4 pt-2.5 border-t border-neutral-100 text-center">
                 <button
@@ -671,6 +720,7 @@ export function MainCategoryCard({
                       showBookmarkIcon: true,
                       columnMode: 'manual',
                       manualColumns: 7,
+                      cardWidth: 1380,
                     })
                   }
                   className="text-[11px] text-neutral-400 hover:text-neutral-700 inline-flex items-center gap-1"
@@ -746,7 +796,7 @@ export function MainCategoryCard({
       </div>
 
       {/* Help Detail Modal */}
-      {selectedHelp && (
+      {selectedHelp && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
           <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
@@ -776,10 +826,10 @@ export function MainCategoryCard({
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
 
       {/* Edit Category Modal */}
-      {editingCategory && (
+      {editingCategory && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
           <div className="w-full max-w-xs rounded-2xl bg-white dark:bg-[#18181b] p-5 shadow-2xl border border-neutral-100 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 pb-3">
@@ -864,7 +914,7 @@ export function MainCategoryCard({
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
 
       {/* Delete Category Confirm Modal */}
       <ConfirmModal
