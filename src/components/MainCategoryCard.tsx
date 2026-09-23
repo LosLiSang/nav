@@ -34,7 +34,9 @@ type Props = {
   cardOpacity: number
   settings: Settings
   cachedIcons?: Record<string, string>
+  failedDomains?: Record<string, boolean>
   onSaveCachedIcon?: (domain: string, dataOrBlob: string | Blob, objectUrl?: string) => void
+  onSaveFailedIcon?: (domain: string) => void
   onSelectCategory: (id: string) => void
   onAddCategory: (name: string) => void
   onDeleteCategory: (id: string) => void
@@ -141,14 +143,18 @@ function BookmarkCardItem({
   isSortMode,
   settings,
   cachedIcon,
+  isFailedDomain,
   onSaveCachedIcon,
+  onSaveFailedIcon,
   onContextMenu,
 }: {
   bookmark: Bookmark
   isSortMode: boolean
   settings: Settings
   cachedIcon?: string
+  isFailedDomain?: boolean
   onSaveCachedIcon?: (domain: string, dataOrBlob: string | Blob, objectUrl?: string) => void
+  onSaveFailedIcon?: (domain: string) => void
   onContextMenu: (x: number, y: number) => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -166,11 +172,11 @@ function BookmarkCardItem({
     () => getFaviconCandidates(bookmark.url, bookmark.iconUrl),
     [bookmark.url, bookmark.iconUrl],
   )
-  const [fetchFailed, setFetchFailed] = useState(false)
+  const [fetchFailed, setFetchFailed] = useState(isFailedDomain ?? false)
 
   useEffect(() => {
-    if (bookmark.iconUrl || cachedIcon) {
-      setFetchFailed(false)
+    if (bookmark.iconUrl || cachedIcon || isFailedDomain) {
+      setFetchFailed(isFailedDomain ?? false)
       return
     }
 
@@ -189,16 +195,17 @@ function BookmarkCardItem({
         setFetchFailed(false)
       } else {
         setFetchFailed(true)
+        onSaveFailedIcon?.(domain)
       }
     })
 
     return () => {
       cancelled = true
     }
-  }, [bookmark.url, bookmark.iconUrl, cachedIcon, domain, candidates, onSaveCachedIcon])
+  }, [bookmark.url, bookmark.iconUrl, cachedIcon, isFailedDomain, domain, candidates, onSaveCachedIcon, onSaveFailedIcon])
 
   const effectiveIconUrl = bookmark.iconUrl || cachedIcon
-  const hasIcon = Boolean(effectiveIconUrl) && !fetchFailed
+  const hasIcon = Boolean(effectiveIconUrl) && !fetchFailed && !isFailedDomain
 
   const shapeClass =
     iconShape === 'square'
@@ -252,6 +259,7 @@ function BookmarkCardItem({
                 onSaveCachedIcon(domain, '')
               }
               setFetchFailed(true)
+              onSaveFailedIcon?.(domain)
             }}
             className={`h-4.5 w-4.5 flex-shrink-0 object-contain ${shapeClass}`}
             loading="lazy"
@@ -285,7 +293,9 @@ export function MainCategoryCard({
   cardOpacity,
   settings,
   cachedIcons,
+  failedDomains,
   onSaveCachedIcon,
+  onSaveFailedIcon,
   onSelectCategory,
   onAddCategory,
   onDeleteCategory,
@@ -724,7 +734,9 @@ export function MainCategoryCard({
                   isSortMode={isSortMode}
                   settings={settings}
                   cachedIcon={cachedIcons?.[hostnameOf(bookmark.url)]}
+                  isFailedDomain={failedDomains?.[hostnameOf(bookmark.url)]}
                   onSaveCachedIcon={onSaveCachedIcon}
+                  onSaveFailedIcon={onSaveFailedIcon}
                   onContextMenu={(x, y) => onContextMenuBookmark(bookmark, x, y)}
                 />
               ))}

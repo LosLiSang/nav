@@ -228,7 +228,14 @@ export default {
         }
       } catch {}
 
-      return new Response('Not found', { status: 404, headers: corsHeaders(request, env) })
+      return new Response('Not found', {
+        status: 404,
+        headers: {
+          'Content-Type': 'text/plain;charset=UTF-8',
+          'Cache-Control': 'public, max-age=604800',
+          ...corsHeaders(request, env),
+        },
+      })
     }
 
     if (url.pathname !== '/api/data') {

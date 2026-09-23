@@ -36,6 +36,7 @@ export type CachedIcon = {
   domain: string
   dataUrl?: string
   blob?: Blob
+  notFound?: boolean
   updatedAt: number
 }
 

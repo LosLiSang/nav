@@ -36,6 +36,7 @@ export default function App() {
     settings,
     searchQuery,
     cachedIcons,
+    failedDomains,
     initialize,
     setActiveCategory,
     setActiveSearchEngine,
@@ -59,6 +60,7 @@ export default function App() {
     addTotpAccount,
     deleteTotpAccount,
     saveCachedIcon,
+    saveFailedIcon,
     refreshIcon,
     refreshAllIcons,
     exportBackup,
@@ -233,7 +235,9 @@ export default function App() {
             cardOpacity={settings.cardOpacity}
             settings={settings}
             cachedIcons={cachedIcons}
+            failedDomains={failedDomains}
             onSaveCachedIcon={(domain, dataOrBlob, objectUrl) => void saveCachedIcon(domain, dataOrBlob, objectUrl)}
+            onSaveFailedIcon={(domain) => void saveFailedIcon(domain)}
             onSelectCategory={setActiveCategory}
             onAddCategory={(name) => void addCategory(name)}
             onDeleteCategory={(id) => void deleteCategory(id)}

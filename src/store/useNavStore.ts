@@ -51,6 +51,7 @@ type NavState = {
   settings: Settings
   searchQuery: string
   cachedIcons: Record<string, string>
+  failedDomains: Record<string, boolean>
 
   // 云同步（Cloudflare Worker + D1）
   syncConfig: SyncConfig | null
@@ -104,6 +105,7 @@ type NavState = {
   reorderBookmark: (bookmarkId: string, overBookmarkId: string) => Promise<void>
   moveBookmarkToCategory: (bookmarkId: string, categoryId: string) => Promise<void>
   saveCachedIcon: (domain: string, dataOrBlob: string | Blob, objectUrl?: string) => Promise<void>
+  saveFailedIcon: (domain: string) => Promise<void>
   refreshIcon: (domain: string) => Promise<void>
   refreshAllIcons: () => Promise<void>
 
@@ -128,6 +130,7 @@ type PendingIconItem = {
   dataUrl?: string
   blob?: Blob
   objectUrl: string
+  notFound?: boolean
 }
 let pendingIconBatch: Record<string, PendingIconItem> = {}
 let iconBatchTimer: ReturnType<typeof setTimeout> | null = null
@@ -143,17 +146,24 @@ function flushIconBatch(set: any) {
     domain,
     dataUrl: item.dataUrl,
     blob: item.blob,
+    notFound: item.notFound,
     updatedAt: Date.now(),
   }))
   void db.iconCache.bulkPut(rows)
 
   const newCachedIcons: Record<string, string> = {}
+  const newFailedDomains: Record<string, boolean> = {}
   for (const [domain, item] of entries) {
-    newCachedIcons[domain] = item.objectUrl || item.dataUrl || ''
+    if (item.notFound) {
+      newFailedDomains[domain] = true
+    } else {
+      newCachedIcons[domain] = item.objectUrl || item.dataUrl || ''
+    }
   }
 
   set((state: any) => ({
     cachedIcons: { ...state.cachedIcons, ...newCachedIcons },
+    failedDomains: { ...state.failedDomains, ...newFailedDomains },
   }))
 }
 
@@ -343,6 +353,7 @@ export const useNavStore = create<NavState>((set, get) => ({
   settings: DEFAULT_SETTINGS,
   searchQuery: '',
   cachedIcons: {},
+  failedDomains: {},
   syncConfig: null,
   autoSync: true,
   syncStatus: 'off',
@@ -381,8 +392,15 @@ export const useNavStore = create<NavState>((set, get) => ({
         ])
 
         const nextCachedIcons: Record<string, string> = {}
+        const nextFailedDomains: Record<string, boolean> = {}
+        const SEVEN_DAYS_MS = 7 * 24 * 3600 * 1000
+        const now = Date.now()
         for (const row of cachedIconRows) {
-          if (row.blob && row.blob instanceof Blob) {
+          if (row.notFound) {
+            if (now - (row.updatedAt || 0) < SEVEN_DAYS_MS) {
+              nextFailedDomains[row.domain] = true
+            }
+          } else if (row.blob && row.blob instanceof Blob) {
             nextCachedIcons[row.domain] = URL.createObjectURL(row.blob)
           } else if (row.dataUrl && (row.dataUrl.startsWith('data:') || row.dataUrl.startsWith('blob:'))) {
             nextCachedIcons[row.domain] = row.dataUrl
@@ -462,6 +480,7 @@ export const useNavStore = create<NavState>((set, get) => ({
           totpAccounts: [...nextTotpAccounts].sort((a, b) => a.createdAt - b.createdAt),
           settings: nextSettings,
           cachedIcons: nextCachedIcons,
+          failedDomains: nextFailedDomains,
           syncConfig,
           autoSync,
           localUpdatedAt,
@@ -729,19 +748,30 @@ export const useNavStore = create<NavState>((set, get) => ({
     return Promise.resolve()
   },
 
+  saveFailedIcon(domain) {
+    if (!domain) return Promise.resolve()
+    pendingIconBatch[domain] = { notFound: true, objectUrl: '' }
+    if (!iconBatchTimer) {
+      iconBatchTimer = setTimeout(() => flushIconBatch(set), 200)
+    }
+    return Promise.resolve()
+  },
+
   async refreshIcon(domain) {
     if (!domain) return
     await db.iconCache.delete(domain)
     set((state) => {
-      const next = { ...state.cachedIcons }
-      delete next[domain]
-      return { cachedIcons: next }
+      const nextIcons = { ...state.cachedIcons }
+      const nextFailed = { ...state.failedDomains }
+      delete nextIcons[domain]
+      delete nextFailed[domain]
+      return { cachedIcons: nextIcons, failedDomains: nextFailed }
     })
   },
 
   async refreshAllIcons() {
     await db.iconCache.clear()
-    set({ cachedIcons: {} })
+    set({ cachedIcons: {}, failedDomains: {} })
   },
 
   async addMemo(text) {
