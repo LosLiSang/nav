@@ -3,15 +3,18 @@ import { useRef, useState } from 'react'
 import { Camera, Check, ChevronDown, Edit3, Folder, Loader2, Shield, X } from 'lucide-react'
 import { normalizeIconUrl, normalizeUrl } from '../lib/utils'
 import { IconPickerModal } from './IconPickerModal'
-import type { Bookmark, Category } from '../types'
+import type { Bookmark, Category, SubCategory } from '../types'
 
 type Props = {
   bookmark?: Bookmark | null
   categories: Category[]
+  subCategories?: SubCategory[]
   defaultCategoryId?: string
+  defaultSubCategoryId?: string
   onCancel: () => void
   onSubmit: (values: {
     categoryId?: string
+    subCategoryId?: string
     title: string
     url: string
     iconUrl?: string
@@ -21,14 +24,21 @@ type Props = {
 export function BookmarkDialog({
   bookmark,
   categories,
+  subCategories = [],
   defaultCategoryId,
+  defaultSubCategoryId,
   onCancel,
   onSubmit,
 }: Props) {
+  const isSubTarget = Boolean(bookmark?.subCategoryId || defaultSubCategoryId)
+  const [targetType, setTargetType] = useState<'main' | 'sub'>(isSubTarget ? 'sub' : 'main')
   const [title, setTitle] = useState(bookmark?.title ?? '')
   const [url, setUrl] = useState(bookmark?.url ?? '')
   const [categoryId, setCategoryId] = useState(
     bookmark?.categoryId ?? defaultCategoryId ?? categories[0]?.id ?? '',
+  )
+  const [subCategoryId, setSubCategoryId] = useState(
+    bookmark?.subCategoryId ?? defaultSubCategoryId ?? subCategories[0]?.id ?? '',
   )
   const [iconUrl, setIconUrl] = useState(bookmark?.iconUrl ?? '')
   const [note, setNote] = useState('')
@@ -42,7 +52,9 @@ export function BookmarkDialog({
   const urlInputRef = useRef<HTMLInputElement>(null)
 
   const currentCategory =
-    categories.find((c) => c.id === categoryId) || categories[0] || { name: '未分类' }
+    targetType === 'main'
+      ? categories.find((c) => c.id === categoryId) || categories[0] || { name: '主分类' }
+      : subCategories.find((sc) => sc.id === subCategoryId) || subCategories[0] || { name: '二级分类' }
 
   async function handleFetchTitle() {
     const rawUrl = url.trim()
@@ -71,7 +83,8 @@ export function BookmarkDialog({
       await onSubmit({
         title: trimmedTitle,
         url: normalizeUrl(trimmedUrl),
-        categoryId,
+        categoryId: targetType === 'main' ? categoryId : undefined,
+        subCategoryId: targetType === 'sub' ? subCategoryId : undefined,
         // 顺手清掉旧版选择器留下的双重编码，让数据在编辑时逐步自愈
         iconUrl: normalizeIconUrl(iconUrl.trim()) || undefined,
       })
@@ -183,7 +196,9 @@ export function BookmarkDialog({
 
             <div className="relative flex items-center gap-1 text-neutral-600 dark:text-neutral-300">
               <Folder className="h-3.5 w-3.5 text-neutral-400 dark:text-neutral-500" />
-              <span className="font-medium text-neutral-800 dark:text-neutral-200">{currentCategory.name}</span>
+              <span className="font-medium text-neutral-800 dark:text-neutral-200">
+                {targetType === 'main' ? `主分类 · ${currentCategory.name}` : `二级分类 · ${currentCategory.name}`}
+              </span>
               <button
                 type="button"
                 onClick={() => setShowCategorySelect((prev) => !prev)}
@@ -207,29 +222,77 @@ export function BookmarkDialog({
                   <X className="h-3.5 w-3.5" />
                 </button>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {categories.map((c) => (
+
+              {/* Main vs Sub category tab switch */}
+              {subCategories.length > 0 && (
+                <div className="flex rounded-xl bg-neutral-200/60 dark:bg-neutral-800 p-0.5 text-xs mb-2.5">
                   <button
-                    key={c.id}
                     type="button"
-                    onClick={() => {
-                      setCategoryId(c.id)
-                      setShowCategorySelect(false)
-                    }}
-                    className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition ${
-                      c.id === categoryId
-                        ? 'bg-orange-500 text-white shadow-sm ring-2 ring-orange-500/20'
-                        : 'bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:border-neutral-300'
+                    onClick={() => setTargetType('main')}
+                    className={`flex-1 rounded-lg py-1 text-center font-medium transition ${
+                      targetType === 'main'
+                        ? 'bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white shadow-sm'
+                        : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-white'
                     }`}
                   >
-                    <span
-                      className={`h-2 w-2 rounded-full ${c.id === categoryId ? 'bg-white dark:bg-neutral-900' : ''}`}
-                      style={c.id !== categoryId ? { backgroundColor: c.color } : undefined}
-                    />
-                    <span>{c.name}</span>
-                    {c.id === categoryId && <Check className="h-3 w-3 ml-0.5 stroke-[3]" />}
+                    主分类 ({categories.length})
                   </button>
-                ))}
+                  <button
+                    type="button"
+                    onClick={() => setTargetType('sub')}
+                    className={`flex-1 rounded-lg py-1 text-center font-medium transition ${
+                      targetType === 'sub'
+                        ? 'bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white shadow-sm'
+                        : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-white'
+                    }`}
+                  >
+                    二级多级分类 ({subCategories.length})
+                  </button>
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-2">
+                {targetType === 'main'
+                  ? categories.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => {
+                          setCategoryId(c.id)
+                          setShowCategorySelect(false)
+                        }}
+                        className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                          c.id === categoryId
+                            ? 'bg-orange-500 text-white shadow-sm ring-2 ring-orange-500/20'
+                            : 'bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:border-neutral-300'
+                        }`}
+                      >
+                        <span
+                          className={`h-2 w-2 rounded-full ${c.id === categoryId ? 'bg-white dark:bg-neutral-900' : ''}`}
+                          style={c.id !== categoryId ? { backgroundColor: c.color } : undefined}
+                        />
+                        <span>{c.name}</span>
+                        {c.id === categoryId && <Check className="h-3 w-3 ml-0.5 stroke-[3]" />}
+                      </button>
+                    ))
+                  : subCategories.map((sc) => (
+                      <button
+                        key={sc.id}
+                        type="button"
+                        onClick={() => {
+                          setSubCategoryId(sc.id)
+                          setShowCategorySelect(false)
+                        }}
+                        className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                          sc.id === subCategoryId
+                            ? 'bg-orange-500 text-white shadow-sm ring-2 ring-orange-500/20'
+                            : 'bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:border-neutral-300'
+                        }`}
+                      >
+                        <span>{sc.name}</span>
+                        {sc.id === subCategoryId && <Check className="h-3 w-3 ml-0.5 stroke-[3]" />}
+                      </button>
+                    ))}
               </div>
             </div>
           )}

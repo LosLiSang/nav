@@ -30,6 +30,8 @@ export default function App() {
   const {
     ready,
     categories,
+    subSections,
+    subCategories,
     bookmarks,
     memos,
     totpAccounts,
@@ -40,6 +42,8 @@ export default function App() {
     initialize,
     setActiveCategory,
     setActiveSearchEngine,
+    setActiveSubSection,
+    setActiveSubCategory,
     setActiveWidgetTab,
     setSearchQuery,
     updateSettings,
@@ -49,6 +53,12 @@ export default function App() {
     updateCategory,
     renameCategory,
     deleteCategory,
+    addSubSection,
+    renameSubSection,
+    deleteSubSection,
+    addSubCategory,
+    renameSubCategory,
+    deleteSubCategory,
     addBookmark,
     updateBookmark,
     deleteBookmark,
@@ -87,6 +97,7 @@ export default function App() {
   const [profileOpen, setProfileOpen] = useState(false)
   const [bookmarkStyleOpen, setBookmarkStyleOpen] = useState(false)
   const [editingBookmark, setEditingBookmark] = useState<Bookmark | null>(null)
+  const [defaultSubCategoryId, setDefaultSubCategoryId] = useState<string | undefined>()
   const [deletingBookmark, setDeletingBookmark] = useState<Bookmark | null>(null)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [iconPickerBookmark, setIconPickerBookmark] = useState<Bookmark | null>(null)
@@ -162,8 +173,9 @@ export default function App() {
     void reorderBookmark(activeId, overIdText)
   }
 
-  function openAddDialog(bookmark?: Bookmark) {
+  function openAddDialog(bookmark?: Bookmark, subCategoryId?: string) {
     setEditingBookmark(bookmark ?? null)
+    setDefaultSubCategoryId(subCategoryId)
     setDialogOpen(true)
   }
 
@@ -261,10 +273,29 @@ export default function App() {
           {/* z-20 让工具卡片及其上方的猫咪插画盖住上方主分类卡片，避免插画被卡片裁掉 */}
           <div id="tools-section" className="relative z-20">
             <BottomSection
+              subSections={subSections}
+              subCategories={subCategories}
+              activeSubSectionId={settings.activeSubSectionId}
+              activeSubCategoryId={settings.activeSubCategoryId}
+              bookmarks={bookmarks}
+              cachedIcons={cachedIcons}
+              failedDomains={failedDomains}
+              cardOpacity={settings.cardOpacity}
+              settings={settings}
+              onSaveCachedIcon={(domain, dataOrBlob, objectUrl) => void saveCachedIcon(domain, dataOrBlob, objectUrl)}
+              onSaveFailedIcon={(domain) => void saveFailedIcon(domain)}
+              onSelectSubSection={setActiveSubSection}
+              onSelectSubCategory={setActiveSubCategory}
+              onAddSubSection={(name, icon) => void addSubSection(name, icon)}
+              onRenameSubSection={(id, name) => void renameSubSection(id, name)}
+              onDeleteSubSection={(id) => void deleteSubSection(id)}
+              onAddSubCategory={(secId, name) => void addSubCategory(secId, name)}
+              onRenameSubCategory={(id, name) => void renameSubCategory(id, name)}
+              onDeleteSubCategory={(id) => void deleteSubCategory(id)}
+              onOpenAddBookmark={(subCatId) => openAddDialog(undefined, subCatId)}
+              onContextMenuBookmark={(b, x, y) => setContextMenu({ bookmark: b, x, y })}
               memos={memos}
               totpAccounts={totpAccounts}
-              settings={settings}
-              cardOpacity={settings.cardOpacity}
               onSelectWidgetTab={setActiveWidgetTab}
               onAddMemo={(text) => void addMemo(text)}
               onToggleMemo={(id) => void toggleMemo(id)}
@@ -350,8 +381,13 @@ export default function App() {
           <BookmarkDialog
             bookmark={editingBookmark}
             categories={categories}
+            subCategories={subCategories}
             defaultCategoryId={settings.activeCategoryId}
-            onCancel={() => setDialogOpen(false)}
+            defaultSubCategoryId={defaultSubCategoryId}
+            onCancel={() => {
+              setDialogOpen(false)
+              setDefaultSubCategoryId(undefined)
+            }}
             onSubmit={async (values) => {
               if (editingBookmark) {
                 await updateBookmark(editingBookmark.id, values)

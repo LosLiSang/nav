@@ -88,8 +88,14 @@ type NavState = {
   updateCategory: (categoryId: string, updates: Partial<Omit<Category, 'id'>>) => Promise<void>
   deleteCategory: (categoryId: string) => Promise<void>
 
+  // Sub Sections
+  addSubSection: (name: string, icon?: string) => Promise<void>
+  renameSubSection: (sectionId: string, name: string) => Promise<void>
+  deleteSubSection: (sectionId: string) => Promise<void>
+
   // Sub Categories
   addSubCategory: (sectionId: string, name: string) => Promise<void>
+  renameSubCategory: (subCategoryId: string, name: string) => Promise<void>
   deleteSubCategory: (subCategoryId: string) => Promise<void>
 
   // Bookmarks
@@ -617,6 +623,17 @@ export const useNavStore = create<NavState>((set, get) => ({
     get().updateSettings({ activeSubCategoryId: newSub.id })
   },
 
+  async renameSubCategory(subCategoryId, name) {
+    const trimmed = name.trim()
+    if (!trimmed) return
+    await db.subCategories.update(subCategoryId, { name: trimmed })
+    set((state) => ({
+      subCategories: state.subCategories.map((sc) =>
+        sc.id === subCategoryId ? { ...sc, name: trimmed } : sc,
+      ),
+    }))
+  },
+
   async deleteSubCategory(subCategoryId) {
     const bookmarks = get().bookmarks.filter((b) => b.subCategoryId === subCategoryId)
     await Promise.all([
@@ -627,6 +644,70 @@ export const useNavStore = create<NavState>((set, get) => ({
       subCategories: state.subCategories.filter((sc) => sc.id !== subCategoryId),
       bookmarks: state.bookmarks.filter((b) => b.subCategoryId !== subCategoryId),
     }))
+  },
+
+  async addSubSection(name, icon = 'folder') {
+    const trimmed = name.trim()
+    if (!trimmed) return
+    const subSections = get().subSections
+    const newSection: SubSection = {
+      id: crypto.randomUUID(),
+      name: trimmed,
+      icon: icon || 'folder',
+      order: subSections.length,
+    }
+    await db.subSections.add(newSection)
+    set({ subSections: [...subSections, newSection] })
+    get().updateSettings({ activeSubSectionId: newSection.id })
+  },
+
+  async renameSubSection(sectionId, name) {
+    const trimmed = name.trim()
+    if (!trimmed) return
+    await db.subSections.update(sectionId, { name: trimmed })
+    set((state) => ({
+      subSections: state.subSections.map((s) =>
+        s.id === sectionId ? { ...s, name: trimmed } : s,
+      ),
+    }))
+  },
+
+  async deleteSubSection(sectionId) {
+    const subCategoriesToDelete = get().subCategories.filter((sc) => sc.sectionId === sectionId)
+    const subCategoryIds = subCategoriesToDelete.map((sc) => sc.id)
+    const bookmarksToDelete = get().bookmarks.filter(
+      (b) => b.subCategoryId && subCategoryIds.includes(b.subCategoryId),
+    )
+
+    await Promise.all([
+      db.subSections.delete(sectionId),
+      db.subCategories.bulkDelete(subCategoryIds),
+      db.bookmarks.bulkDelete(bookmarksToDelete.map((b) => b.id)),
+    ])
+
+    set((state) => {
+      const remainingSections = state.subSections.filter((s) => s.id !== sectionId)
+      const remainingSubCats = state.subCategories.filter((sc) => sc.sectionId !== sectionId)
+      const remainingBookmarks = state.bookmarks.filter(
+        (b) => !b.subCategoryId || !subCategoryIds.includes(b.subCategoryId),
+      )
+      return {
+        subSections: remainingSections,
+        subCategories: remainingSubCats,
+        bookmarks: remainingBookmarks,
+        settings: {
+          ...state.settings,
+          activeSubSectionId:
+            state.settings.activeSubSectionId === sectionId
+              ? remainingSections[0]?.id ?? ''
+              : state.settings.activeSubSectionId,
+          activeSubCategoryId:
+            subCategoryIds.includes(state.settings.activeSubCategoryId)
+              ? remainingSubCats[0]?.id ?? ''
+              : state.settings.activeSubCategoryId,
+        },
+      }
+    })
   },
 
   async addBookmark(values) {

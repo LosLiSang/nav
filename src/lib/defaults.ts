@@ -132,6 +132,10 @@ export function defaultSubCategories(): SubCategory[] {
     { id: 'sub-mail', sectionId: 'sec-tools', name: '邮箱', icon: 'mail', order: 0 },
     { id: 'sub-draw', sectionId: 'sec-tools', name: '绘图', icon: 'pen-tool', order: 1 },
     { id: 'sub-trans', sectionId: 'sec-tools', name: '翻译', icon: 'languages', order: 2 },
+    { id: 'sub-doc', sectionId: 'sec-tools', name: '文档', icon: 'file-text', order: 3 },
+    { id: 'sub-drive', sectionId: 'sec-tools', name: '网盘', icon: 'hard-drive', order: 4 },
+    { id: 'sub-search', sectionId: 'sec-tools', name: '查询', icon: 'search', order: 5 },
+    { id: 'sub-image', sectionId: 'sec-tools', name: '图像', icon: 'image', order: 6 },
 
     { id: 'sub-shopping', sectionId: 'sec-life', name: '购物', icon: 'shopping-cart', order: 0 },
     { id: 'sub-travel', sectionId: 'sec-life', name: '出行', icon: 'compass', order: 1 },
@@ -297,6 +301,92 @@ export function defaultBookmarks(): Bookmark[] {
       order: index,
       createdAt: now + 300 + index,
       updatedAt: now + 300 + index,
+    })
+  })
+
+  const docItems = [
+    { title: '语雀', url: 'https://www.yuque.com' },
+    { title: '腾讯文档', url: 'https://docs.qq.com' },
+    { title: '石墨文档', url: 'https://shimo.im' },
+    { title: '一起写', url: 'https://yiqixie.com' },
+    { title: '金山文档', url: 'https://www.kdocs.cn' },
+    { title: '写作猫', url: 'https://xiezuocat.com' },
+    { title: '我来 wolai', url: 'https://www.wolai.com' },
+    { title: 'Google文档', url: 'https://docs.google.com' },
+  ]
+  docItems.forEach((item, index) => {
+    bookmarks.push({
+      id: `bm-doc-${index}`,
+      subCategoryId: 'sub-doc',
+      title: item.title,
+      url: item.url,
+      order: index,
+      createdAt: now + 400 + index,
+      updatedAt: now + 400 + index,
+    })
+  })
+
+  const driveItems = [
+    { title: '百度网盘', url: 'https://pan.baidu.com' },
+    { title: '腾讯微云', url: 'https://www.weiyun.com' },
+    { title: '坚果云', url: 'https://www.jianguoyun.com' },
+    { title: '阿里云盘', url: 'https://www.alipan.com' },
+    { title: 'OneDrive', url: 'https://onedrive.live.com' },
+    { title: '蓝奏云', url: 'https://www.lanzou.com' },
+    { title: '奶牛快传', url: 'https://cowtransfer.com' },
+    { title: '小鹿快传', url: 'https://deershare.com' },
+  ]
+  driveItems.forEach((item, index) => {
+    bookmarks.push({
+      id: `bm-drive-${index}`,
+      subCategoryId: 'sub-drive',
+      title: item.title,
+      url: item.url,
+      order: index,
+      createdAt: now + 500 + index,
+      updatedAt: now + 500 + index,
+    })
+  })
+
+  const searchItems = [
+    { title: '百度地图', url: 'https://map.baidu.com' },
+    { title: '快递100', url: 'https://www.kuaidi100.com' },
+    { title: '中国天气网', url: 'https://www.weather.com.cn' },
+    { title: '百度短网址', url: 'https://dwz.cn' },
+    { title: '12306', url: 'https://www.12306.cn' },
+    { title: '携程机票', url: 'https://flights.ctrip.com' },
+    { title: 'Speedtest测速', url: 'https://www.speedtest.net' },
+    { title: '122违章查询', url: 'https://www.122.gov.cn' },
+  ]
+  searchItems.forEach((item, index) => {
+    bookmarks.push({
+      id: `bm-search-${index}`,
+      subCategoryId: 'sub-search',
+      title: item.title,
+      url: item.url,
+      order: index,
+      createdAt: now + 600 + index,
+      updatedAt: now + 600 + index,
+    })
+  })
+
+  const imageItems = [
+    { title: 'TinyPNG', url: 'https://tinypng.com' },
+    { title: 'I Love Img', url: 'https://www.iloveimg.com' },
+    { title: 'img.top', url: 'https://img.top' },
+    { title: '稿定抠图', url: 'https://koutu.gaoding.com' },
+    { title: 'Remove.bg', url: 'https://www.remove.bg' },
+    { title: 'Canva', url: 'https://www.canva.cn' },
+  ]
+  imageItems.forEach((item, index) => {
+    bookmarks.push({
+      id: `bm-image-${index}`,
+      subCategoryId: 'sub-image',
+      title: item.title,
+      url: item.url,
+      order: index,
+      createdAt: now + 700 + index,
+      updatedAt: now + 700 + index,
     })
   })
 
