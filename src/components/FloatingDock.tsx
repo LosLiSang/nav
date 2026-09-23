@@ -36,12 +36,12 @@ export function FloatingDock({
         <FileText className="h-3.5 w-3.5" />
       </button>
 
-      {/* Cloud */}
+      {/* PikPak Cloud */}
       <a
-        href="https://pan.baidu.com"
+        href="https://mypikpak.com"
         target="_blank"
         rel="noopener noreferrer"
-        title="网盘"
+        title="PikPak 云盘"
         className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-600 dark:text-neutral-400 transition hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-white"
       >
         <Cloud className="h-3.5 w-3.5" />
