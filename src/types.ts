@@ -1,5 +1,6 @@
 export type CornerRadius = 'none' | 'md' | 'xl'
 export type IconShape = 'square' | 'rounded' | 'circle'
+export type FallbackIconMode = 'letter' | 'globe' | 'bookmark' | 'custom'
 
 export type CategoryStyle = {
   iconShape: IconShape
@@ -104,6 +105,8 @@ export type Settings = {
   highlightColor?: string
   weatherCity?: string
   themeMode?: 'light' | 'dark'
+  fallbackIconMode?: FallbackIconMode
+  defaultPlaceholderIconUrl?: string
 }
 
 export type NavData = {

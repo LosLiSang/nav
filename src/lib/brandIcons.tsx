@@ -1,19 +1,56 @@
 import React from 'react'
+import { Bookmark, Globe } from 'lucide-react'
+import type { Settings } from '../types'
 
 export function getBrandIcon(
   title: string,
   url: string,
   shape: 'square' | 'rounded' | 'circle' = 'rounded',
+  settings?: Settings,
 ): React.ReactNode | null {
-  const lowerTitle = title.toLowerCase()
-  const lowerUrl = url.toLowerCase()
-
   const shapeClass =
     shape === 'square'
       ? 'rounded-none'
       : shape === 'circle'
         ? 'rounded-full'
         : 'rounded-lg'
+
+  // 1. Custom placeholder icon if specified
+  if (settings?.fallbackIconMode === 'custom' && settings.defaultPlaceholderIconUrl) {
+    return (
+      <img
+        src={settings.defaultPlaceholderIconUrl}
+        alt=""
+        className={`h-4.5 w-4.5 flex-shrink-0 object-contain ${shapeClass}`}
+      />
+    )
+  }
+
+  // 2. Universal globe icon
+  if (settings?.fallbackIconMode === 'globe') {
+    return (
+      <div
+        className={`flex h-5 w-5 flex-shrink-0 items-center justify-center ${shapeClass} bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300`}
+      >
+        <Globe className="h-3.5 w-3.5" />
+      </div>
+    )
+  }
+
+  // 3. Universal bookmark icon
+  if (settings?.fallbackIconMode === 'bookmark') {
+    return (
+      <div
+        className={`flex h-5 w-5 flex-shrink-0 items-center justify-center ${shapeClass} bg-orange-50 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400`}
+      >
+        <Bookmark className="h-3.5 w-3.5" />
+      </div>
+    )
+  }
+
+  // 4. Smart brand & letter badge (default)
+  const lowerTitle = title.toLowerCase()
+  const lowerUrl = url.toLowerCase()
 
   // Github
   if (lowerTitle.includes('github') || lowerUrl.includes('github.com')) {

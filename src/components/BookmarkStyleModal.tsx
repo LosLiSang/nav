@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { Bold, Check, Download, Edit2, Italic, Layers, Palette, RotateCcw, Trash2, Type, X } from 'lucide-react'
+import { Bold, Check, Download, Edit2, Image as ImageIcon, Italic, Layers, Palette, RotateCcw, Trash2, Type, X } from 'lucide-react'
+import { IconPickerModal } from './IconPickerModal'
 
 type TabType = 'typography' | 'layout' | 'manage'
 import { resolveTextColor } from '../lib/utils'
-import type { Bookmark, Category, IconShape, Settings } from '../types'
+import type { Bookmark, Category, FallbackIconMode, IconShape, Settings } from '../types'
 
 type Props = {
   settings: Settings
@@ -90,6 +91,7 @@ export function BookmarkStyleModal({
   onRefreshAllIcons,
 }: Props) {
   const [activeTab, setActiveTab] = useState<TabType>('typography')
+  const [showFallbackIconPicker, setShowFallbackIconPicker] = useState(false)
   const [renaming, setRenaming] = useState(false)
   const [newCatName, setNewCatName] = useState(currentCategory?.name || '')
   const [isCustomMode, setIsCustomMode] = useState(
@@ -434,6 +436,73 @@ export function BookmarkStyleModal({
             </div>
           </div>
 
+                    {/* 2.5. Fallback Placeholder Icon */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block font-medium text-neutral-800 dark:text-neutral-200">
+                默认占位图标（未获取到图标时）
+              </label>
+              <span className="text-[11px] text-neutral-400 dark:text-neutral-500">
+                当网站无官方 Favicon 时展示
+              </span>
+            </div>
+            <div className="grid grid-cols-4 gap-2">
+              {[
+                { id: 'letter', label: '首字母/品牌', desc: '彩色文字徽章' },
+                { id: 'globe', label: '网络地球', desc: '简约网标 🌐' },
+                { id: 'bookmark', label: '书签标记', desc: '经典徽章 🔖' },
+                { id: 'custom', label: '自定义图标', desc: '指定统一图片' },
+              ].map((opt) => {
+                const isSelected = (settings.fallbackIconMode || 'letter') === opt.id
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => onChangeSettings({ fallbackIconMode: opt.id as FallbackIconMode })}
+                    className={`flex flex-col items-center justify-center rounded-xl border py-2.5 text-xs transition ${
+                      isSelected
+                        ? 'border-orange-500 bg-orange-50/60 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400 ring-1 ring-orange-500 font-semibold'
+                        : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800'
+                    }`}
+                  >
+                    <span>{opt.label}</span>
+                    <span className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5">{opt.desc}</span>
+                  </button>
+                )
+              })}
+            </div>
+
+            {settings.fallbackIconMode === 'custom' && (
+              <div className="mt-2.5 rounded-xl border border-neutral-200 dark:border-neutral-700 p-3 bg-neutral-50/50 dark:bg-neutral-800/40 space-y-2">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 overflow-hidden">
+                    {settings.defaultPlaceholderIconUrl ? (
+                      <img src={settings.defaultPlaceholderIconUrl} alt="" className="h-5 w-5 object-contain" />
+                    ) : (
+                      <ImageIcon className="h-4 w-4 text-neutral-400" />
+                    )}
+                  </div>
+                  <input
+                    value={settings.defaultPlaceholderIconUrl || ''}
+                    onChange={(e) => onChangeSettings({ defaultPlaceholderIconUrl: e.target.value })}
+                    placeholder="输入图片链接 (https://... 或 data:image/...)"
+                    className="min-w-0 flex-1 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-xs outline-none focus:border-orange-500 text-neutral-800 dark:text-neutral-100"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowFallbackIconPicker(true)}
+                    className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-xs font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition shadow-sm flex-shrink-0"
+                  >
+                    从图标库选
+                  </button>
+                </div>
+                <p className="text-[11px] text-neutral-400 dark:text-neutral-500 leading-relaxed">
+                  可直接粘贴任何在线图片链接，或点击「从图标库选」选择精选品牌/分类矢量图标作为全局统一的默认占位符。
+                </p>
+              </div>
+            )}
+          </div>
+
           {/* 3. Card Opacity & Columns */}
           <div className="grid grid-cols-2 gap-3">
             {/* Card Opacity */}
@@ -634,6 +703,17 @@ export function BookmarkStyleModal({
             完成
           </button>
         </div>
+        {/* Fallback Icon Picker Modal */}
+        {showFallbackIconPicker && (
+          <IconPickerModal
+            currentIconUrl={settings.defaultPlaceholderIconUrl}
+            onSelectIcon={(url) => {
+              onChangeSettings({ defaultPlaceholderIconUrl: url })
+              setShowFallbackIconPicker(false)
+            }}
+            onClose={() => setShowFallbackIconPicker(false)}
+          />
+        )}
       </div>
     </div>
   )

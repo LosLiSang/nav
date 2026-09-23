@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useDroppable } from '@dnd-kit/core'
 import {
   SortableContext,
@@ -160,7 +161,7 @@ function BookmarkCardItem({
   const effectiveTextColor = resolveTextColor(settings)
 
   const iconShape = settings.iconShape ?? 'rounded'
-  const brandIcon = getBrandIcon(bookmark.title, bookmark.url, iconShape)
+  const brandIcon = getBrandIcon(bookmark.title, bookmark.url, iconShape, settings)
   const candidates = useMemo(
     () => getFaviconCandidates(bookmark.url, bookmark.iconUrl),
     [bookmark.url, bookmark.iconUrl],
@@ -371,10 +372,11 @@ export function MainCategoryCard({
               onContextMenu={(e) => {
                 e.preventDefault()
                 e.stopPropagation()
+                const rect = e.currentTarget.getBoundingClientRect()
                 setCategoryContextMenu({
                   category: cat,
-                  x: e.clientX,
-                  y: e.clientY,
+                  x: rect.left,
+                  y: rect.bottom + 4,
                 })
               }}
             />
@@ -867,14 +869,14 @@ export function MainCategoryCard({
         }}
         onCancel={() => setDeletingCat(null)}
       />
-      {/* Category Context Menu (Fixed, immune to overflow-x-auto clipping) */}
-      {categoryContextMenu && (
+      {/* Category Context Menu (Fixed via portal to document.body) */}
+      {categoryContextMenu && createPortal(
         <div
           style={{
             left: `${Math.min(categoryContextMenu.x, window.innerWidth - 150)}px`,
             top: `${Math.min(categoryContextMenu.y, window.innerHeight - 130)}px`,
           }}
-          className="fixed z-50 flex w-36 flex-col overflow-hidden rounded-2xl border border-neutral-100 dark:border-neutral-800 bg-white/95 dark:bg-[#18181b]/95 p-1 text-xs shadow-2xl backdrop-blur-md text-neutral-700 dark:text-neutral-200 animate-in fade-in zoom-in-95 duration-100"
+          className="fixed z-[9999] flex w-36 flex-col overflow-hidden rounded-2xl border border-neutral-100 dark:border-neutral-800 bg-white/95 dark:bg-[#18181b]/95 p-1 text-xs shadow-2xl backdrop-blur-md text-neutral-700 dark:text-neutral-200 animate-in fade-in zoom-in-95 duration-100"
           onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
         >
@@ -917,7 +919,8 @@ export function MainCategoryCard({
             <Trash2 className="h-3.5 w-3.5 text-red-500" />
             <span>删除分类</span>
           </button>
-        </div>
+        </div>,
+        document.body
       )}
     </section>
   )

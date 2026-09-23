@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { Edit2, Image as ImageIcon, RotateCcw, Star, Trash2 } from 'lucide-react'
 import type { Bookmark } from '../types'
 
@@ -57,11 +58,11 @@ export function BookmarkContextMenu({
   const adjustedX = Math.min(x, window.innerWidth - 150)
   const adjustedY = Math.min(y, window.innerHeight - 180)
 
-  return (
+  return createPortal(
     <div
       ref={menuRef}
       style={{ left: `${adjustedX}px`, top: `${adjustedY}px` }}
-      className="fixed z-50 flex w-36 flex-col overflow-hidden rounded-2xl border border-neutral-100 dark:border-neutral-800 bg-white/95 dark:bg-[#18181b]/95 p-1 text-xs shadow-2xl backdrop-blur-md text-neutral-700 dark:text-neutral-200 animate-in fade-in zoom-in-95 duration-100"
+      className="fixed z-[9999] flex w-36 flex-col overflow-hidden rounded-2xl border border-neutral-100 dark:border-neutral-800 bg-white/95 dark:bg-[#18181b]/95 p-1 text-xs shadow-2xl backdrop-blur-md text-neutral-700 dark:text-neutral-200 animate-in fade-in zoom-in-95 duration-100"
       onClick={(e) => e.stopPropagation()}
     >
       <button
@@ -137,6 +138,7 @@ export function BookmarkContextMenu({
         <Trash2 className="h-3.5 w-3.5 text-red-500" />
         <span>删除</span>
       </button>
-    </div>
+    </div>,
+    document.body
   )
 }

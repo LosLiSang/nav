@@ -100,6 +100,8 @@ export const DEFAULT_SETTINGS: Settings = {
   highlightColor: '#2563eb',
   weatherCity: '杭州',
   themeMode: 'light',
+  fallbackIconMode: 'letter',
+  defaultPlaceholderIconUrl: '',
 }
 
 export function defaultCategories(): Category[] {
