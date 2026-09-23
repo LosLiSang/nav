@@ -207,6 +207,7 @@ function BookmarkCardItem({
       ? (bookmark.iconUrl || cachedIcon || candidates[candidateIndex])
       : (bookmark.iconUrl || cachedIcon)
   const hasIcon = Boolean(effectiveIconUrl) && !isTimedOut
+  const isUnavatar = typeof effectiveIconUrl === 'string' && effectiveIconUrl.includes('unavatar.io')
 
   function handleImageLoad(img: HTMLImageElement) {
     setIsLoaded(true)
@@ -278,6 +279,7 @@ function BookmarkCardItem({
           <img
             src={effectiveIconUrl}
             alt=""
+            crossOrigin={isUnavatar ? 'anonymous' : undefined}
             referrerPolicy="no-referrer"
             onLoad={(e) => handleImageLoad(e.currentTarget)}
             onError={() => {

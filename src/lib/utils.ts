@@ -78,8 +78,21 @@ export function getFaviconCandidates(url: string, customIconUrl?: string): strin
     }
   } catch {}
 
-  // 2. 本地 Vite 代理端点 (通过本机 127.0.0.1:7890 代理拉取海外高清图标，如 YouTube、Discord 等，自带内存缓存)
-  candidates.push(`/api/icon?domain=${host}`)
+  // 2. 本地开发环境走 Vite 代理 (仅在本地开发时使用，避免线上 GitHub Pages 产生 404)
+  const isLocalEnv =
+    typeof window !== 'undefined' &&
+    (window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1' ||
+      window.location.hostname === '[::1]')
+  if (isLocalEnv) {
+    candidates.push(`/api/icon?domain=${host}`)
+  }
+
+  // 3. 高质量公共 Favicon API (支持 CORS，且 fallback=false 在无图标时返回真实 404 而非假地球)
+  candidates.push(`https://unavatar.io/${host}?fallback=false`)
+
+  // 4. DuckDuckGo 图标源
+  candidates.push(`https://icons.duckduckgo.com/ip3/${host}.ico`)
 
   return candidates
 }
