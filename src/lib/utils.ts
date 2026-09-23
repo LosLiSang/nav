@@ -70,15 +70,7 @@ export function getFaviconCandidates(url: string, customIconUrl?: string): strin
 
   const candidates: string[] = []
 
-  // 1. 目标网站根目录直连 (最权威真实，163邮箱、LeetCode 等均在根目录有官方高清图标)
-  try {
-    const origin = new URL(normalizeUrl(url)).origin
-    if (origin) {
-      candidates.push(`${origin}/favicon.ico`)
-    }
-  } catch {}
-
-  // 2. 本地开发环境走 Vite 代理 (仅在本地开发时使用，避免线上 GitHub Pages 产生 404)
+  // 1. 本地开发环境走 Vite 代理 (本地同源，无 CORS 限制，自带内存缓存)
   const isLocalEnv =
     typeof window !== 'undefined' &&
     (window.location.hostname === 'localhost' ||
@@ -88,11 +80,8 @@ export function getFaviconCandidates(url: string, customIconUrl?: string): strin
     candidates.push(`/api/icon?domain=${host}`)
   }
 
-  // 3. 高质量公共 Favicon API (支持 CORS，且 fallback=false 在无图标时返回真实 404 而非假地球)
+  // 2. 高质量公共 Favicon API (原生开放 CORS Access-Control-Allow-Origin: *，无图标时返回真实 404)
   candidates.push(`https://unavatar.io/${host}?fallback=false`)
-
-  // 4. DuckDuckGo 图标源
-  candidates.push(`https://icons.duckduckgo.com/ip3/${host}.ico`)
 
   return candidates
 }
@@ -111,6 +100,10 @@ export async function fetchFaviconBlob(
   candidates: string[],
 ): Promise<{ blob: Blob; objectUrl: string } | null> {
   for (const url of candidates) {
+    if (!url) continue
+    if (url.startsWith('data:') || url.startsWith('blob:')) {
+      return { blob: new Blob([]), objectUrl: url }
+    }
     try {
       const controller = new AbortController()
       const timer = setTimeout(() => controller.abort(), 3500)
@@ -120,14 +113,6 @@ export async function fetchFaviconBlob(
       if (!res.ok) continue
       const blob = await res.blob()
       if (!blob || blob.size < 40) continue
-
-      // 过滤常见默认地球占位图特征 (如 DuckDuckGo 占位图特定大小 1478/1444/726/519 字节)
-      if (
-        url.includes('duckduckgo.com') &&
-        (blob.size === 1478 || blob.size === 1444 || blob.size === 726 || blob.size === 519)
-      ) {
-        continue
-      }
 
       const objectUrl = URL.createObjectURL(blob)
       return { blob, objectUrl }
