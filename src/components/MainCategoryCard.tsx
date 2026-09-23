@@ -17,6 +17,7 @@ import {
   Plus,
   Star,
   Trash2,
+  Type,
   X,
 } from 'lucide-react'
 import { getFaviconCandidates, hostnameOf, resolveTextColor } from '../lib/utils'
@@ -96,20 +97,14 @@ function CategoryTabItem({
   category,
   active,
   highlightColor,
-  contextMenuOpen,
   onSelect,
   onContextMenu,
-  onEdit,
-  onDelete,
 }: {
   category: Category
   active: boolean
   highlightColor?: string
-  contextMenuOpen: boolean
   onSelect: () => void
   onContextMenu: (e: React.MouseEvent) => void
-  onEdit: () => void
-  onDelete: () => void
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `category:${category.id}` })
 
@@ -136,33 +131,6 @@ function CategoryTabItem({
         )}
         <span>{category.name}</span>
       </button>
-
-      {/* Directly Anchored Category Context Menu */}
-      {contextMenuOpen && (
-        <div
-          className="absolute left-0 top-full mt-1.5 z-50 flex w-32 flex-col overflow-hidden rounded-2xl border border-neutral-100 dark:border-neutral-800 bg-white/95 dark:bg-[#18181b]/95 p-1 text-xs shadow-2xl backdrop-blur-md text-neutral-700 dark:text-neutral-200 animate-in fade-in zoom-in-95 duration-100"
-          onMouseDown={(e) => e.stopPropagation()}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button
-            type="button"
-            onClick={onEdit}
-            className="flex items-center gap-2 rounded-xl px-2.5 py-1.5 text-left text-neutral-700 dark:text-neutral-200 transition hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-white"
-          >
-            <Edit3 className="h-3.5 w-3.5 text-neutral-500" />
-            <span>编辑分类</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={onDelete}
-            className="flex items-center gap-2 rounded-xl px-2.5 py-1.5 text-left text-red-600 dark:text-red-400 transition hover:bg-red-50 dark:hover:bg-red-950/30"
-          >
-            <Trash2 className="h-3.5 w-3.5 text-red-500" />
-            <span>删除分类</span>
-          </button>
-        </div>
-      )}
     </div>
   )
 }
@@ -333,7 +301,7 @@ export function MainCategoryCard({
   const [selectedHelp, setSelectedHelp] = useState<(typeof HELP_ITEMS)[0] | null>(null)
   const [showLayoutMenu, setShowLayoutMenu] = useState(false)
   const [layoutTab, setLayoutTab] = useState<'common' | 'icon' | 'note'>('common')
-  const [contextMenuCatId, setContextMenuCatId] = useState<string | null>(null)
+  const [categoryContextMenu, setCategoryContextMenu] = useState<{ category: Category; x: number; y: number } | null>(null)
   const [editingCategory, setEditingCategory] = useState<Category | null>(null)
   const [editCatName, setEditCatName] = useState('')
   const [editCatColor, setEditCatColor] = useState('#3b82f6')
@@ -346,7 +314,7 @@ export function MainCategoryCard({
         setShowHelpMenu(false)
         setShowLayoutMenu(false)
       }
-      setContextMenuCatId(null)
+      setCategoryContextMenu(null)
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
@@ -399,22 +367,15 @@ export function MainCategoryCard({
               category={cat}
               active={activeCategoryId === cat.id}
               highlightColor={settings.highlightColor}
-              contextMenuOpen={contextMenuCatId === cat.id}
               onSelect={() => onSelectCategory(cat.id)}
               onContextMenu={(e) => {
                 e.preventDefault()
                 e.stopPropagation()
-                setContextMenuCatId(cat.id)
-              }}
-              onEdit={() => {
-                setEditingCategory(cat)
-                setEditCatName(cat.name)
-                setEditCatColor(cat.color || '#3b82f6')
-                setContextMenuCatId(null)
-              }}
-              onDelete={() => {
-                setDeletingCat(cat)
-                setContextMenuCatId(null)
+                setCategoryContextMenu({
+                  category: cat,
+                  x: e.clientX,
+                  y: e.clientY,
+                })
               }}
             />
           ))}
@@ -906,6 +867,58 @@ export function MainCategoryCard({
         }}
         onCancel={() => setDeletingCat(null)}
       />
+      {/* Category Context Menu (Fixed, immune to overflow-x-auto clipping) */}
+      {categoryContextMenu && (
+        <div
+          style={{
+            left: `${Math.min(categoryContextMenu.x, window.innerWidth - 150)}px`,
+            top: `${Math.min(categoryContextMenu.y, window.innerHeight - 130)}px`,
+          }}
+          className="fixed z-50 flex w-36 flex-col overflow-hidden rounded-2xl border border-neutral-100 dark:border-neutral-800 bg-white/95 dark:bg-[#18181b]/95 p-1 text-xs shadow-2xl backdrop-blur-md text-neutral-700 dark:text-neutral-200 animate-in fade-in zoom-in-95 duration-100"
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            type="button"
+            onClick={() => {
+              setEditingCategory(categoryContextMenu.category)
+              setEditCatName(categoryContextMenu.category.name)
+              setEditCatColor(categoryContextMenu.category.color || '#3b82f6')
+              setCategoryContextMenu(null)
+            }}
+            className="flex items-center gap-2 rounded-xl px-2.5 py-1.5 text-left text-neutral-700 dark:text-neutral-200 transition hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-white"
+          >
+            <Edit3 className="h-3.5 w-3.5 text-neutral-500" />
+            <span>编辑分类</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              onOpenBookmarkStyle()
+              setCategoryContextMenu(null)
+            }}
+            className="flex items-center gap-2 rounded-xl px-2.5 py-1.5 text-left text-neutral-700 dark:text-neutral-200 transition hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-white"
+          >
+            <Type className="h-3.5 w-3.5 text-neutral-500" />
+            <span>排版与样式</span>
+          </button>
+
+          <div className="my-1 h-[1px] bg-neutral-100 dark:bg-neutral-800" />
+
+          <button
+            type="button"
+            onClick={() => {
+              setDeletingCat(categoryContextMenu.category)
+              setCategoryContextMenu(null)
+            }}
+            className="flex items-center gap-2 rounded-xl px-2.5 py-1.5 text-left text-red-600 dark:text-red-400 transition hover:bg-red-50 dark:hover:bg-red-950/30"
+          >
+            <Trash2 className="h-3.5 w-3.5 text-red-500" />
+            <span>删除分类</span>
+          </button>
+        </div>
+      )}
     </section>
   )
 }

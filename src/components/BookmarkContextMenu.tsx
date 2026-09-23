@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { Edit2, RotateCcw, Star, Trash2 } from 'lucide-react'
+import { Edit2, Image as ImageIcon, RotateCcw, Star, Trash2 } from 'lucide-react'
 import type { Bookmark } from '../types'
 
 type Props = {
@@ -11,6 +11,7 @@ type Props = {
   onDelete: (bookmarkId: string) => void
   onToggleFavorite?: (bookmarkId: string) => void
   onRefreshIcon?: (bookmark: Bookmark) => void
+  onChangeIcon?: (bookmark: Bookmark) => void
 }
 
 export function BookmarkContextMenu({
@@ -22,6 +23,7 @@ export function BookmarkContextMenu({
   onDelete,
   onToggleFavorite,
   onRefreshIcon,
+  onChangeIcon,
 }: Props) {
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -52,8 +54,8 @@ export function BookmarkContextMenu({
 
   if (!bookmark) return null
 
-  const adjustedX = Math.min(x, window.innerWidth - 140)
-  const adjustedY = Math.min(y, window.innerHeight - 90)
+  const adjustedX = Math.min(x, window.innerWidth - 150)
+  const adjustedY = Math.min(y, window.innerHeight - 180)
 
   return (
     <div
@@ -71,8 +73,22 @@ export function BookmarkContextMenu({
         className="flex items-center gap-2 rounded-xl px-2.5 py-1.5 text-left text-neutral-700 dark:text-neutral-200 transition hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-white"
       >
         <Edit2 className="h-3.5 w-3.5 text-neutral-500" />
-        <span>编辑</span>
+        <span>编辑网址</span>
       </button>
+
+      {onChangeIcon && (
+        <button
+          type="button"
+          onClick={() => {
+            onChangeIcon(bookmark)
+            onClose()
+          }}
+          className="flex items-center gap-2 rounded-xl px-2.5 py-1.5 text-left text-neutral-700 dark:text-neutral-200 transition hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-white"
+        >
+          <ImageIcon className="h-3.5 w-3.5 text-orange-500" />
+          <span>自定义图标</span>
+        </button>
+      )}
 
       {onToggleFavorite && (
         <button

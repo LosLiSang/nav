@@ -19,6 +19,7 @@ import { BookmarkStyleModal } from './components/BookmarkStyleModal'
 import { BottomSection } from './components/BottomSection'
 import { ConfirmModal } from './components/ConfirmModal'
 import { FloatingDock } from './components/FloatingDock'
+import { IconPickerModal } from './components/IconPickerModal'
 import { MainCategoryCard } from './components/MainCategoryCard'
 import { ProfileModal } from './components/ProfileModal'
 import { SearchBar, type SearchBarHandle } from './components/SearchBar'
@@ -86,6 +87,7 @@ export default function App() {
   const [editingBookmark, setEditingBookmark] = useState<Bookmark | null>(null)
   const [deletingBookmark, setDeletingBookmark] = useState<Bookmark | null>(null)
   const [draggingId, setDraggingId] = useState<string | null>(null)
+  const [iconPickerBookmark, setIconPickerBookmark] = useState<Bookmark | null>(null)
   const [contextMenu, setContextMenu] = useState<{
     bookmark: Bookmark
     x: number
@@ -303,6 +305,9 @@ export default function App() {
             onEdit={(b) => {
               openAddDialog(b)
             }}
+            onChangeIcon={(b) => {
+              setIconPickerBookmark(b)
+            }}
             onDelete={(id) => {
               const bm = bookmarks.find((b) => b.id === id)
               if (bm) setDeletingBookmark(bm)
@@ -313,6 +318,18 @@ export default function App() {
             onRefreshIcon={(b) => {
               void refreshIcon(hostnameOf(b.url))
             }}
+          />
+        )}
+
+        {/* Direct Icon Picker Modal */}
+        {iconPickerBookmark && (
+          <IconPickerModal
+            currentIconUrl={iconPickerBookmark.iconUrl}
+            onSelectIcon={(url) => {
+              void updateBookmark(iconPickerBookmark.id, { iconUrl: url })
+              setIconPickerBookmark(null)
+            }}
+            onClose={() => setIconPickerBookmark(null)}
           />
         )}
 
