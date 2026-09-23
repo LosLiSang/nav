@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { Camera, Check, ChevronDown, Edit3, Folder, Loader2, Shield, X } from 'lucide-react'
-import { normalizeUrl } from '../lib/utils'
+import { normalizeIconUrl, normalizeUrl } from '../lib/utils'
 import { IconPickerModal } from './IconPickerModal'
 import type { Bookmark, Category } from '../types'
 
@@ -71,7 +71,8 @@ export function BookmarkDialog({
         title: trimmedTitle,
         url: normalizeUrl(trimmedUrl),
         categoryId,
-        iconUrl: iconUrl.trim() || undefined,
+        // 顺手清掉旧版选择器留下的双重编码，让数据在编辑时逐步自愈
+        iconUrl: normalizeIconUrl(iconUrl.trim()) || undefined,
       })
       if (keepOpen) {
         setTitle('')
@@ -147,7 +148,7 @@ export function BookmarkDialog({
               }`}
             >
               {iconUrl ? (
-                <img src={iconUrl} alt="" className="h-5 w-5 object-contain rounded" />
+                <img src={normalizeIconUrl(iconUrl)} alt="" className="h-5 w-5 object-contain rounded" />
               ) : (
                 <Camera className="h-4 w-4" />
               )}
@@ -297,7 +298,7 @@ export function BookmarkDialog({
       {/* Icon Library Picker Modal */}
       {showIconPicker && (
         <IconPickerModal
-          currentIconUrl={iconUrl}
+          currentIconUrl={normalizeIconUrl(iconUrl)}
           onSelectIcon={(url) => setIconUrl(url)}
           onClose={() => setShowIconPicker(false)}
         />

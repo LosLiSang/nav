@@ -66,6 +66,23 @@ type Props = {
   onClose: () => void
 }
 
+const LUCIDE_COLOR = '#ea580c'
+
+/**
+ * 把点选时已经渲染在页面上的 lucide 图标固化成独立 SVG 数据图标。
+ *
+ * 必须落成具体颜色：SVG 以 <img> 方式渲染时脱离了页面样式，currentColor
+ * 会解析成黑色。顺手记一个 data-icon 标记，选中态靠它做字符串比对。
+ */
+function svgToIconUri(svg: SVGSVGElement | null, name: string): string | null {
+  if (!svg) return null
+  const raw = svg.outerHTML
+    .replace(/\s?class="[^"]*"/g, '')
+    .replace(/currentColor/g, LUCIDE_COLOR)
+    .replace('<svg ', `<svg data-icon="${name}" `)
+  return `data:image/svg+xml;utf8,${encodeURIComponent(raw)}`
+}
+
 const LUCIDE_ICONS: Record<string, { label: string; icon: React.ComponentType<{ className?: string }> }> = {
   Code: { label: '代码', icon: Code },
   Terminal: { label: '终端', icon: Terminal },
@@ -298,14 +315,19 @@ export function IconPickerModal({ currentIconUrl, onSelectIcon, onClose }: Props
             <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
               {filteredLucide.map(([name, def]) => {
                 const IconComponent = def.icon
-                const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"><rect width="48" height="48" rx="12" fill="%23fff" stroke="%23fed7aa" stroke-width="2"/><circle cx="24" cy="24" r="12" fill="%23fff7ed"/><text x="24" y="29" text-anchor="middle" font-size="16" fill="%23ea580c">★</text></svg>`
-                const uri = `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
-                const isSelected = currentIconUrl === uri
+                // 选中态靠写入 SVG 的 data-icon 标记做字符串比对，
+                // 不需要为比对而预先构建 55 个数据图标
+                const isSelected = Boolean(
+                  currentIconUrl && currentIconUrl.includes(`data-icon="${name}"`),
+                )
                 return (
                   <button
                     key={name}
                     type="button"
-                    onClick={() => {
+                    onClick={(e) => {
+                      // 点选时把已经渲染在页面上的图标固化成独立 SVG 数据图标
+                      const uri = svgToIconUri(e.currentTarget.querySelector('svg'), name)
+                      if (!uri) return
                       onSelectIcon(uri)
                       onClose()
                     }}
@@ -316,7 +338,7 @@ export function IconPickerModal({ currentIconUrl, onSelectIcon, onClose }: Props
                     }`}
                   >
                     <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-orange-50 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400">
-                      <IconComponent className="h-4 w-4" />
+                      <IconComponent className="h-4 w-4" data-lucide-name={name} />
                     </div>
                     <span className="mt-1 truncate text-[10px] text-neutral-700 dark:text-neutral-200 w-full">
                       {def.label}

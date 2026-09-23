@@ -30,6 +30,19 @@ export function normalizeUrl(value: string): string {
   return `https://${trimmed}`
 }
 
+/**
+ * 修复旧版「分类图标」选择器的双重编码。
+ *
+ * 那版先把颜色里的 # 预转义成 %23，再对整个 SVG 做 encodeURIComponent，
+ * % 于是变成 %25，存下来的 fill="%2523fff" 是非法颜色 —— SVG 规范里非法 fill
+ * 回退成黑色，而模板里的 <rect> 铺满整个图标，书签上就是一整块纯黑。
+ * 这里把 %2523 还原成单次编码的 %23，已存的书签刷新后即可正常显示，无需手动重选。
+ */
+export function normalizeIconUrl(url: string | undefined): string | undefined {
+  if (!url || !url.startsWith('data:image/') || !url.includes('%2523')) return url
+  return url.replace(/%2523/g, '%23')
+}
+
 export function isUrlLike(value: string): boolean {
   const trimmed = value.trim()
   if (/\s/.test(trimmed)) return false
