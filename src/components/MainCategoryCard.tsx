@@ -167,16 +167,49 @@ function BookmarkCardItem({
     [bookmark.url, bookmark.iconUrl],
   )
   const [candidateIndex, setCandidateIndex] = useState(0)
+  const [isLoaded, setIsLoaded] = useState(false)
+  const [isTimedOut, setIsTimedOut] = useState(false)
 
   useEffect(() => {
     setCandidateIndex(0)
+    setIsLoaded(false)
+    setIsTimedOut(false)
   }, [bookmark.url, bookmark.iconUrl, cachedIcon])
 
+  // 5秒拉取超时机制：如果尝试拉取远程图标超过 5 秒仍未成功，立即放弃并回退到自定义占位图/品牌图标
+  useEffect(() => {
+    if (bookmark.iconUrl || cachedIcon || isLoaded || isTimedOut) return
+    if (candidateIndex >= candidates.length) return
+
+    const overallTimer = setTimeout(() => {
+      setIsTimedOut(true)
+    }, 5000)
+
+    const candidateTimer = setTimeout(() => {
+      setCandidateIndex((prev) => {
+        const next = prev + 1
+        if (next >= candidates.length) {
+          setIsTimedOut(true)
+        }
+        return next
+      })
+    }, 2500)
+
+    return () => {
+      clearTimeout(overallTimer)
+      clearTimeout(candidateTimer)
+    }
+  }, [candidateIndex, candidates.length, isLoaded, isTimedOut, bookmark.iconUrl, cachedIcon])
+
   // If custom iconUrl exists, use it. Else if cached in IndexedDB, use it! Else candidates.
-  const effectiveIconUrl = bookmark.iconUrl || cachedIcon || candidates[candidateIndex]
-  const hasIcon = Boolean(effectiveIconUrl)
+  const effectiveIconUrl =
+    !isTimedOut && candidateIndex < candidates.length
+      ? (bookmark.iconUrl || cachedIcon || candidates[candidateIndex])
+      : (bookmark.iconUrl || cachedIcon)
+  const hasIcon = Boolean(effectiveIconUrl) && !isTimedOut
 
   function handleImageLoad(img: HTMLImageElement) {
+    setIsLoaded(true)
     if (cachedIcon || bookmark.iconUrl || !domain || !onSaveCachedIcon) return
     try {
       const canvas = document.createElement('canvas')
@@ -251,7 +284,13 @@ function BookmarkCardItem({
               if (cachedIcon && onSaveCachedIcon && domain) {
                 onSaveCachedIcon(domain, '')
               }
-              setCandidateIndex((prev) => prev + 1)
+              setCandidateIndex((prev) => {
+                const next = prev + 1
+                if (next >= candidates.length) {
+                  setIsTimedOut(true)
+                }
+                return next
+              })
             }}
             className={`h-4.5 w-4.5 flex-shrink-0 object-contain ${shapeClass}`}
             loading="lazy"
