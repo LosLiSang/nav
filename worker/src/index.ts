@@ -119,12 +119,59 @@ export default {
           ok: true,
           service: 'nav-sync',
           configured: Boolean((env.SYNC_TOKEN || '').trim()),
-          endpoints: ['GET /api/data', 'PUT /api/data'],
+          endpoints: ['GET /api/data', 'PUT /api/data', 'GET /api/icon?domain='],
         },
         200,
         request,
         env,
       )
+    }
+
+    // 图标代理：利用 Cloudflare 边缘节点代理抓取并免费缓存 30 天，无并发与速率限制
+    if (url.pathname === '/api/icon' && request.method === 'GET') {
+      const domain = url.searchParams.get('domain')
+      if (!domain) {
+        return new Response('Missing domain', { status: 400, headers: corsHeaders(request, env) })
+      }
+      try {
+        const targetUrl = `https://${domain}/favicon.ico`
+        const iconRes = await fetch(targetUrl, {
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          },
+          cf: { cacheTtl: 2592000, cacheEverything: true },
+        })
+        if (iconRes.ok) {
+          const contentType = iconRes.headers.get('content-type') || 'image/x-icon'
+          return new Response(iconRes.body, {
+            status: 200,
+            headers: {
+              'Content-Type': contentType,
+              'Cache-Control': 'public, max-age=2592000',
+              ...corsHeaders(request, env),
+            },
+          })
+        }
+      } catch {}
+
+      try {
+        const unavatarUrl = `https://unavatar.io/${domain}?fallback=false`
+        const uRes = await fetch(unavatarUrl, { cf: { cacheTtl: 2592000, cacheEverything: true } })
+        if (uRes.ok) {
+          const contentType = uRes.headers.get('content-type') || 'image/png'
+          return new Response(uRes.body, {
+            status: 200,
+            headers: {
+              'Content-Type': contentType,
+              'Cache-Control': 'public, max-age=2592000',
+              ...corsHeaders(request, env),
+            },
+          })
+        }
+      } catch {}
+
+      return new Response('Not found', { status: 404, headers: corsHeaders(request, env) })
     }
 
     if (url.pathname !== '/api/data') {

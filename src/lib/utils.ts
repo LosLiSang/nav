@@ -1,4 +1,5 @@
 import type { Settings } from '../types'
+import { loadSyncConfig } from './sync'
 
 /**
  * 书签文字在暗色模式下的实际渲染颜色。
@@ -80,7 +81,13 @@ export function getFaviconCandidates(url: string, customIconUrl?: string): strin
     candidates.push(`/api/icon?domain=${host}`)
   }
 
-  // 2. 高质量公共 Favicon API (原生开放 CORS Access-Control-Allow-Origin: *，无图标时返回真实 404)
+  // 2. 如果用户配置了 Cloudflare Worker 同步端点，优先走专属 Worker（无并发限制、边缘缓存 30 天）
+  const syncConfig = typeof window !== 'undefined' ? loadSyncConfig() : null
+  if (syncConfig?.url) {
+    candidates.push(`${syncConfig.url}/api/icon?domain=${host}`)
+  }
+
+  // 3. 高质量公共 Favicon API (原生开放 CORS Access-Control-Allow-Origin: *，无图标时返回真实 404)
   candidates.push(`https://unavatar.io/${host}?fallback=false`)
 
   return candidates
@@ -92,33 +99,77 @@ export function faviconFor(url: string, customIconUrl?: string): string {
   return candidates[0] || ''
 }
 
+// ---------------------------------------------------------------------------
+// 全局图标拉取并发队列与平滑节流调度（彻底防止 429 Too Many Requests）
+// ---------------------------------------------------------------------------
+
+type QueueTask = () => Promise<void>
+const fetchQueue: QueueTask[] = []
+let activeFetchCount = 0
+const MAX_CONCURRENCY = 3
+const DELAY_BETWEEN_TASKS_MS = 60
+
+function processFetchQueue() {
+  if (activeFetchCount >= MAX_CONCURRENCY || fetchQueue.length === 0) return
+
+  activeFetchCount++
+  const task = fetchQueue.shift()!
+
+  task().finally(() => {
+    activeFetchCount--
+    setTimeout(processFetchQueue, DELAY_BETWEEN_TASKS_MS)
+  })
+}
+
+function enqueueFetchTask<T>(fn: () => Promise<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    fetchQueue.push(async () => {
+      try {
+        const result = await fn()
+        resolve(result)
+      } catch (err) {
+        reject(err)
+      }
+    })
+    processFetchQueue()
+  })
+}
+
 /**
- * 方案 A：异步拉取候选源二进制 Blob，跳过 Canvas 与 Base64 转换
- * 直接支持 SVG / ICO / PNG 原始高画质持久化
+ * 方案 A：异步拉取候选源二进制 Blob，带全局并发队列控制（最多同时 3 个连接）
+ * 平滑排队调度，彻底消除 50+ 个书签同时发起导致的 429 Too Many Requests 限流
  */
-export async function fetchFaviconBlob(
+export function fetchFaviconBlob(
   candidates: string[],
 ): Promise<{ blob: Blob; objectUrl: string } | null> {
-  for (const url of candidates) {
-    if (!url) continue
-    if (url.startsWith('data:') || url.startsWith('blob:')) {
-      return { blob: new Blob([]), objectUrl: url }
-    }
-    try {
-      const controller = new AbortController()
-      const timer = setTimeout(() => controller.abort(), 3500)
-      const res = await fetch(url, { signal: controller.signal })
-      clearTimeout(timer)
+  return enqueueFetchTask(async () => {
+    for (const url of candidates) {
+      if (!url) continue
+      if (url.startsWith('data:') || url.startsWith('blob:')) {
+        return { blob: new Blob([]), objectUrl: url }
+      }
+      try {
+        const controller = new AbortController()
+        const timer = setTimeout(() => controller.abort(), 4000)
+        const res = await fetch(url, { signal: controller.signal })
+        clearTimeout(timer)
 
-      if (!res.ok) continue
-      const blob = await res.blob()
-      if (!blob || blob.size < 40) continue
+        // 遇到 429 限流时短暂让步重试下一源
+        if (res.status === 429) {
+          await new Promise((r) => setTimeout(r, 300))
+          continue
+        }
 
-      const objectUrl = URL.createObjectURL(blob)
-      return { blob, objectUrl }
-    } catch {
-      continue
+        if (!res.ok) continue
+        const blob = await res.blob()
+        if (!blob || blob.size < 40) continue
+
+        const objectUrl = URL.createObjectURL(blob)
+        return { blob, objectUrl }
+      } catch {
+        continue
+      }
     }
-  }
-  return null
+    return null
+  })
 }
