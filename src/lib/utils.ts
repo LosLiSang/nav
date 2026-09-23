@@ -81,10 +81,7 @@ export function getFaviconCandidates(url: string, customIconUrl?: string): strin
   // 2. 本地 Vite 代理端点 (通过本机 127.0.0.1:7890 代理拉取海外高清图标，如 YouTube、Discord 等，自带内存缓存)
   candidates.push(`/api/icon?domain=${host}`)
 
-  // 3. 国内稳定免翻 Favicon 聚合源 (Cravatar API，自动解析页面 HTML 提取真实图标，国内 CDN 加速)
-  candidates.push(`https://cravatar.com/favicon/api/index.php?url=${host}`)
-
-  // 4. 海外优质 CDN 备选源 (浏览器直连)
+  // 3. 海外优质 CDN 备选源 (浏览器直连)
   candidates.push(`https://icons.duckduckgo.com/ip3/${host}.ico`)
   candidates.push(`https://www.google.com/s2/favicons?domain=${host}&sz=64`)
   candidates.push(`https://icon.horse/icon/${host}`)
