@@ -130,16 +130,32 @@ const PANELS = [
   },
   {
     id: '2-profile',
-    name: '个人中心与数据管理 (ProfileModal)',
+    name: '个人中心 - 资料 Tab (ProfileModal)',
     click: `document.querySelector('[title="个人中心与数据管理"]')`,
   },
   {
+    id: '2b-profile-data',
+    name: '个人中心 - 数据备份 Tab (ProfileModal)',
+    setup: `document.querySelector('[title="个人中心与数据管理"]')`,
+    click: `[...document.querySelectorAll('button')].find((b) => b.textContent.includes('数据备份'))`,
+  },
+  {
     id: '3-bookmark-style',
-    name: '书签展示与排版样式 (BookmarkStyleModal)',
+    name: '书签样式 - 字体排版 Tab (BookmarkStyleModal)',
     click: `document.querySelector('button[title="书签排版与展示设置"]')`,
-    // 这个面板曾把预览文字色直接取用户设置值，暗色下渲染成深灰压深底；
-    // 断言预览文字必须是浅色，防止再次回归。
     expectPreviewTextLight: true,
+  },
+  {
+    id: '3b-bookmark-style-layout',
+    name: '书签样式 - 视觉与布局 Tab (BookmarkStyleModal)',
+    setup: `document.querySelector('button[title="书签排版与展示设置"]')`,
+    click: `[...document.querySelectorAll('button')].find((b) => b.textContent.includes('视觉与布局'))`,
+  },
+  {
+    id: '3c-bookmark-style-manage',
+    name: '书签样式 - 分类与维护 Tab (BookmarkStyleModal)',
+    setup: `document.querySelector('button[title="书签排版与展示设置"]')`,
+    click: `[...document.querySelectorAll('button')].find((b) => b.textContent.includes('分类与维护'))`,
   },
   {
     id: '4-bookmark-dialog',

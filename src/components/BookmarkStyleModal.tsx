@@ -1,5 +1,7 @@
 import { useState } from 'react'
-import { Bold, Check, Download, Edit2, Italic, RotateCcw, Trash2, Type, X } from 'lucide-react'
+import { Bold, Check, Download, Edit2, Italic, Layers, Palette, RotateCcw, Trash2, Type, X } from 'lucide-react'
+
+type TabType = 'typography' | 'layout' | 'manage'
 import { resolveTextColor } from '../lib/utils'
 import type { Bookmark, Category, IconShape, Settings } from '../types'
 
@@ -87,6 +89,7 @@ export function BookmarkStyleModal({
   onDeleteCategory,
   onRefreshAllIcons,
 }: Props) {
+  const [activeTab, setActiveTab] = useState<TabType>('typography')
   const [renaming, setRenaming] = useState(false)
   const [newCatName, setNewCatName] = useState(currentCategory?.name || '')
   const [isCustomMode, setIsCustomMode] = useState(
@@ -106,32 +109,79 @@ export function BookmarkStyleModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-lg rounded-2xl bg-white dark:bg-neutral-900 p-6 text-neutral-800 dark:text-neutral-200 shadow-2xl max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 pb-3.5">
-          <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-orange-50 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400">
-              <Type className="h-4 w-4" />
+      <div className="flex flex-col w-full max-w-lg rounded-2xl bg-white dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200 shadow-2xl max-h-[85vh] overflow-hidden animate-in fade-in zoom-in-95 duration-150 border border-neutral-200/80 dark:border-neutral-800">
+        
+        {/* Fixed Header */}
+        <div className="p-6 pb-3 border-b border-neutral-100 dark:border-neutral-800">
+          <div className="flex items-center justify-between pb-3">
+            <div className="flex items-center gap-2">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-orange-50 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400">
+                <Type className="h-4 w-4" />
+              </div>
+              <div>
+                <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-100">书签展示与排版</h2>
+                {currentCategory && (
+                  <span className="text-[11px] text-neutral-400 dark:text-neutral-500">
+                    当前分类：{currentCategory.name}
+                  </span>
+                )}
+              </div>
             </div>
-            <div>
-              <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-100">书签展示与排版样式</h2>
-              {currentCategory && (
-                <span className="text-[11px] text-neutral-400 dark:text-neutral-500">
-                  当前分类：{currentCategory.name}
-                </span>
-              )}
-            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg p-1 text-neutral-400 dark:text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200 transition"
+              aria-label="关闭"
+            >
+              <X className="h-5 w-5" />
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-neutral-400 dark:text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-200"
-          >
-            <X className="h-5 w-5" />
-          </button>
+
+          {/* Segmented Control / Tabs */}
+          <div className="flex rounded-xl bg-neutral-100 dark:bg-neutral-800 p-1 text-xs">
+            <button
+              type="button"
+              onClick={() => setActiveTab('typography')}
+              className={`flex flex-1 items-center justify-center gap-2 rounded-lg py-2 font-medium transition ${
+                activeTab === 'typography'
+                  ? 'bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 shadow-sm'
+                  : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200'
+              }`}
+            >
+              <Type className="h-4 w-4 text-orange-500" />
+              字体排版
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('layout')}
+              className={`flex flex-1 items-center justify-center gap-2 rounded-lg py-2 font-medium transition ${
+                activeTab === 'layout'
+                  ? 'bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 shadow-sm'
+                  : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200'
+              }`}
+            >
+              <Palette className="h-4 w-4 text-blue-500" />
+              视觉与布局
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('manage')}
+              className={`flex flex-1 items-center justify-center gap-2 rounded-lg py-2 font-medium transition ${
+                activeTab === 'manage'
+                  ? 'bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 shadow-sm'
+                  : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200'
+              }`}
+            >
+              <Layers className="h-4 w-4 text-emerald-500" />
+              分类与维护
+            </button>
+          </div>
         </div>
 
-        <div className="mt-5 space-y-5 text-xs">
+        {/* Scrollable Body */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-5 text-xs">
+          {activeTab === 'typography' && (
+            <>
           {/* 1. Typography: Font Family, Size, Bold, Italic, Color */}
           <div>
             <div className="flex items-center justify-between mb-2">
@@ -306,7 +356,12 @@ export function BookmarkStyleModal({
             </div>
           </div>
 
-          {/* Highlight Color (书签栏展示的高亮色) */}
+            </>
+          )}
+
+          {activeTab === 'layout' && (
+            <>
+              {/* Highlight Color (书签栏展示的高亮色) */}
           <div>
             <label className="block font-medium text-neutral-800 dark:text-neutral-200 mb-2">
               书签栏展示的高亮色
@@ -459,7 +514,12 @@ export function BookmarkStyleModal({
             </div>
           </div>
 
-          {/* 4. Category Quick Actions */}
+            </>
+          )}
+
+          {activeTab === 'manage' && (
+            <div className="space-y-4">
+              {/* 4. Category Quick Actions */}
           {currentCategory && (
             <div className="border-t border-neutral-100 dark:border-neutral-800 pt-3.5">
               <span className="font-medium text-neutral-700 dark:text-neutral-200 block mb-2">
@@ -560,13 +620,16 @@ export function BookmarkStyleModal({
               </div>
             </div>
           )}
+            </div>
+          )}
         </div>
 
-        <div className="mt-6 flex justify-end border-t border-neutral-100 dark:border-neutral-800 pt-3.5">
+        {/* Fixed Footer */}
+        <div className="flex justify-end border-t border-neutral-100 dark:border-neutral-800 px-6 py-3.5 bg-neutral-50/50 dark:bg-neutral-900/50">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl bg-neutral-900 px-5 py-2 font-medium text-white shadow-sm hover:bg-neutral-800"
+            className="rounded-xl bg-neutral-900 dark:bg-neutral-800 px-5 py-2 font-medium text-white dark:text-neutral-100 shadow-sm hover:bg-neutral-800 dark:hover:bg-neutral-700 transition border border-transparent dark:border-neutral-700"
           >
             完成
           </button>
