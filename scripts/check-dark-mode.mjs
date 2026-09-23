@@ -119,8 +119,14 @@ const AUDIT = `(() => {
 const PANELS = [
   {
     id: '1-settings',
-    name: '全局界面与壁纸设置 (SettingsPanel)',
+    name: '全局设置 - 界面与壁纸 (SettingsPanel)',
     click: `document.querySelector('button[title="全局界面与壁纸设置"]')`,
+  },
+  {
+    id: '1b-settings-sync',
+    name: '全局设置 - 云端同步 Tab (SettingsPanel)',
+    setup: `document.querySelector('button[title="全局界面与壁纸设置"]')`,
+    click: `[...document.querySelectorAll('button')].find((b) => b.textContent.includes('云端同步'))`,
   },
   {
     id: '2-profile',
