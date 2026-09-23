@@ -81,15 +81,12 @@ export function getFaviconCandidates(url: string, customIconUrl?: string): strin
     candidates.push(`/api/icon?domain=${host}`)
   }
 
-  // 2. 如果用户配置了 Cloudflare Worker 同步端点，优先走专属 Worker（无并发限制、边缘缓存 30 天）
+  // 2. 线上统一走 Cloudflare Worker 图标代理，避免浏览器直连第三方源被限流
   const syncConfig = typeof window !== 'undefined' ? loadSyncConfig() : null
   const workerUrl = syncConfig?.url || DEFAULT_SYNC_URL || ''
   if (workerUrl) {
     candidates.push(`${workerUrl.replace(/\/+$/, '')}/api/icon?domain=${host}`)
   }
-
-  // 3. 高质量公共 Favicon API (原生开放 CORS Access-Control-Allow-Origin: *，无图标时返回真实 404)
-  candidates.push(`https://unavatar.io/${host}?fallback=false`)
 
   return candidates
 }
