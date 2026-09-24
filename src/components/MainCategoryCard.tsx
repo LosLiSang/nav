@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useDroppable } from '@dnd-kit/core'
 import {
   SortableContext,
   horizontalListSortingStrategy,
@@ -31,6 +32,7 @@ type Props = {
   activeCategoryId: string
   bookmarks: Bookmark[]
   isSortMode: boolean
+  draggingId?: string | null
   cardOpacity: number
   settings: Settings
   cachedIcons?: Record<string, string>
@@ -100,6 +102,7 @@ function CategoryTabItem({
   category,
   active,
   isSortMode,
+  isDraggingThisType,
   highlightColor,
   onSelect,
   onContextMenu,
@@ -107,30 +110,36 @@ function CategoryTabItem({
   category: Category
   active: boolean
   isSortMode?: boolean
+  isDraggingThisType?: boolean
   highlightColor?: string
   onSelect: () => void
   onContextMenu: (e: React.MouseEvent) => void
 }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-    isOver,
-  } = useSortable({
+  const sortable = useSortable({
     id: `category:${category.id}`,
-    disabled: !isSortMode,
+    disabled: !isSortMode || !isDraggingThisType,
   })
+  const droppable = useDroppable({
+    id: `category:${category.id}`,
+    disabled: Boolean(isDraggingThisType),
+  })
+
+  const setNodeRef = isDraggingThisType ? sortable.setNodeRef : droppable.setNodeRef
+  const isOver = isDraggingThisType ? sortable.isOver : droppable.isOver
+  const transform = isDraggingThisType ? sortable.transform : null
+  const transition = isDraggingThisType ? sortable.transition : undefined
+  const isDragging = isDraggingThisType ? sortable.isDragging : false
+  const attributes = isDraggingThisType ? sortable.attributes : {}
+  const listeners = isDraggingThisType ? sortable.listeners : {}
 
   return (
     <div
       ref={setNodeRef}
       style={{
-        transform: CSS.Transform.toString(transform),
+        transform: CSS.Translate.toString(transform),
         transition,
         opacity: isDragging ? 0.3 : 1,
+        zIndex: isDragging ? 50 : undefined,
       }}
       {...attributes}
       {...listeners}
@@ -145,7 +154,7 @@ function CategoryTabItem({
          active
            ? 'text-white shadow-sm'
            : isOver
-              ? 'bg-blue-100 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 ring-2 ring-blue-400 dark:ring-blue-500'
+              ? 'bg-blue-100 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 ring-2 ring-blue-400 dark:ring-blue-500 scale-105'
              : 'text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-white'
        } ${isSortMode ? 'cursor-grab active:cursor-grabbing border border-dashed border-blue-300 dark:border-blue-700' : ''}`}
       >
@@ -321,6 +330,7 @@ export function MainCategoryCard({
   activeCategoryId,
   bookmarks,
   isSortMode,
+  draggingId,
   cardOpacity,
   settings,
   cachedIcons,
@@ -413,6 +423,7 @@ export function MainCategoryCard({
                 category={cat}
                 active={activeCategoryId === cat.id}
                 isSortMode={isSortMode}
+                isDraggingThisType={Boolean(draggingId?.startsWith('category:'))}
                 highlightColor={settings.highlightColor}
                 onSelect={() => onSelectCategory(cat.id)}
                 onContextMenu={(e) => {

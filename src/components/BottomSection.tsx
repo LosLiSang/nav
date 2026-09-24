@@ -35,6 +35,7 @@ type Props = {
   settings: Settings
   cardOpacity: number
   isSortMode?: boolean
+  draggingId?: string | null
   onSelectWidgetTab: (tab: WidgetTab) => void
   onAddMemo: (text: string) => void
   onToggleMemo: (id: string) => void
@@ -59,6 +60,7 @@ export function BottomSection(props: Props) {
         cardOpacity={props.cardOpacity}
         settings={props.settings}
         isSortMode={props.isSortMode}
+        draggingId={props.draggingId}
         onSaveCachedIcon={props.onSaveCachedIcon}
         onSaveFailedIcon={props.onSaveFailedIcon}
         onSelectSubSection={props.onSelectSubSection}

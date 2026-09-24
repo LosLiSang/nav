@@ -668,9 +668,10 @@ export const useNavStore = create<NavState>((set, get) => ({
     const overIndex = sectionSubCats.findIndex((sc) => sc.id === overId)
     if (activeIndex < 0 || overIndex < 0) return
     const reorderedSectionSubs = arrayMove(sectionSubCats, activeIndex, overIndex).map((sc, idx) => ({ ...sc, order: idx }))
-    const nextSubCategories = subCategories.map((sc) => {
-      const found = reorderedSectionSubs.find((item) => item.id === sc.id)
-      return found || sc
+    const otherSubCats = subCategories.filter((sc) => sc.sectionId !== active.sectionId)
+    const nextSubCategories = [...otherSubCats, ...reorderedSectionSubs].sort((a, b) => {
+      if (a.sectionId === b.sectionId) return a.order - b.order
+      return 0
     })
     await db.subCategories.bulkPut(reorderedSectionSubs)
     set({ subCategories: nextSubCategories })

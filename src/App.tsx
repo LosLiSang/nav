@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
+  closestCenter,
   DndContext,
   DragOverlay,
   PointerSensor,
@@ -24,6 +25,7 @@ import { MainCategoryCard } from './components/MainCategoryCard'
 import { ProfileModal } from './components/ProfileModal'
 import { SearchBar, type SearchBarHandle } from './components/SearchBar'
 import { SettingsPanel } from './components/SettingsPanel'
+import { getSubIcon } from './components/SubCategorySection'
 import { TopNavbar } from './components/TopNavbar'
 
 export default function App() {
@@ -269,6 +271,7 @@ export default function App() {
   return (
     <DndContext
       sensors={sensors}
+      collisionDetection={closestCenter}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
@@ -328,6 +331,7 @@ export default function App() {
             activeCategoryId={settings.activeCategoryId}
             bookmarks={activeMainBookmarks}
             isSortMode={settings.isSortMode}
+            draggingId={draggingId}
             cardOpacity={settings.cardOpacity}
             settings={settings}
             cachedIcons={cachedIcons}
@@ -359,6 +363,7 @@ export default function App() {
             cardOpacity={settings.cardOpacity}
             settings={settings}
             isSortMode={settings.isSortMode}
+            draggingId={draggingId}
             onSaveCachedIcon={(domain, dataOrBlob, objectUrl) => void saveCachedIcon(domain, dataOrBlob, objectUrl)}
             onSaveFailedIcon={(domain) => void saveFailedIcon(domain)}
               onSelectSubSection={setActiveSubSection}
@@ -430,14 +435,15 @@ export default function App() {
              </div>
            ) : null
          })()}
-         {draggingId?.startsWith('subcat:') && (() => {
-           const sc = subCategories.find((c) => c.id === draggingId.replace('subcat:', ''))
-           return sc ? (
-             <div className="flex items-center gap-1 rounded-xl bg-orange-500 px-3 py-1.5 text-xs font-medium text-white shadow-xl cursor-grabbing">
-               <span>{sc.name}</span>
-             </div>
-           ) : null
-         })()}
+        {draggingId?.startsWith('subcat:') && (() => {
+          const sc = subCategories.find((c) => c.id === draggingId.replace('subcat:', ''))
+          return sc ? (
+            <div className="flex w-[60px] flex-col items-center justify-center rounded-xl bg-orange-500 p-2 text-center text-white shadow-2xl cursor-grabbing scale-105 ring-2 ring-orange-400">
+              {getSubIcon(sc.icon, 'h-4 w-4 mb-1')}
+              <span className="text-[11px] leading-tight truncate w-full font-semibold">{sc.name}</span>
+            </div>
+          ) : null
+        })()}
        </DragOverlay>
 
         {/* Right-click Context Menu */}

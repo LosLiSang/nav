@@ -178,12 +178,6 @@ async function main() {
     })
     await sleep(500)
 
-    const debugButtons = await cdp.send('Runtime.evaluate', {
-      expression: `Array.from(document.querySelectorAll('button')).map(b => b.textContent.trim()).filter(Boolean)`,
-      returnByValue: true,
-    })
-    console.log('当前页面按钮:', debugButtons.result.value)
-
     const menuClosed = await cdp.send('Runtime.evaluate', {
       expression: `!Array.from(document.querySelectorAll('button')).some(b => b.textContent.includes('重命名'))`,
       returnByValue: true,
@@ -212,6 +206,7 @@ async function main() {
       expression: `
         (async () => {
           const mod = await import('/src/store/useNavStore.ts');
+          await mod.useNavStore.getState().initialize();
           const store = mod.useNavStore.getState();
           const topBookmarks = store.bookmarks.filter(b => b.categoryId && !b.subCategoryId);
           const subCats = store.subCategories;

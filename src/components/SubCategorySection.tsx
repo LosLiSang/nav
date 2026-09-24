@@ -45,7 +45,7 @@ import type {
   SubSection,
 } from '../types'
 
-function getSubIcon(icon: string, className = 'h-4 w-4') {
+export function getSubIcon(icon: string, className = 'h-4 w-4') {
   switch (icon) {
     case 'mail':
     case 'email':
@@ -95,56 +95,63 @@ function SubSectionTabItem({
   section,
   isActive,
   isSortMode,
+  isDraggingThisType,
   onSelect,
   onContextMenu,
 }: {
   section: SubSection
   isActive: boolean
   isSortMode?: boolean
+  isDraggingThisType?: boolean
   onSelect: () => void
   onContextMenu: (e: React.MouseEvent) => void
 }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-    isOver,
-  } = useSortable({
+  const sortable = useSortable({
     id: `section:${section.id}`,
-    disabled: !isSortMode,
+    disabled: !isSortMode || !isDraggingThisType,
+  })
+  const droppable = useDroppable({
+    id: `section:${section.id}`,
+    disabled: Boolean(isDraggingThisType),
   })
 
+  const setNodeRef = isDraggingThisType ? sortable.setNodeRef : droppable.setNodeRef
+  const isOver = isDraggingThisType ? sortable.isOver : droppable.isOver
+  const transform = isDraggingThisType ? sortable.transform : null
+  const transition = isDraggingThisType ? sortable.transition : undefined
+  const isDragging = isDraggingThisType ? sortable.isDragging : false
+  const attributes = isDraggingThisType ? sortable.attributes : {}
+  const listeners = isDraggingThisType ? sortable.listeners : {}
+
   return (
-    <div
+    <button
       ref={setNodeRef}
+      type="button"
       style={{
-        transform: CSS.Transform.toString(transform),
+        transform: CSS.Translate.toString(transform),
         transition,
         opacity: isDragging ? 0.3 : 1,
+        zIndex: isDragging ? 50 : undefined,
       }}
       {...attributes}
       {...listeners}
-      className="flex-shrink-0"
+      onClick={onSelect}
+      onContextMenu={onContextMenu}
+      className={`flex flex-shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium select-none transition ${
+        isActive
+          ? 'bg-[#ff6900] text-white shadow-sm'
+          : isOver
+            ? 'bg-orange-100 dark:bg-orange-950/80 text-orange-700 dark:text-orange-300 ring-2 ring-orange-500 scale-105'
+            : 'text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800'
+      } ${
+        isSortMode
+          ? 'cursor-grab active:cursor-grabbing border border-dashed border-orange-300 dark:border-orange-700'
+          : 'cursor-pointer'
+      }`}
     >
-      <button
-        type="button"
-        onClick={onSelect}
-        onContextMenu={onContextMenu}
-        className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition ${
-          isActive
-            ? 'bg-[#ff6900] text-white shadow-sm'
-            : isOver
-              ? 'bg-orange-100 dark:bg-orange-950/80 text-orange-700 dark:text-orange-300 ring-2 ring-orange-500'
-              : 'text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800'
-        } ${isSortMode ? 'cursor-grab active:cursor-grabbing border border-dashed border-orange-300 dark:border-orange-700' : ''}`}
-      >
-        {getSubIcon(section.icon, 'h-3.5 w-3.5')}
-        <span>{section.name}</span>
-      </button>
-    </div>
+      {getSubIcon(section.icon, 'h-3.5 w-3.5 pointer-events-none')}
+      <span className="pointer-events-none">{section.name}</span>
+    </button>
   )
 }
 
@@ -177,56 +184,65 @@ function SubCategoryTabItem({
   subCategory,
   isSelected,
   isSortMode,
+  isDraggingThisType,
   onSelect,
   onContextMenu,
 }: {
   subCategory: SubCategory
   isSelected: boolean
   isSortMode?: boolean
+  isDraggingThisType?: boolean
   onSelect: () => void
   onContextMenu: (e: React.MouseEvent) => void
 }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-    isOver,
-  } = useSortable({
+  const sortable = useSortable({
     id: `subcat:${subCategory.id}`,
-    disabled: !isSortMode,
+    disabled: !isSortMode || !isDraggingThisType,
+  })
+  const droppable = useDroppable({
+    id: `subcat:${subCategory.id}`,
+    disabled: Boolean(isDraggingThisType),
   })
 
+  const setNodeRef = isDraggingThisType ? sortable.setNodeRef : droppable.setNodeRef
+  const isOver = isDraggingThisType ? sortable.isOver : droppable.isOver
+  const transform = isDraggingThisType ? sortable.transform : null
+  const transition = isDraggingThisType ? sortable.transition : undefined
+  const isDragging = isDraggingThisType ? sortable.isDragging : false
+  const attributes = isDraggingThisType ? sortable.attributes : {}
+  const listeners = isDraggingThisType ? sortable.listeners : {}
+
   return (
-    <div
+    <button
       ref={setNodeRef}
+      type="button"
       style={{
-        transform: CSS.Transform.toString(transform),
+        transform: CSS.Translate.toString(transform),
         transition,
         opacity: isDragging ? 0.3 : 1,
+        zIndex: isDragging ? 50 : undefined,
       }}
       {...attributes}
       {...listeners}
-      className="w-full"
+      onClick={onSelect}
+      onContextMenu={onContextMenu}
+      className={`group relative flex w-full flex-col items-center justify-center rounded-xl p-2 text-center select-none transition ${
+        isSelected
+          ? 'bg-orange-50 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400 font-semibold ring-1 ring-orange-500/20'
+          : isOver
+            ? 'bg-orange-100 dark:bg-orange-950/80 text-orange-700 dark:text-orange-300 ring-2 ring-orange-500 scale-105'
+            : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800/60 hover:text-neutral-900 dark:hover:text-white'
+      } ${
+        isSortMode
+          ? 'cursor-grab active:cursor-grabbing border border-dashed border-orange-300 dark:border-orange-700'
+          : 'cursor-pointer'
+      }`}
     >
-      <button
-        type="button"
-        onClick={onSelect}
-        onContextMenu={onContextMenu}
-        className={`group relative flex w-full flex-col items-center justify-center rounded-xl p-2 text-center transition ${
-          isSelected
-            ? 'bg-orange-50 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400 font-semibold ring-1 ring-orange-500/20'
-            : isOver
-              ? 'bg-orange-100 dark:bg-orange-950/80 text-orange-700 dark:text-orange-300 ring-2 ring-orange-500 scale-105'
-              : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800/60 hover:text-neutral-900 dark:hover:text-white'
-        } ${isSortMode ? 'cursor-grab active:cursor-grabbing border border-dashed border-orange-300 dark:border-orange-700' : ''}`}
-      >
-        {getSubIcon(subCategory.icon, 'h-4 w-4 mb-1')}
-        <span className="text-[11px] leading-tight truncate w-full">{subCategory.name}</span>
-      </button>
-    </div>
+      {getSubIcon(subCategory.icon, 'h-4 w-4 mb-1 pointer-events-none')}
+      <span className="text-[11px] leading-tight truncate w-full pointer-events-none">
+        {subCategory.name}
+      </span>
+    </button>
   )
 }
 
@@ -390,6 +406,7 @@ type Props = {
   cardOpacity: number
   settings: Settings
   isSortMode?: boolean
+  draggingId?: string | null
   onSaveCachedIcon?: (domain: string, dataOrBlob: string | Blob, objectUrl?: string) => void
   onSaveFailedIcon?: (domain: string) => void
   onSelectSubSection: (id: string) => void
@@ -415,6 +432,7 @@ export function SubCategorySection({
   cardOpacity,
   settings,
   isSortMode,
+  draggingId,
   onSaveCachedIcon,
   onSaveFailedIcon,
   onSelectSubSection,
@@ -486,7 +504,10 @@ export function SubCategorySection({
   const currentSectionId = currentSection?.id || ''
 
   const currentSubCategories = useMemo(
-    () => subCategories.filter((sc) => sc.sectionId === currentSectionId),
+    () =>
+      subCategories
+        .filter((sc) => sc.sectionId === currentSectionId)
+        .sort((a, b) => a.order - b.order),
     [subCategories, currentSectionId],
   )
 
@@ -499,6 +520,9 @@ export function SubCategorySection({
     () => bookmarks.filter((b) => b.subCategoryId === effectiveSubCatId),
     [bookmarks, effectiveSubCatId],
   )
+
+  const isDraggingSection = Boolean(draggingId?.startsWith('section:'))
+  const isDraggingSubCat = Boolean(draggingId?.startsWith('subcat:'))
 
   return (
     <div
@@ -518,6 +542,7 @@ export function SubCategorySection({
                 section={sec}
                 isActive={sec.id === currentSectionId}
                 isSortMode={isSortMode}
+                isDraggingThisType={isDraggingSection}
                 onSelect={() => onSelectSubSection(sec.id)}
                 onContextMenu={(e) => {
                   e.preventDefault()
@@ -594,6 +619,7 @@ export function SubCategorySection({
                 subCategory={sc}
                 isSelected={sc.id === effectiveSubCatId}
                 isSortMode={isSortMode}
+                isDraggingThisType={isDraggingSubCat}
                 onSelect={() => onSelectSubCategory(sc.id)}
                 onContextMenu={(e) => {
                   e.preventDefault()
