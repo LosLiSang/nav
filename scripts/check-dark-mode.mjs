@@ -169,6 +169,30 @@ const PANELS = [
     click: `document.querySelector('svg.lucide-camera')?.closest('button')`,
     expectWraps: 2,
   },
+  {
+    id: '6-help-modal',
+    name: '帮助详情弹窗 (HelpDetailModal in MainCategoryCard)',
+    setup: `document.querySelector('button[title="帮助说明"]')`,
+    click: `[...document.querySelectorAll('button')].find((b) => b.textContent.includes('拖放管理'))`,
+  },
+  {
+    id: '7-edit-category',
+    name: '编辑分类弹窗 (EditCategoryModal in MainCategoryCard)',
+    setup: `(() => { const cat = document.querySelector('button span.rounded-full')?.closest('button'); if (!cat) return null; const r = cat.getBoundingClientRect(); cat.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: r.left + 10, clientY: r.top + 10 })); return cat })()`,
+    click: `[...document.querySelectorAll('button')].find((b) => b.textContent.includes('编辑分类'))`,
+  },
+  {
+    id: '8-confirm-modal',
+    name: '删除确认弹窗 (ConfirmModal)',
+    setup: `(() => { const item = [...document.querySelectorAll('div.group')].find((d) => d.querySelector('span.truncate')); if (!item) return null; const r = item.getBoundingClientRect(); item.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: r.left + 20, clientY: r.top + 20 })); return item })()`,
+    click: `[...document.querySelectorAll('button')].find((b) => b.textContent.includes('删除'))`,
+  },
+  {
+    id: '9-sub-rename',
+    name: '二级版块重命名弹窗 (RenameModal in SubCategorySection)',
+    setup: `(() => { const btn = [...document.querySelectorAll('#tools-section button')].find((b) => b.querySelector('span')); if (!btn) return null; const r = btn.getBoundingClientRect(); btn.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: r.left + 10, clientY: r.top + 10 })); return btn })()`,
+    click: `[...document.querySelectorAll('button')].find((b) => b.textContent.includes('重命名'))`,
+  },
 ]
 
 async function main() {
@@ -227,7 +251,7 @@ async function main() {
   }
 
   const ready = () =>
-    evaluate(`(async () => { const m = ${STORE}; return m.useNavStore.getState().ready })()`)
+    evaluate(`Boolean(document.querySelector('button[title="全局界面与壁纸设置"]'))`)
   const setDark = () =>
     evaluate(
       `(async () => { const m = ${STORE}; const s = m.useNavStore.getState(); if (s.settings.themeMode !== 'dark') s.updateSettings({ themeMode: 'dark' }); return m.useNavStore.getState().settings.themeMode })()`,
@@ -245,6 +269,7 @@ async function main() {
   for (const panel of PANELS) {
     await cdp.send('Page.reload')
     await poll(ready, 25000, `reload ${panel.id}`)
+    await sleep(400)
     await setDark()
     await poll(hasDarkRoot, 10000, 'dark class after reload')
 

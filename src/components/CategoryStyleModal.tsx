@@ -31,28 +31,28 @@ export function CategoryStyleModal({
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-3 backdrop-blur-sm">
-      <div className="w-full max-w-sm rounded-2xl bg-white p-4.5 shadow-2xl max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-100">
-        <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
-          <h2 className="text-base font-semibold text-neutral-900">
+      <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200 border border-neutral-200/80 dark:border-neutral-800 p-4.5 shadow-2xl max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-100">
+        <div className="flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 pb-3">
+          <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-100">
             批量设置「{categoryName}」网址格式
           </h2>
           <button
             type="button"
             onClick={onClose}
-            className="text-neutral-400 hover:text-neutral-700"
+            className="text-neutral-400 dark:text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-200"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="mt-2.5 rounded-lg bg-neutral-50 px-3 py-2 text-[11px] text-neutral-500">
+        <div className="mt-2.5 rounded-lg bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200/60 dark:border-neutral-700/60 px-3 py-2 text-[11px] text-neutral-500 dark:text-neutral-400">
           ⓘ 此格式仅对「{categoryName}」分类网址有效，可随时恢复默认。
         </div>
 
         <div className="mt-3 space-y-3.5 text-xs">
           {/* 1. Icon Shape (方块型、圆角、全圆) */}
           <div>
-            <label className="block font-medium text-neutral-700 mb-1.5">
+            <label className="block font-medium text-neutral-700 dark:text-neutral-200 mb-1.5">
               图标角标形状
             </label>
             <div className="grid grid-cols-3 gap-2">
@@ -74,12 +74,12 @@ export function CategoryStyleModal({
                     }
                     className={`flex flex-col items-center justify-center rounded-xl border py-2 text-xs transition ${
                       isSelected
-                        ? 'border-orange-500 bg-orange-50/50 text-orange-600 ring-1 ring-orange-500'
-                        : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50'
+                        ? 'border-orange-500 bg-orange-50/60 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400 ring-1 ring-orange-500 font-semibold'
+                        : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800'
                     }`}
                   >
                     <span className="font-medium">{opt.label}</span>
-                    <span className="text-[10px] text-neutral-400 mt-0.5">{opt.desc}</span>
+                    <span className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5">{opt.desc}</span>
                   </button>
                 )
               })}
@@ -88,19 +88,19 @@ export function CategoryStyleModal({
 
           {/* 2. Format Controls: Font Size, Bold, Italic, Color */}
           <div>
-            <label className="block font-medium text-neutral-700 mb-1.5">
+            <label className="block font-medium text-neutral-700 dark:text-neutral-200 mb-1.5">
               文字排版格式
             </label>
-            <div className="flex items-center justify-between gap-2 rounded-xl border border-neutral-200 p-2">
+            <div className="flex items-center justify-between gap-2 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50/50 dark:bg-neutral-800/40 p-2">
               {/* Font size */}
               <div className="flex items-center gap-1.5">
-                <span className="text-neutral-500">字号:</span>
+                <span className="text-neutral-500 dark:text-neutral-400">字号:</span>
                 <select
                   value={style.fontSize}
                   onChange={(e) =>
                     setStyle((prev) => ({ ...prev, fontSize: Number(e.target.value) }))
                   }
-                  className="rounded border border-neutral-200 bg-neutral-50 px-2 py-1 text-xs outline-none"
+                  className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200 px-2 py-1 text-xs outline-none focus:border-orange-500"
                 >
                   <option value={12}>12px</option>
                   <option value={13}>13px (默认)</option>
@@ -118,8 +118,8 @@ export function CategoryStyleModal({
                 }
                 className={`flex h-7 w-7 items-center justify-center rounded-lg border text-xs font-bold transition ${
                   style.isBold
-                    ? 'border-orange-500 bg-orange-50 text-orange-600'
-                    : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50'
+                    ? 'border-orange-500 bg-orange-50 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400'
+                    : 'border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800'
                 }`}
                 title="加粗"
               >
@@ -134,8 +134,8 @@ export function CategoryStyleModal({
                 }
                 className={`flex h-7 w-7 items-center justify-center rounded-lg border text-xs italic transition ${
                   style.isItalic
-                    ? 'border-orange-500 bg-orange-50 text-orange-600'
-                    : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50'
+                    ? 'border-orange-500 bg-orange-50 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400'
+                    : 'border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800'
                 }`}
                 title="斜体"
               >
@@ -168,8 +168,8 @@ export function CategoryStyleModal({
           </div>
 
           {/* 3. Live Preview */}
-          <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
-            <div className="text-[11px] text-neutral-400 mb-1.5">效果预览</div>
+          <div className="rounded-xl border border-neutral-200/80 dark:border-neutral-700 bg-white dark:bg-neutral-900/90 p-3">
+            <div className="text-[11px] text-neutral-400 dark:text-neutral-500 mb-1.5">效果预览</div>
             <div className="flex items-center gap-2">
               <div
                 className={`flex h-5 w-5 items-center justify-center bg-black text-white text-[10px] font-bold ${
@@ -200,7 +200,7 @@ export function CategoryStyleModal({
             <button
               type="button"
               onClick={() => setStyle(DEFAULT_STYLE)}
-              className="text-xs text-neutral-400 hover:text-neutral-700"
+              className="text-xs text-neutral-400 dark:text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-200"
             >
               重置文字格式
             </button>
@@ -209,7 +209,7 @@ export function CategoryStyleModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-xl border border-neutral-200 px-3 py-1.5 text-xs text-neutral-600 hover:bg-neutral-50"
+                className="rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-1.5 text-xs text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800"
               >
                 取消
               </button>

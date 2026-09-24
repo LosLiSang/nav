@@ -477,6 +477,9 @@ export const useNavStore = create<NavState>((set, get) => ({
         }
 
         await saveSettings(nextSettings)
+        if (typeof document !== 'undefined') {
+          document.documentElement.classList.toggle('dark', nextSettings.themeMode === 'dark')
+        }
         set({
           ready: true,
           categories: [...nextCategories].sort((a, b) => a.order - b.order),
@@ -540,6 +543,9 @@ export const useNavStore = create<NavState>((set, get) => ({
 
   updateSettings(values) {
     const settings = { ...get().settings, ...values }
+    if (typeof document !== 'undefined' && 'themeMode' in values) {
+      document.documentElement.classList.toggle('dark', settings.themeMode === 'dark')
+    }
     set({ settings })
     void saveSettings(settings)
   },

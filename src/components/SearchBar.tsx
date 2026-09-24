@@ -262,7 +262,7 @@ export const SearchBar = forwardRef<SearchBarHandle, Props>(function SearchBar(
               <button
                 type="button"
                 onClick={() => setShowSettings(false)}
-                className="text-neutral-400 hover:text-neutral-700"
+                className="text-neutral-400 dark:text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-200"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -344,7 +344,7 @@ export const SearchBar = forwardRef<SearchBarHandle, Props>(function SearchBar(
                       e.stopPropagation()
                       removeHistoryItem(item)
                     }}
-                    className="text-neutral-400 hover:text-neutral-700"
+                    className="text-neutral-400 dark:text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-200"
                   >
                     <X className="h-3 w-3" />
                   </button>

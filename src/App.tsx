@@ -111,6 +111,8 @@ export default function App() {
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
   )
 
+  const isDark = settings.themeMode === 'dark'
+
   useEffect(() => {
     void initialize()
   }, [initialize])
@@ -128,6 +130,11 @@ export default function App() {
     }
     link.href = settings.customFontUrl
   }, [settings.customFontUrl])
+
+  // Apply dark class to documentElement (<html>) so all portals and global elements inherit dark mode
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', isDark)
+  }, [isDark])
 
   // Bookmarks for active main category (filtered by query if any)
   const activeMainBookmarks = useMemo(() => {
@@ -152,7 +159,6 @@ export default function App() {
   const draggingBookmark = draggingId
     ? bookmarks.find((b) => b.id === draggingId)
     : null
-  const isDark = settings.themeMode === 'dark'
 
   function handleDragStart(event: DragStartEvent) {
     setDraggingId(String(event.active.id))

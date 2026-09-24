@@ -2,6 +2,7 @@ import { createPortal } from 'react-dom'
 import { useState } from 'react'
 import { Bold, Check, Download, Edit2, Image as ImageIcon, Italic, Layers, Palette, RotateCcw, Trash2, Type, X } from 'lucide-react'
 import { IconPickerModal } from './IconPickerModal'
+import { ConfirmModal } from './ConfirmModal'
 
 type TabType = 'typography' | 'layout' | 'manage'
 import { resolveTextColor } from '../lib/utils'
@@ -95,6 +96,8 @@ export function BookmarkStyleModal({
   const [showFallbackIconPicker, setShowFallbackIconPicker] = useState(false)
   const [renaming, setRenaming] = useState(false)
   const [newCatName, setNewCatName] = useState(currentCategory?.name || '')
+  const [confirmDeleteCat, setConfirmDeleteCat] = useState(false)
+  const [confirmRefreshIcons, setConfirmRefreshIcons] = useState(false)
   const [isCustomMode, setIsCustomMode] = useState(
     Boolean(
       settings.fontFamily &&
@@ -668,7 +671,7 @@ export function BookmarkStyleModal({
                       autoFocus
                       value={newCatName}
                       onChange={(e) => setNewCatName(e.target.value)}
-                      className="rounded-lg border border-orange-500 px-2.5 py-1 text-xs outline-none"
+                      className="rounded-lg border border-orange-500 bg-white dark:bg-neutral-900 text-neutral-800 dark:text-neutral-100 px-2.5 py-1 text-xs outline-none"
                     />
                     <button
                       type="button"
@@ -713,12 +716,7 @@ export function BookmarkStyleModal({
                 {onRefreshAllIcons && (
                   <button
                     type="button"
-                    onClick={() => {
-                      if (window.confirm('确定要清除所有本地图标缓存并重新获取吗？')) {
-                        onRefreshAllIcons()
-                        alert('已清除图标缓存，正在重新抓取！')
-                      }
-                    }}
+                    onClick={() => setConfirmRefreshIcons(true)}
                     className="flex items-center gap-1.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 px-3 py-1.5 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800"
                   >
                     <RotateCcw className="h-3.5 w-3.5 text-neutral-500 dark:text-neutral-400" />
@@ -729,12 +727,7 @@ export function BookmarkStyleModal({
                 {onDeleteCategory && (
                   <button
                     type="button"
-                    onClick={() => {
-                      if (window.confirm(`确认删除分类「${currentCategory.name}」及其全部网址？`)) {
-                        onDeleteCategory(currentCategory.id)
-                        onClose()
-                      }
-                    }}
+                    onClick={() => setConfirmDeleteCat(true)}
                     className="flex items-center gap-1.5 rounded-xl border border-red-200 dark:border-red-900/60 bg-red-50/50 dark:bg-red-950/40 px-3 py-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 ml-auto"
                   >
                     <Trash2 className="h-3.5 w-3.5 text-red-500" />
@@ -769,6 +762,36 @@ export function BookmarkStyleModal({
              onClose={() => setShowFallbackIconPicker(false)}
            />
          )}
+
+        {/* Confirm Delete Category Modal */}
+        <ConfirmModal
+          open={confirmDeleteCat}
+          isDanger
+          title="删除分类确认"
+          message={`确认删除分类「${currentCategory?.name}」及其全部网址？删除后不可撤销。`}
+          confirmText="确认删除"
+          onConfirm={() => {
+            if (currentCategory && onDeleteCategory) {
+              onDeleteCategory(currentCategory.id)
+              onClose()
+            }
+            setConfirmDeleteCat(false)
+          }}
+          onCancel={() => setConfirmDeleteCat(false)}
+        />
+
+        {/* Confirm Refresh All Icons Modal */}
+        <ConfirmModal
+          open={confirmRefreshIcons}
+          title="重新获取图标"
+          message="确定要清除所有本地图标缓存并在后台重新抓取吗？"
+          confirmText="开始重新获取"
+          onConfirm={() => {
+            onRefreshAllIcons?.()
+            setConfirmRefreshIcons(false)
+          }}
+          onCancel={() => setConfirmRefreshIcons(false)}
+        />
       </div>
     </div>
   , document.body)

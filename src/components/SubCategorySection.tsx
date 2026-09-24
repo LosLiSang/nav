@@ -513,7 +513,7 @@ export function SubCategorySection({
             <Edit3 className="h-3.5 w-3.5 text-neutral-500" />
             <span>重命名</span>
           </button>
-          <div className="my-1 h-[1px] bg-neutral-100 dark:border-neutral-800" />
+          <div className="my-1 h-[1px] bg-neutral-100 dark:bg-neutral-800" />
           <button
             type="button"
             onClick={() => {
@@ -550,7 +550,7 @@ export function SubCategorySection({
               <button
                 type="button"
                 onClick={() => setRenamingItem(null)}
-                className="rounded-xl px-3 py-1.5 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100"
+                className="rounded-xl px-3 py-1.5 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
               >
                 取消
               </button>

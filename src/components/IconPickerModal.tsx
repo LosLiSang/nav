@@ -231,7 +231,7 @@ export function IconPickerModal({ currentIconUrl, onSelectIcon, onClose }: Props
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="搜索图标或品牌..."
-              className="w-full rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 pl-9 pr-3 py-1.5 text-xs outline-none focus:border-orange-500 focus:bg-white"
+              className="w-full rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-100 pl-9 pr-3 py-1.5 text-xs outline-none focus:border-orange-500 focus:bg-white dark:focus:bg-neutral-800"
             />
           </div>
 
@@ -365,7 +365,7 @@ export function IconPickerModal({ currentIconUrl, onSelectIcon, onClose }: Props
               value={customInput}
               onChange={(e) => setCustomInput(e.target.value)}
               placeholder="https://... 或 data:image/..."
-              className="flex-1 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 px-3 py-1.5 text-xs outline-none focus:border-orange-500 focus:bg-white"
+              className="flex-1 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-100 px-3 py-1.5 text-xs outline-none focus:border-orange-500 focus:bg-white dark:focus:bg-neutral-800"
             />
             <button
               type="button"

@@ -571,7 +571,7 @@ export function MainCategoryCard({
                     className={`rounded-full px-3 py-1 font-medium transition ${
                       layoutTab === tab
                         ? 'bg-[#ff6900] text-white shadow-sm'
-                        : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+                        : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700'
                     }`}
                   >
                     {tab === 'common' && '通用'}
@@ -582,9 +582,9 @@ export function MainCategoryCard({
               </div>
 
               {/* Row 1: 显示图标 switch */}
-              <div className="mt-4 border-t border-neutral-100 pt-3">
+              <div className="mt-4 border-t border-neutral-100 dark:border-neutral-800 pt-3">
                 <div className="flex items-center justify-between">
-                  <span className="font-medium text-neutral-800 text-sm">显示图标</span>
+                  <span className="font-medium text-neutral-800 dark:text-neutral-200 text-sm">显示图标</span>
                   <button
                     type="button"
                     onClick={() =>
@@ -593,7 +593,7 @@ export function MainCategoryCard({
                       })
                     }
                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
-                      settings.showBookmarkIcon !== false ? 'bg-[#ff6900]' : 'bg-neutral-300'
+                      settings.showBookmarkIcon !== false ? 'bg-[#ff6900]' : 'bg-neutral-300 dark:bg-neutral-700'
                     }`}
                   >
                     <span
@@ -603,15 +603,15 @@ export function MainCategoryCard({
                     />
                   </button>
                 </div>
-                <p className="mt-1 text-[11px] text-neutral-400">
+                <p className="mt-1 text-[11px] text-neutral-400 dark:text-neutral-500">
                   关闭后，书签图标不显示，只显示标题文字
                 </p>
               </div>
 
               {/* Row 2: 网址列数 */}
-              <div className="mt-3.5 border-t border-neutral-100 pt-3">
+              <div className="mt-3.5 border-t border-neutral-100 dark:border-neutral-800 pt-3">
                 <div className="flex items-center gap-1">
-                  <span className="font-medium text-neutral-800 text-sm">网址列数</span>
+                  <span className="font-medium text-neutral-800 dark:text-neutral-200 text-sm">网址列数</span>
                   <span className="h-1.5 w-1.5 rounded-full bg-orange-500" />
                 </div>
                 <div className="mt-2.5 flex items-center gap-2">
@@ -621,7 +621,7 @@ export function MainCategoryCard({
                     className={`rounded-full px-3 py-1 text-xs transition ${
                       settings.columnMode === 'auto'
                         ? 'bg-[#ff6900] text-white shadow-sm'
-                        : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+                        : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700'
                     }`}
                   >
                     自适应
@@ -632,7 +632,7 @@ export function MainCategoryCard({
                     className={`rounded-full px-3 py-1 text-xs transition ${
                       settings.columnMode !== 'auto'
                         ? 'bg-[#ff6900] text-white shadow-sm'
-                        : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+                        : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700'
                     }`}
                   >
                     手动设置
@@ -647,11 +647,11 @@ export function MainCategoryCard({
                             manualColumns: Math.max(3, (settings.manualColumns || 7) - 1),
                           })
                         }
-                        className="flex h-6 w-6 items-center justify-center rounded-full bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
+                        className="flex h-6 w-6 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700"
                       >
                         -
                       </button>
-                      <span className="w-4 text-center font-bold text-neutral-800">
+                      <span className="w-4 text-center font-bold text-neutral-800 dark:text-neutral-200">
                         {settings.manualColumns || 7}
                       </span>
                       <button
@@ -661,7 +661,7 @@ export function MainCategoryCard({
                             manualColumns: Math.min(12, (settings.manualColumns || 7) + 1),
                           })
                         }
-                        className="flex h-6 w-6 items-center justify-center rounded-full bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
+                        className="flex h-6 w-6 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700"
                       >
                         +
                       </button>
@@ -720,7 +720,7 @@ export function MainCategoryCard({
               </div>
 
               {/* Clear customization */}
-              <div className="mt-4 pt-2.5 border-t border-neutral-100 text-center">
+              <div className="mt-4 pt-2.5 border-t border-neutral-100 dark:border-neutral-800 text-center">
                 <button
                   type="button"
                   onClick={() =>
@@ -731,7 +731,7 @@ export function MainCategoryCard({
                       cardWidth: 1380,
                     })
                   }
-                  className="text-[11px] text-neutral-400 hover:text-neutral-700 inline-flex items-center gap-1"
+                  className="text-[11px] text-neutral-400 dark:text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-200 inline-flex items-center gap-1"
                 >
                   <span>⊗ 清除自定义</span>
                 </button>
@@ -743,14 +743,14 @@ export function MainCategoryCard({
 
       {/* Sort mode notification banner (matching reference screenshot #3) */}
       {isSortMode && (
-        <div className="mt-2.5 flex items-center justify-between rounded-lg bg-emerald-50 px-3 py-1.5 text-xs text-emerald-800">
+        <div className="mt-2.5 flex items-center justify-between rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-100/80 dark:border-emerald-800/40 px-3 py-1.5 text-xs text-emerald-800 dark:text-emerald-300">
           <span>
             ✓ [已打开排序] 1、拖动书签即可排序；2、拖动书签到上方分类即可移动分类；
           </span>
           <button
             type="button"
             onClick={onToggleSortMode}
-            className="font-medium text-emerald-700 underline hover:text-emerald-900"
+            className="font-medium text-emerald-700 dark:text-emerald-400 underline hover:text-emerald-900 dark:hover:text-emerald-200"
           >
             关闭并锁定排序
           </button>
@@ -806,21 +806,21 @@ export function MainCategoryCard({
       {/* Help Detail Modal */}
       {selectedHelp && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
-              <div className="flex items-center gap-2 font-semibold text-neutral-800 text-sm">
+          <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-[#18181b] border border-neutral-100 dark:border-neutral-800 p-5 shadow-2xl text-neutral-800 dark:text-neutral-200 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 pb-3">
+              <div className="flex items-center gap-2 font-semibold text-neutral-800 dark:text-neutral-100 text-sm">
                 <Info className="h-4 w-4 text-orange-500" />
                 <span>{selectedHelp.title}</span>
               </div>
               <button
                 type="button"
                 onClick={() => setSelectedHelp(null)}
-                className="text-neutral-400 hover:text-neutral-700"
+                className="text-neutral-400 dark:text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-200"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <p className="mt-3.5 text-xs leading-relaxed text-neutral-600">
+            <p className="mt-3.5 text-xs leading-relaxed text-neutral-600 dark:text-neutral-300">
               {selectedHelp.content}
             </p>
             <div className="mt-5 flex justify-end">
@@ -845,7 +845,7 @@ export function MainCategoryCard({
               <button
                 type="button"
                 onClick={() => setEditingCategory(null)}
-                className="text-neutral-400 hover:text-neutral-700"
+                className="text-neutral-400 dark:text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-200"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -895,7 +895,7 @@ export function MainCategoryCard({
               </div>
             </div>
 
-            <div className="mt-5 flex justify-end gap-2 text-xs border-t border-neutral-100 pt-3">
+            <div className="mt-5 flex justify-end gap-2 text-xs border-t border-neutral-100 dark:border-neutral-800 pt-3">
               <button
                 type="button"
                 onClick={() => setEditingCategory(null)}

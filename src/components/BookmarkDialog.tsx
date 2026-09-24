@@ -135,7 +135,7 @@ export function BookmarkDialog({
                 onChange={(e) => setUrl(e.target.value)}
                 placeholder="网站地址，如：https://www.baidu.com/"
                 required
-                className="w-full rounded-xl border border-orange-500 px-3.5 py-2.5 text-xs outline-none focus:ring-2 focus:ring-orange-500/20"
+                className="w-full rounded-xl border border-orange-500 bg-white dark:bg-neutral-900 text-neutral-800 dark:text-neutral-100 px-3.5 py-2.5 text-xs outline-none focus:ring-2 focus:ring-orange-500/20"
               />
             </div>
             <button
@@ -177,7 +177,7 @@ export function BookmarkDialog({
                 required
                 className="w-full rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3.5 py-2.5 pr-14 text-xs outline-none focus:border-orange-500"
               />
-              <span className="absolute right-3 top-3 text-[11px] text-neutral-300">
+              <span className="absolute right-3 top-3 text-[11px] text-neutral-300 dark:text-neutral-500">
                 {title.length}/100
               </span>
             </div>
