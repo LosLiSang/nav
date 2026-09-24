@@ -40,52 +40,62 @@ export function normalizeUrl(value: string): string {
  * 这里把 %2523 还原成单次编码的 %23，已存的书签刷新后即可正常显示，无需手动重选。
  */
 export function normalizeIconUrl(url: string | undefined): string | undefined {
-  if (!url) return url
+  if (!url || typeof url !== 'string') return url
   if (!url.startsWith('data:image/svg+xml')) return url
 
-  let fixed = url
-  // 1. 修复 %2523 双重编码为 %23 (#)
-  if (fixed.includes('%2523')) {
-    fixed = fixed.replace(/%2523/g, '%23')
-  }
-  // 2. 修复多重转义
-  if (fixed.includes('%25')) {
-    try {
-      const prefix = 'data:image/svg+xml;utf8,'
-      if (fixed.startsWith(prefix)) {
-        const body = decodeURIComponent(fixed.slice(prefix.length))
-        fixed = `${prefix}${encodeURIComponent(body)}`
+  try {
+    const commaIndex = url.indexOf(',')
+    if (commaIndex === -1) return url
+    const prefix = url.slice(0, commaIndex + 1)
+    let body = url.slice(commaIndex + 1)
+
+    // 反复完全解码直到还原为纯净的 SVG XML 文本
+    let decoded = body
+    for (let i = 0; i < 5; i++) {
+      try {
+        const next = decodeURIComponent(decoded)
+        if (next === decoded) break
+        decoded = next
+      } catch {
+        break
       }
-    } catch {}
+    }
+
+    // 1. 将在 SVG 属性里错误写成 %23 或 %2523 的颜色代码恢复为真实 # 符号
+    decoded = decoded
+      .replace(/fill=["']%2523([0-9a-fA-F]+)["']/g, 'fill="#$1"')
+      .replace(/fill=["']%23([0-9a-fA-F]+)["']/g, 'fill="#$1"')
+      .replace(/stroke=["']%2523([0-9a-fA-F]+)["']/g, 'stroke="#$1"')
+      .replace(/stroke=["']%23([0-9a-fA-F]+)["']/g, 'stroke="#$1"')
+      .replace(/%2523/g, '#')
+      .replace(/%23/g, '#')
+
+    // 2. 将脱离页面的 currentColor 替换为明确的主题橙色
+    decoded = decoded.replace(/currentColor/g, '#ea580c')
+
+    // 3. 补全缺失的 xmlns 命名空间
+    if (!decoded.includes('xmlns=')) {
+      decoded = decoded.replace(/<svg(\s)/i, '<svg xmlns="http://www.w3.org/2000/svg" ')
+    }
+
+    // 4. 修复旧版纯黑背景由于 emoji 无法在 img 中渲染而导致整块纯黑的问题
+    if (
+      decoded.includes('fill="#000000"') ||
+      decoded.includes('fill="#171717"') ||
+      decoded.includes('fill="#24292e"') ||
+      decoded.includes('fill="#333333"')
+    ) {
+      decoded = decoded
+        .replace(/fill="#000000"/g, 'fill="#2563eb"')
+        .replace(/fill="#171717"/g, 'fill="#2563eb"')
+        .replace(/fill="#24292e"/g, 'fill="#2563eb"')
+        .replace(/fill="#333333"/g, 'fill="#2563eb"')
+    }
+
+    return `${prefix}${encodeURIComponent(decoded)}`
+  } catch {
+    return url
   }
-  // 2. 补全缺少 xmlns 命名空间导致 SVG 无法独立作为 img 渲染
-  if (fixed.includes('%3Csvg') && !fixed.includes('xmlns')) {
-    fixed = fixed.replace(
-      /%3Csvg(%20|\s)/i,
-      '%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20',
-    )
-  } else if (fixed.includes('<svg') && !fixed.includes('xmlns=')) {
-    fixed = fixed.replace(
-      /<svg(\s)/i,
-      '<svg xmlns="http://www.w3.org/2000/svg" ',
-    )
-  }
-  // 3. 修复历史遗留的纯黑背景在 img 中 emoji 丢失变成黑块的问题
-  if (
-    fixed.includes('fill=%22%23000000%22') ||
-    fixed.includes('fill=%22%23171717%22') ||
-    fixed.includes('fill=%22%2324292e%22') ||
-    fixed.includes('fill="%23000000"') ||
-    fixed.includes('fill="#000000"')
-  ) {
-    fixed = fixed
-      .replace(/fill=%22%23000000%22/g, 'fill=%22%232563eb%22')
-      .replace(/fill=%22%23171717%22/g, 'fill=%22%232563eb%22')
-      .replace(/fill=%22%2324292e%22/g, 'fill=%22%232563eb%22')
-      .replace(/fill="%23000000"/g, 'fill="#2563eb"')
-      .replace(/fill="#000000"/g, 'fill="#2563eb"')
-  }
-  return fixed
 }
 
 export function isUrlLike(value: string): boolean {

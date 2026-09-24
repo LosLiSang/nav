@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { arrayMove } from '@dnd-kit/sortable'
 import { db } from '../lib/db'
+import { normalizeIconUrl } from '../lib/utils'
 import {
   DEFAULT_SETTINGS,
   SEARCH_ENGINES,
@@ -409,7 +410,7 @@ export const useNavStore = create<NavState>((set, get) => ({
           } else if (row.blob && row.blob instanceof Blob) {
             nextCachedIcons[row.domain] = URL.createObjectURL(row.blob)
           } else if (row.dataUrl && (row.dataUrl.startsWith('data:') || row.dataUrl.startsWith('blob:'))) {
-            nextCachedIcons[row.domain] = row.dataUrl
+            nextCachedIcons[row.domain] = normalizeIconUrl(row.dataUrl) || row.dataUrl
           }
         }
 

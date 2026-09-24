@@ -295,25 +295,26 @@ export function getBrandIcon(
 
   // 备用颜色池 (按照标题哈希分配专属靓丽品牌色)
   const colors = [
-    'bg-blue-500 text-white',
-    'bg-emerald-500 text-white',
-    'bg-violet-500 text-white',
-    'bg-pink-500 text-white',
-    'bg-amber-500 text-white',
-    'bg-teal-500 text-white',
-    'bg-rose-500 text-white',
-    'bg-indigo-500 text-white',
+    '#3b82f6',
+    '#10b981',
+    '#8b5cf6',
+    '#ec4899',
+    '#f59e0b',
+    '#06b6d4',
+    '#f43f5e',
+    '#6366f1',
   ]
   let hash = 0
   for (let i = 0; i < title.length; i++) {
     hash = (hash << 5) - hash + title.charCodeAt(i)
   }
-  const colorClass = colors[Math.abs(hash) % colors.length]
+  const color = colors[Math.abs(hash) % colors.length]
   const char = title.trim().slice(0, 1).toUpperCase() || '★'
 
   return (
     <div
-      className={`flex h-5 w-5 flex-shrink-0 items-center justify-center ${shapeClass} font-bold text-[10px] shadow-sm ${colorClass}`}
+      style={{ backgroundColor: color }}
+      className={`flex h-5 w-5 flex-shrink-0 items-center justify-center ${shapeClass} font-bold text-[10px] text-white shadow-sm`}
     >
       {char}
     </div>
