@@ -1,13 +1,15 @@
 /**
- * 网页标题抓取 (Worker / Vite 中间件 / 前端交互) 端到端与交互验证测试
+ * 网页标题与图标抓取 (100% Cloudflare Worker 纯云端架构) 端到端与交互验证测试
  */
 import { spawn } from 'node:child_process'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
+import { ProxyAgent, fetch as undiciFetch } from 'undici'
 import { join } from 'node:path'
 
 const APP_PORT = 5199
 const APP_URL = `http://127.0.0.1:${APP_PORT}`
+const WORKER_URL = process.env.VITE_SYNC_URL || 'https://nav-sync.lisang.workers.dev'
 const OUT_DIR = join(tmpdir(), 'nav-title-test', 'shots')
 const EDGE =
   process.env.EDGE_PATH ||
@@ -60,13 +62,50 @@ async function poll(fn, timeoutMs, label) {
 
 async function main() {
   mkdirSync(OUT_DIR, { recursive: true })
-  console.log('=== 1. 启动 Vite 本地开发服务器 ===')
+
+  console.log('=== 1. 验证 Cloudflare 线上 Worker 服务 ===')
+  console.log(`Cloudflare Worker 目标地址: ${WORKER_URL}`)
+
+  const results = []
+  function check(name, ok, detail = '') {
+    results.push({ name, ok, detail })
+    console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? `  — ${detail}` : ''}`)
+  }
+
+  // 1. Worker 端点测试
+  const agent = new ProxyAgent(PROXY)
+  const workerFetch = (url, init = {}) => undiciFetch(url, { dispatcher: agent, ...init })
+
+  const res1 = await workerFetch(`${WORKER_URL}/api/title?url=${encodeURIComponent('https://example.com')}`)
+  const data1 = await res1.json()
+  check('Worker 标题抓取 (example.com)', Boolean(data1.title), `title="${data1.title}"`)
+
+  const res2 = await workerFetch(`${WORKER_URL}/api/title?url=${encodeURIComponent('https://linux.do/')}`)
+  const data2 = await res2.json()
+  const linuxDoTitleOk = Boolean(
+    data2.title &&
+    (data2.title.includes('LINUX DO') || data2.title.includes('Linux Do'))
+  )
+  check('Worker 穿透 Cloudflare 盾提取真实标题 (linux.do)', linuxDoTitleOk, `title="${data2.title}"`)
+
+  const resLinuxIcon = await workerFetch(`${WORKER_URL}/api/icon?domain=linux.do`)
+  const linuxIconBuf = Buffer.from(await resLinuxIcon.arrayBuffer())
+  check(
+    'Worker 代理拉取网站高清图标 (linux.do)',
+    resLinuxIcon.ok && linuxIconBuf.length > 100,
+    `status=${resLinuxIcon.status}, size=${linuxIconBuf.length}B`,
+  )
+
+  console.log('\n=== 2. 启动纯前端 Vite 开发服务器（零后端代理代码） ===')
   const vite = spawn('npx.cmd', ['vite', '--host', '127.0.0.1', '--port', String(APP_PORT), '--strictPort'], {
     shell: true,
     stdio: 'ignore',
+    env: {
+      ...process.env,
+      VITE_SYNC_URL: WORKER_URL,
+    },
   })
 
-  // 等待 Vite 就绪
   await poll(async () => {
     try {
       const res = await fetch(`${APP_URL}/`)
@@ -75,42 +114,15 @@ async function main() {
       return false
     }
   }, 20000, 'Vite dev server')
-
-  console.log(`Vite 服务就绪: ${APP_URL}\n`)
-
-  const results = []
-  function check(name, ok, detail = '') {
-    results.push({ name, ok, detail })
-    console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? `  — ${detail}` : ''}`)
-  }
+  console.log(`Vite 前端服务就绪: ${APP_URL}\n`)
 
   let proc = null
   let profile = null
   try {
     // -------------------------------------------------------------
-    // 测试 1：测试 /api/title 接口（基本抓取与多来源回退）
+    // 测试 2：前端完全走 Worker 时的端到端浏览器交互测试
     // -------------------------------------------------------------
-    console.log('=== 2. 接口端点测试 (/api/title & /api/fetch-title) ===')
-    const res1 = await fetch(`${APP_URL}/api/title?url=${encodeURIComponent('https://example.com')}`)
-    const data1 = await res1.json()
-    check('example.com 标题抓取', data1.title === 'Example Domain', `title="${data1.title}"`)
-
-    const res2 = await fetch(`${APP_URL}/api/fetch-title?url=${encodeURIComponent('https://example.com')}`)
-    const data2 = await res2.json()
-    check('/api/fetch-title 兼容别名抓取', data2.title === 'Example Domain', `title="${data2.title}"`)
-
-    const res3 = await fetch(`${APP_URL}/api/title?url=${encodeURIComponent('https://yeasy.gitbook.io/')}`)
-    const data3 = await res3.json()
-    check(
-      'GitBook (https://yeasy.gitbook.io/) 页面标题抓取',
-      Boolean(data3.title && data3.title.includes('Harness')),
-      `title="${data3.title}"`,
-    )
-
-    // -------------------------------------------------------------
-    // 测试 2：无头浏览器端到端交互测试（打开弹窗 -> 输入网址 -> 点击抓取 -> 自动填充）
-    // -------------------------------------------------------------
-    console.log('\n=== 3. 无头浏览器端到端交互测试 ===')
+    console.log('=== 3. 前端端到端全链路测试（无本地代理，全走 Worker） ===')
     profile = mkdtempSync(join(tmpdir(), 'nav-title-browser-'))
     proc = spawn(
       EDGE,
@@ -180,19 +192,44 @@ async function main() {
       'modal input visible',
     )
 
-    // 输入目标网址 https://yeasy.gitbook.io/
+    // 输入目标网址 https://linux.do/
     await evaluate(`(() => {
       const input = document.querySelector('input[placeholder*="https://www.baidu.com/"]')
+      const last = input.value
       const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
-      nativeSetter.call(input, 'https://yeasy.gitbook.io/')
+      nativeSetter.call(input, 'https://linux.do/')
+      const tracker = input._valueTracker
+      if (tracker) tracker.setValue(last)
       input.dispatchEvent(new Event('input', { bubbles: true }))
+      input.dispatchEvent(new Event('change', { bubbles: true }))
     })()`)
 
-    // 点击「抓取标题」按钮
-    await evaluate(`(() => {
-      const btn = [...document.querySelectorAll('button')].find((b) => b.textContent.includes('抓取标题'))
-      if (btn) btn.click()
-    })()`)
+    // 验证实时图标预览已通过 Worker 请求并成功展示
+    const iconPreviewOk = await poll(
+      async () => {
+        return evaluate(`(() => {
+          const form = document.querySelector('input[placeholder*="https://www.baidu.com/"]')?.closest('form')
+          const img = form ? form.querySelector('img') : null
+          return Boolean(img && img.complete && img.naturalWidth > 0)
+        })()`)
+      },
+      12000,
+      'live icon image rendered and loaded',
+    )
+    check('前端通过 Worker 实时加载站点图标', iconPreviewOk)
+
+    // 点击「抓取标题」按钮并等待触发
+    await poll(
+      () => evaluate(`(() => {
+        const form = document.querySelector('input[placeholder*="https://www.baidu.com/"]')?.closest('form')
+        const btn = form ? [...form.querySelectorAll('button')].find((b) => b.textContent.includes('抓取')) : null
+        if (!btn || btn.disabled) return false
+        btn.click()
+        return true
+      })()`),
+      10000,
+      'click fetch title button',
+    )
 
     // 等待标题填充完成
     const filledTitle = await poll(
@@ -204,14 +241,31 @@ async function main() {
         return val && val.length > 0 ? val : false
       },
       15000,
-      'title populated',
+      'title populated via worker',
     )
 
-    check('点击抓取标题成功自动填入网站名称', Boolean(filledTitle && filledTitle.includes('Harness')), `title="${filledTitle}"`)
+    const titleMatched = Boolean(
+      filledTitle && (filledTitle.includes('LINUX DO') || filledTitle.includes('Linux Do'))
+    )
+    check('前端通过 Worker 成功获取并自动填入网站名称', titleMatched, `title="${filledTitle}"`)
+
+    // 验证按钮变为「抓取成功」绿底状态
+    const statusSuccess = await poll(
+      async () => {
+        return evaluate(`(() => {
+          const form = document.querySelector('input[placeholder*="https://www.baidu.com/"]')?.closest('form')
+          const btn = form ? [...form.querySelectorAll('button')].find((b) => b.textContent.includes('抓取成功')) : null
+          return Boolean(btn)
+        })()`)
+      },
+      5000,
+      'status button success',
+    )
+    check('抓取按钮切换为「抓取成功」提示', statusSuccess)
 
     // 截图留存工件
     const shot = await cdp.send('Page.captureScreenshot', { format: 'png' })
-    const shotPath = join(OUT_DIR, 'title-fetch-success.png')
+    const shotPath = join(OUT_DIR, 'worker-architecture-linuxdo-success.png')
     writeFileSync(shotPath, Buffer.from(shot.data, 'base64'))
     console.log(`截图工件已生成: ${shotPath}`)
 
@@ -224,7 +278,6 @@ async function main() {
       } catch {}
     }
     vite.kill()
-    // 确保杀掉 5199 端口上的 node 进程
     try {
       spawn('taskkill', ['/F', '/IM', 'node.exe', '/FI', 'WINDOWTITLE eq *5199*'], { stdio: 'ignore' })
     } catch {}

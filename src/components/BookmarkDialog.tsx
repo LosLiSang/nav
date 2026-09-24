@@ -1,7 +1,7 @@
 import { createPortal } from 'react-dom'
 import { useRef, useState } from 'react'
 import { Camera, Check, ChevronDown, Edit3, Folder, Loader2, Shield, X } from 'lucide-react'
-import { fetchWebsiteTitle, normalizeIconUrl, normalizeUrl } from '../lib/utils'
+import { faviconFor, fetchWebsiteTitle, normalizeIconUrl, normalizeUrl } from '../lib/utils'
 import { IconPickerModal } from './IconPickerModal'
 import type { Bookmark, Category, SubCategory } from '../types'
 
@@ -50,6 +50,7 @@ export function BookmarkDialog({
   const [fetchingTitle, setFetchingTitle] = useState(false)
   const [fetchStatus, setFetchStatus] = useState<'idle' | 'failed' | 'success'>('idle')
   const [saving, setSaving] = useState(false)
+  const displayIconUrl = iconUrl ? normalizeIconUrl(iconUrl) : (url.trim() ? faviconFor(url) : '')
   const urlInputRef = useRef<HTMLInputElement>(null)
 
   const currentCategory =
@@ -181,8 +182,15 @@ export function BookmarkDialog({
                   : 'border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-600 dark:hover:text-neutral-300'
               }`}
             >
-              {iconUrl ? (
-                <img src={normalizeIconUrl(iconUrl)} alt="" className="h-5 w-5 object-contain rounded" />
+              {displayIconUrl ? (
+                <img
+                  src={displayIconUrl}
+                  alt=""
+                  className="h-5 w-5 object-contain rounded"
+                  onError={(e) => {
+                    ;(e.currentTarget as HTMLElement).style.display = 'none'
+                  }}
+                />
               ) : (
                 <Camera className="h-4 w-4" />
               )}

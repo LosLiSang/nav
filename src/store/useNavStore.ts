@@ -87,16 +87,19 @@ type NavState = {
   addCategory: (name: string) => Promise<void>
   renameCategory: (categoryId: string, name: string) => Promise<void>
   updateCategory: (categoryId: string, updates: Partial<Omit<Category, 'id'>>) => Promise<void>
+  reorderCategories: (activeId: string, overId: string) => Promise<void>
   deleteCategory: (categoryId: string) => Promise<void>
 
   // Sub Sections
   addSubSection: (name: string, icon?: string) => Promise<void>
   renameSubSection: (sectionId: string, name: string) => Promise<void>
+  reorderSubSections: (activeId: string, overId: string) => Promise<void>
   deleteSubSection: (sectionId: string) => Promise<void>
 
   // Sub Categories
   addSubCategory: (sectionId: string, name: string) => Promise<void>
   renameSubCategory: (subCategoryId: string, name: string) => Promise<void>
+  reorderSubCategories: (activeId: string, overId: string) => Promise<void>
   deleteSubCategory: (subCategoryId: string) => Promise<void>
 
   // Bookmarks
@@ -111,6 +114,7 @@ type NavState = {
   deleteBookmark: (bookmarkId: string) => Promise<void>
   reorderBookmark: (bookmarkId: string, overBookmarkId: string) => Promise<void>
   moveBookmarkToCategory: (bookmarkId: string, categoryId: string) => Promise<void>
+  moveBookmarkToSubCategory: (bookmarkId: string, subCategoryId: string) => Promise<void>
   saveCachedIcon: (domain: string, dataOrBlob: string | Blob, objectUrl?: string) => Promise<void>
   saveFailedIcon: (domain: string) => Promise<void>
   refreshIcon: (domain: string, bookmarkUrl?: string) => Promise<void>
@@ -595,6 +599,17 @@ export const useNavStore = create<NavState>((set, get) => ({
     }))
   },
 
+  async reorderCategories(activeId, overId) {
+    const { categories } = get()
+    const activeIndex = categories.findIndex((c) => c.id === activeId)
+    const overIndex = categories.findIndex((c) => c.id === overId)
+    if (activeIndex < 0 || overIndex < 0 || activeIndex === overIndex) return
+    const reordered = arrayMove(categories, activeIndex, overIndex).map((cat, idx) => ({ ...cat, order: idx }))
+    await db.categories.bulkPut(reordered)
+    set({ categories: reordered })
+    scheduleSyncPush()
+  },
+
   async deleteCategory(categoryId) {
     const bookmarks = get().bookmarks.filter((bookmark) => bookmark.categoryId === categoryId)
     await Promise.all([
@@ -641,6 +656,27 @@ export const useNavStore = create<NavState>((set, get) => ({
     }))
   },
 
+  async reorderSubCategories(activeId, overId) {
+    const { subCategories } = get()
+    const active = subCategories.find((sc) => sc.id === activeId)
+    const over = subCategories.find((sc) => sc.id === overId)
+    if (!active || !over || active.id === over.id || active.sectionId !== over.sectionId) return
+    const sectionSubCats = subCategories
+      .filter((sc) => sc.sectionId === active.sectionId)
+      .sort((a, b) => a.order - b.order)
+    const activeIndex = sectionSubCats.findIndex((sc) => sc.id === activeId)
+    const overIndex = sectionSubCats.findIndex((sc) => sc.id === overId)
+    if (activeIndex < 0 || overIndex < 0) return
+    const reorderedSectionSubs = arrayMove(sectionSubCats, activeIndex, overIndex).map((sc, idx) => ({ ...sc, order: idx }))
+    const nextSubCategories = subCategories.map((sc) => {
+      const found = reorderedSectionSubs.find((item) => item.id === sc.id)
+      return found || sc
+    })
+    await db.subCategories.bulkPut(reorderedSectionSubs)
+    set({ subCategories: nextSubCategories })
+    scheduleSyncPush()
+  },
+
   async deleteSubCategory(subCategoryId) {
     const bookmarks = get().bookmarks.filter((b) => b.subCategoryId === subCategoryId)
     await Promise.all([
@@ -677,6 +713,17 @@ export const useNavStore = create<NavState>((set, get) => ({
         s.id === sectionId ? { ...s, name: trimmed } : s,
       ),
     }))
+  },
+
+  async reorderSubSections(activeId, overId) {
+    const { subSections } = get()
+    const activeIndex = subSections.findIndex((s) => s.id === activeId)
+    const overIndex = subSections.findIndex((s) => s.id === overId)
+    if (activeIndex < 0 || overIndex < 0 || activeIndex === overIndex) return
+    const reordered = arrayMove(subSections, activeIndex, overIndex).map((sec, idx) => ({ ...sec, order: idx }))
+    await db.subSections.bulkPut(reordered)
+    set({ subSections: reordered })
+    scheduleSyncPush()
   },
 
   async deleteSubSection(sectionId) {
@@ -768,38 +815,69 @@ export const useNavStore = create<NavState>((set, get) => ({
     const over = bookmarks.find((bookmark) => bookmark.id === overBookmarkId)
     if (!active || !over || active.id === over.id) return
 
-    const sameCategory = active.categoryId && active.categoryId === over.categoryId
-    const visibleIds = bookmarks
-      .filter((bookmark) => bookmark.categoryId === over.categoryId)
+    const targetCategoryId = over.categoryId
+    const targetSubCategoryId = over.subCategoryId
+
+    const isSameContainer = targetCategoryId
+      ? active.categoryId === targetCategoryId && !active.subCategoryId
+      : active.subCategoryId === targetSubCategoryId && !active.categoryId
+
+    const containerBookmarks = bookmarks
+      .filter((b) =>
+        targetCategoryId
+          ? b.categoryId === targetCategoryId
+          : b.subCategoryId === targetSubCategoryId,
+      )
       .sort((a, b) => a.order - b.order)
-      .map((bookmark) => bookmark.id)
 
-    const orderedIds = sameCategory
-      ? arrayMove(visibleIds, visibleIds.indexOf(active.id), visibleIds.indexOf(over.id))
-      : [...visibleIds, active.id]
+    const visibleIds = containerBookmarks.map((b) => b.id)
 
-    const nextBookmarks = bookmarks.map((bookmark) => {
-      const order = orderedIds.indexOf(bookmark.id)
-      if (bookmark.id === active.id && !sameCategory) {
-        return { ...bookmark, categoryId: over.categoryId, order, updatedAt: Date.now() }
+    let orderedIds: string[]
+    if (isSameContainer) {
+      const activeIdx = visibleIds.indexOf(active.id)
+      const overIdx = visibleIds.indexOf(over.id)
+      if (activeIdx < 0 || overIdx < 0) return
+      orderedIds = arrayMove(visibleIds, activeIdx, overIdx)
+    } else {
+      const overIdx = visibleIds.indexOf(over.id)
+      orderedIds = [...visibleIds]
+      if (overIdx >= 0) {
+        orderedIds.splice(overIdx, 0, active.id)
+      } else {
+        orderedIds.push(active.id)
       }
-      return order >= 0 ? { ...bookmark, order, updatedAt: Date.now() } : bookmark
+    }
+
+    const nextBookmarks = bookmarks.map((b) => {
+      const order = orderedIds.indexOf(b.id)
+      if (b.id === active.id) {
+        return {
+          ...b,
+          categoryId: targetCategoryId,
+          subCategoryId: targetSubCategoryId,
+          order: order >= 0 ? order : b.order,
+          updatedAt: Date.now(),
+        }
+      }
+      return order >= 0 ? { ...b, order, updatedAt: Date.now() } : b
     })
 
     await db.bookmarks.bulkPut(
-      nextBookmarks.filter((bookmark) => orderedIds.includes(bookmark.id)),
+      nextBookmarks.filter((b) => orderedIds.includes(b.id)),
     )
     set({ bookmarks: nextBookmarks })
+    scheduleSyncPush()
   },
 
   async moveBookmarkToCategory(bookmarkId, categoryId) {
     const { bookmarks } = get()
     const active = bookmarks.find((bookmark) => bookmark.id === bookmarkId)
-    if (!active || active.categoryId === categoryId) return
+    if (!active || (active.categoryId === categoryId && !active.subCategoryId)) return
     const categoryBookmarks = bookmarks.filter((bookmark) => bookmark.categoryId === categoryId)
     const updated: Bookmark = {
       ...active,
       categoryId,
+      subCategoryId: undefined,
       order: categoryBookmarks.length,
       updatedAt: Date.now(),
     }
@@ -809,6 +887,26 @@ export const useNavStore = create<NavState>((set, get) => ({
         bookmark.id === updated.id ? updated : bookmark,
       ),
     }))
+    scheduleSyncPush()
+  },
+
+  async moveBookmarkToSubCategory(bookmarkId, subCategoryId) {
+    const { bookmarks } = get()
+    const active = bookmarks.find((bookmark) => bookmark.id === bookmarkId)
+    if (!active || (active.subCategoryId === subCategoryId && !active.categoryId)) return
+    const subCatBookmarks = bookmarks.filter((b) => b.subCategoryId === subCategoryId)
+    const updated: Bookmark = {
+      ...active,
+      categoryId: undefined,
+      subCategoryId,
+      order: subCatBookmarks.length,
+      updatedAt: Date.now(),
+    }
+    await db.bookmarks.put(updated)
+    set((state) => ({
+      bookmarks: state.bookmarks.map((b) => (b.id === updated.id ? updated : b)),
+    }))
+    scheduleSyncPush()
   },
 
   async toggleFavorite(bookmarkId) {

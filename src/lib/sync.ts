@@ -45,7 +45,7 @@ const DEVICE_LOCAL_SETTINGS: (keyof Settings)[] = [
 const REQUEST_TIMEOUT_MS = 15000
 
 export const DEFAULT_SYNC_URL: string =
-  (import.meta.env.VITE_SYNC_URL as string | undefined)?.trim() || ''
+  (import.meta.env.VITE_SYNC_URL as string | undefined)?.trim() || 'https://nav-sync.lisang.workers.dev'
 
 /** 允许用户只填 `xxx.workers.dev`，自动补协议、去掉结尾斜杠 */
 export function normalizeSyncUrl(value: string): string {

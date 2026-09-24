@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useDroppable } from '@dnd-kit/core'
 import {
   SortableContext,
+  horizontalListSortingStrategy,
   rectSortingStrategy,
   useSortable,
 } from '@dnd-kit/sortable'
@@ -99,20 +99,43 @@ const HELP_ITEMS = [
 function CategoryTabItem({
   category,
   active,
+  isSortMode,
   highlightColor,
   onSelect,
   onContextMenu,
 }: {
   category: Category
   active: boolean
+  isSortMode?: boolean
   highlightColor?: string
   onSelect: () => void
   onContextMenu: (e: React.MouseEvent) => void
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: `category:${category.id}` })
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+    isOver,
+  } = useSortable({
+    id: `category:${category.id}`,
+    disabled: !isSortMode,
+  })
 
   return (
-    <div ref={setNodeRef} className="relative flex-shrink-0">
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.3 : 1,
+      }}
+      {...attributes}
+      {...listeners}
+      className="relative flex-shrink-0"
+    >
       <button
         type="button"
         onClick={onSelect}
@@ -124,7 +147,7 @@ function CategoryTabItem({
            : isOver
               ? 'bg-blue-100 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 ring-2 ring-blue-400 dark:ring-blue-500'
              : 'text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-white'
-       }`}
+       } ${isSortMode ? 'cursor-grab active:cursor-grabbing border border-dashed border-blue-300 dark:border-blue-700' : ''}`}
       >
         {!active && (
           <span
@@ -372,33 +395,39 @@ export function MainCategoryCard({
                 : 'bg-amber-50/80 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/50'
            }`}
          >
-           <Star
-              className={`h-3.5 w-3.5 ${
-                isFavActive ? 'fill-white text-white' : 'fill-amber-400 text-amber-400'
-              }`}
-            />
-            <span>收藏</span>
-          </button>
+          <Star
+             className={`h-3.5 w-3.5 ${
+               isFavActive ? 'fill-white text-white' : 'fill-amber-400 text-amber-400'
+             }`}
+           />
+           <span>收藏</span>
+         </button>
 
-          {categories.map((cat) => (
-            <CategoryTabItem
-              key={cat.id}
-              category={cat}
-              active={activeCategoryId === cat.id}
-              highlightColor={settings.highlightColor}
-              onSelect={() => onSelectCategory(cat.id)}
-              onContextMenu={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                const rect = e.currentTarget.getBoundingClientRect()
-                setCategoryContextMenu({
-                  category: cat,
-                  x: rect.left,
-                  y: rect.bottom + 4,
-                })
-              }}
-            />
-          ))}
+          <SortableContext
+            items={categories.map((c) => `category:${c.id}`)}
+            strategy={horizontalListSortingStrategy}
+          >
+            {categories.map((cat) => (
+              <CategoryTabItem
+                key={cat.id}
+                category={cat}
+                active={activeCategoryId === cat.id}
+                isSortMode={isSortMode}
+                highlightColor={settings.highlightColor}
+                onSelect={() => onSelectCategory(cat.id)}
+                onContextMenu={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  const rect = e.currentTarget.getBoundingClientRect()
+                  setCategoryContextMenu({
+                    category: cat,
+                    x: rect.left,
+                    y: rect.bottom + 4,
+                  })
+                }}
+              />
+            ))}
+          </SortableContext>
 
           {addingCat ? (
             <form
@@ -745,7 +774,7 @@ export function MainCategoryCard({
       {isSortMode && (
         <div className="mt-2.5 flex items-center justify-between rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-100/80 dark:border-emerald-800/40 px-3 py-1.5 text-xs text-emerald-800 dark:text-emerald-300">
           <span>
-            ✓ [已打开排序] 1、拖动书签即可排序；2、拖动书签到上方分类即可移动分类；
+            ✓ [已打开排序模式] 1、拖拽书签或分类标签即可自由排序；2、拖拽书签至上方或下方任意分类/子分类标签可跨区快速归类；
           </span>
           <button
             type="button"

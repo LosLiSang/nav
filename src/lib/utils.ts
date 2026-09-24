@@ -24,6 +24,35 @@ export function createId(prefix: string): string {
   return `${prefix}-${random}`
 }
 
+
+export function formatDomainTitle(hostname: string): string {
+  if (!hostname) return ''
+  const clean = hostname.replace(/^www\./i, '').toLowerCase()
+  const map: Record<string, string> = {
+    'linux.do': 'LINUX DO',
+    'github.com': 'GitHub',
+    'gitlab.com': 'GitLab',
+    'v2ex.com': 'V2EX',
+    'zhihu.com': '知乎',
+    'bilibili.com': '哔哩哔哩',
+    'youtube.com': 'YouTube',
+    'google.com': 'Google',
+    'baidu.com': '百度',
+    'juejin.cn': '稀土掘金',
+    'csdn.net': 'CSDN',
+    'weibo.com': '微博',
+    'x.com': 'X (Twitter)',
+    'twitter.com': 'Twitter',
+  }
+  if (map[clean]) return map[clean]
+  const parts = clean.split('.')
+  if (parts.length >= 2) {
+    const main = parts[0]
+    return main.split(/[-_]/).map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+  }
+  return clean
+}
+
 export function normalizeUrl(value: string): string {
   const trimmed = value.trim()
   if (!trimmed) return ''
@@ -118,6 +147,24 @@ export function hostnameOf(value: string): string {
   }
 }
 
+
+export function getWorkerUrl(): string {
+  const syncConfig = typeof window !== 'undefined' ? loadSyncConfig() : null
+  const explicit = (syncConfig?.url || DEFAULT_SYNC_URL || '').trim().replace(/\/+$/, '')
+  if (explicit) return explicit
+
+  // 本地开发环境若未配置线上 Worker，默认走本地 Wrangler Worker (8787)
+  const isLocal =
+    typeof window !== 'undefined' &&
+    (window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1' ||
+      window.location.hostname === '[::1]')
+  if (isLocal) {
+    return 'http://127.0.0.1:8787'
+  }
+  return ''
+}
+
 export function getFaviconCandidates(url: string, customIconUrl?: string, force = false): string[] {
   if (customIconUrl) return [customIconUrl]
   const host = hostnameOf(url)
@@ -125,23 +172,17 @@ export function getFaviconCandidates(url: string, customIconUrl?: string, force 
 
   const candidates: string[] = []
   const forceParam = force ? `&force=1&_t=${Date.now()}` : ''
+  const workerUrl = getWorkerUrl()
 
-  // 1. 本地开发环境走 Vite 代理 (本地同源，无 CORS 限制，自带内存缓存)
-  const isLocalEnv =
-    typeof window !== 'undefined' &&
-    (window.location.hostname === 'localhost' ||
-      window.location.hostname === '127.0.0.1' ||
-      window.location.hostname === '[::1]')
-  if (isLocalEnv) {
-    candidates.push(`/api/icon?domain=${host}${forceParam}`)
-  }
-
-  // 2. 线上统一走 Cloudflare Worker 图标代理，避免浏览器直连第三方源被限流
-  const syncConfig = typeof window !== 'undefined' ? loadSyncConfig() : null
-  const workerUrl = syncConfig?.url || DEFAULT_SYNC_URL || ''
+  // 1. 全部统一走 Cloudflare Worker 图标代理，享边缘全球 30 天强缓存与跨域直连
   if (workerUrl) {
-    candidates.push(`${workerUrl.replace(/\/+$/, '')}/api/icon?domain=${host}${forceParam}`)
+    candidates.push(`${workerUrl}/api/icon?domain=${host}${forceParam}`)
   }
+
+  // 2. 未配置 Worker 时的公用 CDN 候选源兜底
+  candidates.push(`https://icons.duckduckgo.com/ip3/${host}.ico`)
+  candidates.push(`https://www.google.com/s2/favicons?domain=${host}&sz=64`)
+  candidates.push(`https://${host}/favicon.ico`)
 
   return candidates
 }
@@ -162,26 +203,13 @@ export async function fetchWebsiteTitle(rawUrl: string, force = false): Promise<
   const encodedUrl = encodeURIComponent(normalized)
   const forceParam = force ? '&force=1' : ''
 
+  const workerUrl = getWorkerUrl()
   const candidates: string[] = []
 
-  // 1. 本地开发环境候选
-  const isLocalEnv =
-    typeof window !== 'undefined' &&
-    (window.location.hostname === 'localhost' ||
-      window.location.hostname === '127.0.0.1' ||
-      window.location.hostname === '[::1]')
-  if (isLocalEnv) {
-    candidates.push(`/api/title?url=${encodedUrl}${forceParam}`)
-    candidates.push(`/api/fetch-title?url=${encodedUrl}${forceParam}`)
-  }
-
-  // 2. 线上 Cloudflare Worker 统一代理候选（与 icon 一致，边缘节点全球免翻墙直连与强缓存）
-  const syncConfig = typeof window !== 'undefined' ? loadSyncConfig() : null
-  const workerUrl = syncConfig?.url || DEFAULT_SYNC_URL || ''
+  // 全部统一走 Cloudflare Worker 边缘代理（全球节点免翻墙、30天缓存、反爬盾 Logo 提取）
   if (workerUrl) {
-    const cleanWorker = workerUrl.replace(/\/+$/, '')
-    candidates.push(`${cleanWorker}/api/title?url=${encodedUrl}${forceParam}`)
-    candidates.push(`${cleanWorker}/api/fetch-title?url=${encodedUrl}${forceParam}`)
+    candidates.push(`${workerUrl}/api/title?url=${encodedUrl}${forceParam}`)
+    candidates.push(`${workerUrl}/api/fetch-title?url=${encodedUrl}${forceParam}`)
   }
 
   for (const endpoint of candidates) {
@@ -202,6 +230,12 @@ export async function fetchWebsiteTitle(rawUrl: string, force = false): Promise<
     } catch {
       // 继续尝试下一个候选端点
     }
+  }
+
+  // 终极保底：客户端本地从域名推导规范名称，杜绝「抓取失败」
+  const host = hostnameOf(rawUrl)
+  if (host) {
+    return formatDomainTitle(host)
   }
 
   return ''

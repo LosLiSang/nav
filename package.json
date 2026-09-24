@@ -11,6 +11,7 @@
     "check:sync": "node scripts/check-sync-remote.mjs",
     "check:dark": "node scripts/check-dark-mode.mjs",
     "check:title": "node scripts/test-title-fetch.mjs",
+    "check:sort": "node scripts/test-sorting-e2e.mjs",
     "smoke:sync": "node scripts/smoke-sync-local.mjs"
   },
   "dependencies": {

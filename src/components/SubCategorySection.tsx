@@ -1,5 +1,14 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useDroppable } from '@dnd-kit/core'
+import {
+  SortableContext,
+  horizontalListSortingStrategy,
+  verticalListSortingStrategy,
+  rectSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import {
   Coffee,
   Compass,
@@ -82,8 +91,148 @@ function getSubIcon(icon: string, className = 'h-4 w-4') {
   }
 }
 
+function SubSectionTabItem({
+  section,
+  isActive,
+  isSortMode,
+  onSelect,
+  onContextMenu,
+}: {
+  section: SubSection
+  isActive: boolean
+  isSortMode?: boolean
+  onSelect: () => void
+  onContextMenu: (e: React.MouseEvent) => void
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+    isOver,
+  } = useSortable({
+    id: `section:${section.id}`,
+    disabled: !isSortMode,
+  })
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.3 : 1,
+      }}
+      {...attributes}
+      {...listeners}
+      className="flex-shrink-0"
+    >
+      <button
+        type="button"
+        onClick={onSelect}
+        onContextMenu={onContextMenu}
+        className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition ${
+          isActive
+            ? 'bg-[#ff6900] text-white shadow-sm'
+            : isOver
+              ? 'bg-orange-100 dark:bg-orange-950/80 text-orange-700 dark:text-orange-300 ring-2 ring-orange-500'
+              : 'text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800'
+        } ${isSortMode ? 'cursor-grab active:cursor-grabbing border border-dashed border-orange-300 dark:border-orange-700' : ''}`}
+      >
+        {getSubIcon(section.icon, 'h-3.5 w-3.5')}
+        <span>{section.name}</span>
+      </button>
+    </div>
+  )
+}
+
+function SubCategoryDropZone({
+  subCategoryId,
+  children,
+}: {
+  subCategoryId: string
+  children: React.ReactNode
+}) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: `subcat-drop:${subCategoryId}`,
+  })
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`flex-1 p-3.5 min-w-0 transition-colors ${
+        isOver
+          ? 'bg-orange-50/50 dark:bg-orange-950/20 ring-2 ring-inset ring-orange-400/50 rounded-xl'
+          : ''
+      }`}
+    >
+      {children}
+    </div>
+  )
+}
+
+function SubCategoryTabItem({
+  subCategory,
+  isSelected,
+  isSortMode,
+  onSelect,
+  onContextMenu,
+}: {
+  subCategory: SubCategory
+  isSelected: boolean
+  isSortMode?: boolean
+  onSelect: () => void
+  onContextMenu: (e: React.MouseEvent) => void
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+    isOver,
+  } = useSortable({
+    id: `subcat:${subCategory.id}`,
+    disabled: !isSortMode,
+  })
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.3 : 1,
+      }}
+      {...attributes}
+      {...listeners}
+      className="w-full"
+    >
+      <button
+        type="button"
+        onClick={onSelect}
+        onContextMenu={onContextMenu}
+        className={`group relative flex w-full flex-col items-center justify-center rounded-xl p-2 text-center transition ${
+          isSelected
+            ? 'bg-orange-50 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400 font-semibold ring-1 ring-orange-500/20'
+            : isOver
+              ? 'bg-orange-100 dark:bg-orange-950/80 text-orange-700 dark:text-orange-300 ring-2 ring-orange-500 scale-105'
+              : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800/60 hover:text-neutral-900 dark:hover:text-white'
+        } ${isSortMode ? 'cursor-grab active:cursor-grabbing border border-dashed border-orange-300 dark:border-orange-700' : ''}`}
+      >
+        {getSubIcon(subCategory.icon, 'h-4 w-4 mb-1')}
+        <span className="text-[11px] leading-tight truncate w-full">{subCategory.name}</span>
+      </button>
+    </div>
+  )
+}
+
 function SubBookmarkItem({
   bookmark,
+  isSortMode,
   settings,
   cachedIcon,
   isFailedDomain,
@@ -92,6 +241,7 @@ function SubBookmarkItem({
   onContextMenu,
 }: {
   bookmark: Bookmark
+  isSortMode?: boolean
   settings: Settings
   cachedIcon?: string
   isFailedDomain?: boolean
@@ -99,6 +249,11 @@ function SubBookmarkItem({
   onSaveFailedIcon?: (domain: string) => void
   onContextMenu: (x: number, y: number) => void
 }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: bookmark.id,
+    disabled: !isSortMode,
+  })
+
   const domain = useMemo(() => hostnameOf(bookmark.url), [bookmark.url])
   const effectiveTextColor = resolveTextColor(settings)
   const iconShape = settings.iconShape ?? 'rounded'
@@ -162,13 +317,30 @@ function SubBookmarkItem({
 
   return (
     <div
-      onClick={() => window.open(bookmark.url, '_blank', 'noopener,noreferrer')}
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.3 : 1,
+        zIndex: isDragging ? 50 : undefined,
+      }}
+      {...attributes}
+      {...listeners}
+      onClick={() => {
+        if (!isSortMode) {
+          window.open(bookmark.url, '_blank', 'noopener,noreferrer')
+        }
+      }}
       onContextMenu={(e) => {
         e.preventDefault()
         e.stopPropagation()
         onContextMenu(e.clientX, e.clientY)
       }}
-      className={`group flex h-9 cursor-pointer select-none items-center gap-2 px-2.5 transition hover:bg-neutral-100/80 dark:hover:bg-neutral-800/80 ${itemRadius}`}
+      className={`group flex h-9 select-none items-center gap-2 px-2.5 transition ${itemRadius} ${
+        isSortMode
+          ? 'cursor-grab border border-dashed border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/60 active:cursor-grabbing'
+          : 'cursor-pointer hover:bg-neutral-100/80 dark:hover:bg-neutral-800/80'
+      }`}
     >
       {settings.showBookmarkIcon !== false && (
         hasIcon ? (
@@ -217,6 +389,7 @@ type Props = {
   failedDomains?: Record<string, boolean>
   cardOpacity: number
   settings: Settings
+  isSortMode?: boolean
   onSaveCachedIcon?: (domain: string, dataOrBlob: string | Blob, objectUrl?: string) => void
   onSaveFailedIcon?: (domain: string) => void
   onSelectSubSection: (id: string) => void
@@ -241,6 +414,7 @@ export function SubCategorySection({
   failedDomains,
   cardOpacity,
   settings,
+  isSortMode,
   onSaveCachedIcon,
   onSaveFailedIcon,
   onSelectSubSection,
@@ -286,6 +460,26 @@ export function SubCategorySection({
     id: string
     name: string
   } | null>(null)
+  const subMenuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (subMenuRef.current && !subMenuRef.current.contains(e.target as Node)) {
+        setSubContextMenu(null)
+      }
+    }
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        setSubContextMenu(null)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [])
 
   const currentSection =
     subSections.find((s) => s.id === activeSubSectionId) || subSections[0]
@@ -314,13 +508,17 @@ export function SubCategorySection({
       {/* Top Section Tabs Header Bar */}
       <div className="flex items-center justify-between gap-2 border-b border-neutral-100 dark:border-neutral-800 px-4 py-2">
         <div className="flex items-center gap-1.5 overflow-x-auto whitespace-nowrap [scrollbar-width:none]">
-          {subSections.map((sec) => {
-            const isActive = sec.id === currentSectionId
-            return (
-              <button
+          <SortableContext
+            items={subSections.map((sec) => `section:${sec.id}`)}
+            strategy={horizontalListSortingStrategy}
+          >
+            {subSections.map((sec) => (
+              <SubSectionTabItem
                 key={sec.id}
-                type="button"
-                onClick={() => onSelectSubSection(sec.id)}
+                section={sec}
+                isActive={sec.id === currentSectionId}
+                isSortMode={isSortMode}
+                onSelect={() => onSelectSubSection(sec.id)}
                 onContextMenu={(e) => {
                   e.preventDefault()
                   e.stopPropagation()
@@ -332,17 +530,9 @@ export function SubCategorySection({
                     y: e.clientY,
                   })
                 }}
-                className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition ${
-                  isActive
-                    ? 'bg-[#ff6900] text-white shadow-sm'
-                    : 'text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800'
-                }`}
-              >
-                {getSubIcon(sec.icon, 'h-3.5 w-3.5')}
-                <span>{sec.name}</span>
-              </button>
-            )
-          })}
+              />
+            ))}
+          </SortableContext>
 
           {addingSection ? (
             <form
@@ -394,13 +584,17 @@ export function SubCategorySection({
       <div className="flex min-h-[300px]">
         {/* Left Subcategory Vertical Sidebar */}
         <div className="w-[76px] flex-shrink-0 border-r border-neutral-100 dark:border-neutral-800 p-2 flex flex-col gap-1.5 bg-neutral-50/40 dark:bg-black/10">
-          {currentSubCategories.map((sc) => {
-            const isSelected = sc.id === effectiveSubCatId
-            return (
-              <button
+          <SortableContext
+            items={currentSubCategories.map((sc) => `subcat:${sc.id}`)}
+            strategy={verticalListSortingStrategy}
+          >
+            {currentSubCategories.map((sc) => (
+              <SubCategoryTabItem
                 key={sc.id}
-                type="button"
-                onClick={() => onSelectSubCategory(sc.id)}
+                subCategory={sc}
+                isSelected={sc.id === effectiveSubCatId}
+                isSortMode={isSortMode}
+                onSelect={() => onSelectSubCategory(sc.id)}
                 onContextMenu={(e) => {
                   e.preventDefault()
                   e.stopPropagation()
@@ -412,17 +606,9 @@ export function SubCategorySection({
                     y: e.clientY,
                   })
                 }}
-                className={`group relative flex flex-col items-center justify-center rounded-xl p-2 text-center transition ${
-                  isSelected
-                    ? 'bg-orange-50 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400 font-semibold ring-1 ring-orange-500/20'
-                    : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800/60 hover:text-neutral-900 dark:hover:text-white'
-                }`}
-              >
-                {getSubIcon(sc.icon, 'h-4 w-4 mb-1')}
-                <span className="text-[11px] leading-tight truncate w-full">{sc.name}</span>
-              </button>
-            )
-          })}
+              />
+            ))}
+          </SortableContext>
 
           {addingSubCat ? (
             <form
@@ -461,35 +647,42 @@ export function SubCategorySection({
           )}
         </div>
 
-        {/* Right Bookmarks 4-Column Grid Area */}
-        <div className="flex-1 p-3.5 min-w-0">
+       {/* Right Bookmarks 4-Column Grid Area */}
+        <SubCategoryDropZone subCategoryId={effectiveSubCatId}>
           {currentSubBookmarks.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center text-xs text-neutral-400">
               <Folder className="h-8 w-8 text-neutral-300 dark:text-neutral-600 mb-2 stroke-[1.5]" />
-              <span>该分类下暂无网址，点击上方「+ 添加」新增书签</span>
+              <span>该分类下暂无网址，点击上方「+ 添加」新增书签，或从上方拖拽书签移入</span>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-2 gap-y-2.5">
-              {currentSubBookmarks.map((bookmark) => (
-                <SubBookmarkItem
-                  key={bookmark.id}
-                  bookmark={bookmark}
-                  settings={settings}
-                  cachedIcon={cachedIcons?.[hostnameOf(bookmark.url)]}
-                  isFailedDomain={failedDomains?.[hostnameOf(bookmark.url)]}
-                  onSaveCachedIcon={onSaveCachedIcon}
-                  onSaveFailedIcon={onSaveFailedIcon}
-                  onContextMenu={(x, y) => onContextMenuBookmark(bookmark, x, y)}
-                />
-              ))}
-            </div>
+            <SortableContext
+              items={currentSubBookmarks.map((b) => b.id)}
+              strategy={rectSortingStrategy}
+            >
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-2 gap-y-2.5">
+                {currentSubBookmarks.map((bookmark) => (
+                  <SubBookmarkItem
+                    key={bookmark.id}
+                    bookmark={bookmark}
+                    isSortMode={isSortMode}
+                    settings={settings}
+                    cachedIcon={cachedIcons?.[hostnameOf(bookmark.url)]}
+                    isFailedDomain={failedDomains?.[hostnameOf(bookmark.url)]}
+                    onSaveCachedIcon={onSaveCachedIcon}
+                    onSaveFailedIcon={onSaveFailedIcon}
+                    onContextMenu={(x, y) => onContextMenuBookmark(bookmark, x, y)}
+                  />
+                ))}
+              </div>
+            </SortableContext>
           )}
-        </div>
+        </SubCategoryDropZone>
       </div>
 
       {/* Sub-item Context Menu (Section or SubCategory) */}
       {subContextMenu && createPortal(
         <div
+          ref={subMenuRef}
           style={{
             left: `${Math.min(subContextMenu.x, window.innerWidth - 150)}px`,
             top: `${Math.min(subContextMenu.y, window.innerHeight - 130)}px`,

@@ -34,6 +34,7 @@ type Props = {
   totpAccounts: TotpItem[]
   settings: Settings
   cardOpacity: number
+  isSortMode?: boolean
   onSelectWidgetTab: (tab: WidgetTab) => void
   onAddMemo: (text: string) => void
   onToggleMemo: (id: string) => void
@@ -54,12 +55,13 @@ export function BottomSection(props: Props) {
           activeSubCategoryId={props.activeSubCategoryId}
           bookmarks={props.bookmarks}
           cachedIcons={props.cachedIcons}
-          failedDomains={props.failedDomains}
-          cardOpacity={props.cardOpacity}
-          settings={props.settings}
-          onSaveCachedIcon={props.onSaveCachedIcon}
-          onSaveFailedIcon={props.onSaveFailedIcon}
-          onSelectSubSection={props.onSelectSubSection}
+        failedDomains={props.failedDomains}
+        cardOpacity={props.cardOpacity}
+        settings={props.settings}
+        isSortMode={props.isSortMode}
+        onSaveCachedIcon={props.onSaveCachedIcon}
+        onSaveFailedIcon={props.onSaveFailedIcon}
+        onSelectSubSection={props.onSelectSubSection}
           onSelectSubCategory={props.onSelectSubCategory}
           onAddSubSection={props.onAddSubSection}
           onRenameSubSection={props.onRenameSubSection}

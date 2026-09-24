@@ -53,17 +53,21 @@ export default function App() {
     updateCategory,
     renameCategory,
     deleteCategory,
+    reorderCategories,
     addSubSection,
     renameSubSection,
     deleteSubSection,
+    reorderSubSections,
     addSubCategory,
     renameSubCategory,
     deleteSubCategory,
+    reorderSubCategories,
     addBookmark,
     updateBookmark,
     deleteBookmark,
     reorderBookmark,
     moveBookmarkToCategory,
+    moveBookmarkToSubCategory,
     addMemo,
     toggleMemo,
     deleteMemo,
@@ -166,17 +170,83 @@ export default function App() {
 
   function handleDragEnd(event: DragEndEvent) {
     setDraggingId(null)
-    const activeId = String(event.active.id)
-    const overId = event.over?.id
-    if (!overId) return
+    const { active, over } = event
+    if (!over) return
 
-    const overIdText = String(overId)
-    if (overIdText.startsWith('category:')) {
-      void moveBookmarkToCategory(activeId, overIdText.replace('category:', ''))
+    const activeId = String(active.id)
+    const overId = String(over.id)
+    if (activeId === overId) return
+
+    // 1. Top categories reorder
+    if (activeId.startsWith('category:') && overId.startsWith('category:')) {
+      const activeCatId = activeId.replace('category:', '')
+      const overCatId = overId.replace('category:', '')
+      void reorderCategories(activeCatId, overCatId)
       return
     }
 
-    void reorderBookmark(activeId, overIdText)
+    // 2. Bottom sections reorder
+    if (activeId.startsWith('section:') && overId.startsWith('section:')) {
+      const activeSecId = activeId.replace('section:', '')
+      const overSecId = overId.replace('section:', '')
+      void reorderSubSections(activeSecId, overSecId)
+      return
+    }
+
+    // 3. Bottom subcategories reorder
+    if (activeId.startsWith('subcat:') && overId.startsWith('subcat:')) {
+      const activeSubCatId = activeId.replace('subcat:', '')
+      const overSubCatId = overId.replace('subcat:', '')
+      void reorderSubCategories(activeSubCatId, overSubCatId)
+      return
+    }
+
+    // 4. Dragging a bookmark
+    const isBookmark = bookmarks.some((b) => b.id === activeId)
+    if (isBookmark) {
+      // 4a. Drop on top category
+      if (overId.startsWith('category:')) {
+        const catId = overId.replace('category:', '')
+        void moveBookmarkToCategory(activeId, catId)
+        return
+      }
+
+      // 4b. Drop on bottom section tab
+      if (overId.startsWith('section:')) {
+        const secId = overId.replace('section:', '')
+        const matchingSubCats = subCategories
+          .filter((sc) => sc.sectionId === secId)
+          .sort((a, b) => a.order - b.order)
+        const targetSubCat =
+          matchingSubCats.find((sc) => sc.id === settings.activeSubCategoryId) ||
+          matchingSubCats[0]
+        if (targetSubCat) {
+          void moveBookmarkToSubCategory(activeId, targetSubCat.id)
+        }
+        return
+      }
+
+      // 4c. Drop on bottom subcategory tab
+      if (overId.startsWith('subcat:')) {
+        const subCatId = overId.replace('subcat:', '')
+        void moveBookmarkToSubCategory(activeId, subCatId)
+        return
+      }
+
+      // 4d. Drop on bottom grid area
+      if (overId.startsWith('subcat-drop:')) {
+        const subCatId = overId.replace('subcat-drop:', '')
+        void moveBookmarkToSubCategory(activeId, subCatId)
+        return
+      }
+
+      // 4e. Reorder onto another bookmark
+      const overIsBookmark = bookmarks.some((b) => b.id === overId)
+      if (overIsBookmark) {
+        void reorderBookmark(activeId, overId)
+        return
+      }
+    }
   }
 
   function openAddDialog(bookmark?: Bookmark, subCategoryId?: string) {
@@ -283,13 +353,14 @@ export default function App() {
               subCategories={subCategories}
               activeSubSectionId={settings.activeSubSectionId}
               activeSubCategoryId={settings.activeSubCategoryId}
-              bookmarks={bookmarks}
-              cachedIcons={cachedIcons}
-              failedDomains={failedDomains}
-              cardOpacity={settings.cardOpacity}
-              settings={settings}
-              onSaveCachedIcon={(domain, dataOrBlob, objectUrl) => void saveCachedIcon(domain, dataOrBlob, objectUrl)}
-              onSaveFailedIcon={(domain) => void saveFailedIcon(domain)}
+            bookmarks={bookmarks}
+            cachedIcons={cachedIcons}
+            failedDomains={failedDomains}
+            cardOpacity={settings.cardOpacity}
+            settings={settings}
+            isSortMode={settings.isSortMode}
+            onSaveCachedIcon={(domain, dataOrBlob, objectUrl) => void saveCachedIcon(domain, dataOrBlob, objectUrl)}
+            onSaveFailedIcon={(domain) => void saveFailedIcon(domain)}
               onSelectSubSection={setActiveSubSection}
               onSelectSubCategory={setActiveSubCategory}
               onAddSubSection={(name, icon) => void addSubSection(name, icon)}
@@ -342,6 +413,31 @@ export default function App() {
              </span>
            </div>
          )}
+         {draggingId?.startsWith('category:') && (() => {
+           const cat = categories.find((c) => c.id === draggingId.replace('category:', ''))
+           return cat ? (
+             <div className="flex items-center gap-1.5 rounded-full bg-blue-600 px-3 py-1 text-xs font-medium text-white shadow-xl cursor-grabbing">
+               <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: cat.color }} />
+               <span>{cat.name}</span>
+             </div>
+           ) : null
+         })()}
+         {draggingId?.startsWith('section:') && (() => {
+           const sec = subSections.find((s) => s.id === draggingId.replace('section:', ''))
+           return sec ? (
+             <div className="flex items-center gap-1.5 rounded-full bg-[#ff6900] px-3 py-1 text-xs font-medium text-white shadow-xl cursor-grabbing">
+               <span>{sec.name}</span>
+             </div>
+           ) : null
+         })()}
+         {draggingId?.startsWith('subcat:') && (() => {
+           const sc = subCategories.find((c) => c.id === draggingId.replace('subcat:', ''))
+           return sc ? (
+             <div className="flex items-center gap-1 rounded-xl bg-orange-500 px-3 py-1.5 text-xs font-medium text-white shadow-xl cursor-grabbing">
+               <span>{sc.name}</span>
+             </div>
+           ) : null
+         })()}
        </DragOverlay>
 
         {/* Right-click Context Menu */}
