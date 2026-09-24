@@ -6,85 +6,127 @@ import { spawn } from 'child_process'
 function localIconProxyPlugin(): Plugin {
   const cache = new Map<string, { buffer: Buffer; contentType: string }>()
 
+  const MULTI_PART_TLDS = new Set([
+    'com.cn', 'net.cn', 'org.cn', 'gov.cn', 'edu.cn',
+    'co.uk', 'org.uk', 'com.hk', 'co.jp', 'com.tw', 'com.au'
+  ])
+
+  function getDomainCandidates(rawDomain: string): string[] {
+    const clean = rawDomain.trim().toLowerCase().replace(/^https?:\/\//i, '').split('/')[0].split(':')[0]
+    if (!clean) return []
+    const parts = clean.split('.')
+    if (parts.length <= 2) return [clean]
+
+    const candidates = [clean]
+    for (let i = 1; i < parts.length - 1; i++) {
+      const candidate = parts.slice(i).join('.')
+      const remaining = parts.slice(i)
+      const suffix2 = remaining.slice(-2).join('.')
+      if (MULTI_PART_TLDS.has(suffix2)) {
+        if (remaining.length <= 2) break
+      } else {
+        if (remaining.length <= 1) break
+      }
+      candidates.push(candidate)
+    }
+    return [...new Set(candidates)]
+  }
+
+  function fetchCurl(url: string, timeoutSec = 4): Promise<{ buffer: Buffer; code: number }> {
+    return new Promise((resolve) => {
+      const curl = spawn('curl.exe', [
+        '-x',
+        'http://127.0.0.1:7890',
+        '--connect-timeout',
+        '2',
+        '--max-time',
+        String(timeoutSec),
+        '-s',
+        '-L',
+        url,
+      ])
+      const chunks: Buffer[] = []
+      curl.stdout.on('data', (d) => chunks.push(d))
+      curl.on('close', (code) => {
+        resolve({ buffer: Buffer.concat(chunks), code: code ?? 1 })
+      })
+      curl.on('error', () => {
+        resolve({ buffer: Buffer.concat(chunks), code: 1 })
+      })
+    })
+  }
+
   return {
     name: 'local-icon-proxy',
     configureServer(server) {
-      server.middlewares.use('/api/icon', (req, res) => {
+      server.middlewares.use('/api/icon', async (req, res) => {
         const urlObj = new URL(req.url || '', 'http://127.0.0.1:5173')
-        const domain = urlObj.searchParams.get('domain')
-        if (!domain) {
+        const rawDomain = urlObj.searchParams.get('domain')
+        if (!rawDomain) {
           res.statusCode = 400
           res.end('Missing domain')
           return
         }
 
-        const cached = cache.get(domain)
-        if (cached) {
+        const force = urlObj.searchParams.get('force') === '1' || urlObj.searchParams.get('force') === 'true'
+        if (force) {
+          cache.delete(rawDomain)
+        }
+
+        const cached = cache.get(rawDomain)
+        if (cached && !force) {
           res.setHeader('Content-Type', cached.contentType)
           res.setHeader('Cache-Control', 'public, max-age=86400')
           res.end(cached.buffer)
           return
         }
 
-        // Fetch via local proxy 127.0.0.1:7890
-        const ddgUrl = `https://icons.duckduckgo.com/ip3/${domain}.ico`
-        const curl = spawn('curl.exe', [
-          '-x',
-          'http://127.0.0.1:7890',
-          '--connect-timeout',
-          '2',
-          '--max-time',
-          '4',
-          '-s',
-          '-L',
-          ddgUrl,
-        ])
-
-        const chunks: Buffer[] = []
-        curl.stdout.on('data', (d) => chunks.push(d))
-        curl.on('close', (code) => {
-          const buf = Buffer.concat(chunks)
-          const isPlaceholder =
-            buf.length === 1478 || buf.length === 1444 || buf.length === 726 || buf.length === 519 || buf.length === 1150
-          if (code === 0 && buf.length > 100 && !isPlaceholder) {
-            const contentType = 'image/x-icon'
-            cache.set(domain, { buffer: buf, contentType })
-            res.setHeader('Content-Type', contentType)
-            res.setHeader('Cache-Control', 'public, max-age=86400')
-            res.end(buf)
-          } else {
-            // Fallback to Google Favicon via 127.0.0.1:7890
-            const googleUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=64`
-            const curlGoogle = spawn('curl.exe', [
-              '-x',
-              'http://127.0.0.1:7890',
-              '--connect-timeout',
-              '2',
-              '--max-time',
-              '4',
-              '-s',
-              '-L',
-              googleUrl,
-            ])
-            const gChunks: Buffer[] = []
-            curlGoogle.stdout.on('data', (d) => gChunks.push(d))
-            curlGoogle.on('close', (gCode) => {
-              const gBuf = Buffer.concat(gChunks)
-              const isGPlaceholder =
-                gBuf.length === 726 || gBuf.length === 519 || gBuf.length === 1150 || gBuf.length === 1478
-              if (gCode === 0 && gBuf.length > 100 && !isGPlaceholder) {
-                const contentType = 'image/png'
-                cache.set(domain, { buffer: gBuf, contentType })
-                res.setHeader('Content-Type', contentType)
-                res.setHeader('Cache-Control', 'public, max-age=86400')
-                res.end(gBuf)
-              } else {
-                res.statusCode = 404
-                res.end('Not found')
-              }
-            })
+        const candidates = getDomainCandidates(rawDomain)
+        for (const domain of candidates) {
+          // 1. Direct target site
+          for (const proto of ['https', 'http']) {
+            const { buffer, code } = await fetchCurl(`${proto}://${domain}/favicon.ico`, 3)
+            const textPreview = buffer.slice(0, 200).toString('utf-8').toLowerCase()
+            if (code === 0 && buffer.length > 50 && !textPreview.includes('<html') && !textPreview.includes('<!doctype')) {
+              const contentType = 'image/x-icon'
+              cache.set(rawDomain, { buffer, contentType })
+              res.setHeader('Content-Type', contentType)
+              res.setHeader('Cache-Control', force ? 'no-cache, no-store, must-revalidate' : 'public, max-age=86400')
+              res.end(buffer)
+              return
+            }
           }
-        })
+
+          // 2. DuckDuckGo
+          const { buffer: ddgBuf, code: ddgCode } = await fetchCurl(`https://icons.duckduckgo.com/ip3/${domain}.ico`, 3)
+          const isPlaceholder =
+            ddgBuf.length === 1478 || ddgBuf.length === 1444 || ddgBuf.length === 726 || ddgBuf.length === 519 || ddgBuf.length === 1150
+          if (ddgCode === 0 && ddgBuf.length > 100 && !isPlaceholder) {
+            const contentType = 'image/x-icon'
+            cache.set(rawDomain, { buffer: ddgBuf, contentType })
+            res.setHeader('Content-Type', contentType)
+            res.setHeader('Cache-Control', force ? 'no-cache, no-store, must-revalidate' : 'public, max-age=86400')
+            res.end(ddgBuf)
+            return
+          }
+
+          // 3. Google S2
+          const { buffer: gBuf, code: gCode } = await fetchCurl(`https://www.google.com/s2/favicons?domain=${domain}&sz=64`, 3)
+          const isGPlaceholder =
+            gBuf.length === 726 || gBuf.length === 519 || gBuf.length === 1150 || gBuf.length === 1478
+          if (gCode === 0 && gBuf.length > 100 && !isGPlaceholder) {
+            const contentType = 'image/png'
+            cache.set(rawDomain, { buffer: gBuf, contentType })
+            res.setHeader('Content-Type', contentType)
+            res.setHeader('Cache-Control', force ? 'no-cache, no-store, must-revalidate' : 'public, max-age=86400')
+            res.end(gBuf)
+            return
+          }
+        }
+
+        res.statusCode = 404
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
+        res.end('Not found')
       })
 
       // API to fetch website title

@@ -171,7 +171,7 @@ export const SearchBar = forwardRef<SearchBarHandle, Props>(function SearchBar(
         : 'rounded-xl'
 
   return (
-    <section className={`relative z-30 border border-neutral-100/90 dark:border-white/10 bg-white/95 dark:bg-[#18181b]/90 p-3 shadow-[0_2px_12px_rgba(0,0,0,0.06)] backdrop-blur-md text-neutral-800 dark:text-neutral-100 ${cardRadius}`}>
+    <section className={`relative ${showSettings || showHistoryDropdown ? 'z-40' : 'z-30'} border border-neutral-100/90 dark:border-white/10 bg-white/95 dark:bg-[#18181b]/90 p-3 shadow-[0_2px_12px_rgba(0,0,0,0.06)] backdrop-blur-md text-neutral-800 dark:text-neutral-100 ${cardRadius}`}>
       {/* Top row engine tabs */}
       <div className="flex flex-wrap items-center justify-between gap-1.5 px-1">
         <div className="flex flex-wrap items-center gap-1.5">

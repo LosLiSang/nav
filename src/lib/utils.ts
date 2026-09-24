@@ -118,12 +118,13 @@ export function hostnameOf(value: string): string {
   }
 }
 
-export function getFaviconCandidates(url: string, customIconUrl?: string): string[] {
+export function getFaviconCandidates(url: string, customIconUrl?: string, force = false): string[] {
   if (customIconUrl) return [customIconUrl]
   const host = hostnameOf(url)
   if (!host) return []
 
   const candidates: string[] = []
+  const forceParam = force ? `&force=1&_t=${Date.now()}` : ''
 
   // 1. 本地开发环境走 Vite 代理 (本地同源，无 CORS 限制，自带内存缓存)
   const isLocalEnv =
@@ -132,14 +133,14 @@ export function getFaviconCandidates(url: string, customIconUrl?: string): strin
       window.location.hostname === '127.0.0.1' ||
       window.location.hostname === '[::1]')
   if (isLocalEnv) {
-    candidates.push(`/api/icon?domain=${host}`)
+    candidates.push(`/api/icon?domain=${host}${forceParam}`)
   }
 
   // 2. 线上统一走 Cloudflare Worker 图标代理，避免浏览器直连第三方源被限流
   const syncConfig = typeof window !== 'undefined' ? loadSyncConfig() : null
   const workerUrl = syncConfig?.url || DEFAULT_SYNC_URL || ''
   if (workerUrl) {
-    candidates.push(`${workerUrl.replace(/\/+$/, '')}/api/icon?domain=${host}`)
+    candidates.push(`${workerUrl.replace(/\/+$/, '')}/api/icon?domain=${host}${forceParam}`)
   }
 
   return candidates
@@ -193,6 +194,7 @@ function enqueueFetchTask<T>(fn: () => Promise<T>): Promise<T> {
  */
 export function fetchFaviconBlob(
   candidates: string[],
+  force = false,
 ): Promise<{ blob: Blob; objectUrl: string } | null> {
   return enqueueFetchTask(async () => {
     for (const url of candidates) {
@@ -202,8 +204,11 @@ export function fetchFaviconBlob(
       }
       try {
         const controller = new AbortController()
-        const timer = setTimeout(() => controller.abort(), 4000)
-        const res = await fetch(url, { signal: controller.signal })
+        const timer = setTimeout(() => controller.abort(), 6000)
+        const res = await fetch(url, {
+          signal: controller.signal,
+          cache: force ? 'reload' : 'default',
+        })
         clearTimeout(timer)
 
         // 遇到 429 限流时短暂让步重试下一源

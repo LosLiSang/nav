@@ -50,7 +50,7 @@ export function TopNavbar({
   }, [])
 
   return (
-    <header className="sticky top-0 z-30 flex h-11 w-full items-center justify-between border-b border-black/5 dark:border-white/10 bg-white/95 dark:bg-[#18181b]/90 px-4 text-[13px] shadow-[0_1px_3px_rgba(0,0,0,0.04)] backdrop-blur-md">
+    <header className="sticky top-0 z-40 flex h-11 w-full items-center justify-between border-b border-black/5 dark:border-white/10 bg-white/95 dark:bg-[#18181b]/90 px-4 text-[13px] shadow-[0_1px_3px_rgba(0,0,0,0.04)] backdrop-blur-md">
       {/* Left: Date | Weather | City (Always visible) */}
       <div className="flex items-center gap-2 sm:gap-3 text-xs text-neutral-600 dark:text-neutral-300">
         <div className="flex items-center gap-1.5 font-medium text-neutral-700 dark:text-neutral-200">

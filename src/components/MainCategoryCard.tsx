@@ -354,7 +354,7 @@ export function MainCategoryCard({
 
   return (
     <section
-      className={`relative z-20 border border-neutral-100/90 dark:border-white/10 p-4 shadow-[0_4px_20px_rgba(0,0,0,0.06)] backdrop-blur-md transition-all text-neutral-800 dark:text-neutral-100 ${cardRadius}`}
+      className={`relative ${showLayoutMenu || showHelpMenu ? 'z-30' : 'z-10'} border border-neutral-100/90 dark:border-white/10 p-4 shadow-[0_4px_20px_rgba(0,0,0,0.06)] backdrop-blur-md transition-all text-neutral-800 dark:text-neutral-100 ${cardRadius}`}
       style={{ backgroundColor: cardBg }}
     >
       {/* Category header tabs: strictly SINGLE LINE, no wrap */}

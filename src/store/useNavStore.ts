@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { arrayMove } from '@dnd-kit/sortable'
 import { db } from '../lib/db'
-import { normalizeIconUrl } from '../lib/utils'
+import { fetchFaviconBlob, getFaviconCandidates, normalizeIconUrl } from '../lib/utils'
 import {
   DEFAULT_SETTINGS,
   SEARCH_ENGINES,
@@ -113,7 +113,7 @@ type NavState = {
   moveBookmarkToCategory: (bookmarkId: string, categoryId: string) => Promise<void>
   saveCachedIcon: (domain: string, dataOrBlob: string | Blob, objectUrl?: string) => Promise<void>
   saveFailedIcon: (domain: string) => Promise<void>
-  refreshIcon: (domain: string) => Promise<void>
+  refreshIcon: (domain: string, bookmarkUrl?: string) => Promise<void>
   refreshAllIcons: () => Promise<void>
 
   // Memos
@@ -839,7 +839,7 @@ export const useNavStore = create<NavState>((set, get) => ({
     return Promise.resolve()
   },
 
-  async refreshIcon(domain) {
+  async refreshIcon(domain, bookmarkUrl) {
     if (!domain) return
     await db.iconCache.delete(domain)
     set((state) => {
@@ -849,6 +849,17 @@ export const useNavStore = create<NavState>((set, get) => ({
       delete nextFailed[domain]
       return { cachedIcons: nextIcons, failedDomains: nextFailed }
     })
+
+    const targetUrl = bookmarkUrl || `https://${domain}`
+    const candidates = getFaviconCandidates(targetUrl, undefined, true)
+    if (candidates.length > 0) {
+      const result = await fetchFaviconBlob(candidates, true)
+      if (result) {
+        await get().saveCachedIcon(domain, result.blob, result.objectUrl)
+      } else {
+        await get().saveFailedIcon(domain)
+      }
+    }
   },
 
   async refreshAllIcons() {

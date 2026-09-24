@@ -270,7 +270,7 @@ export default function App() {
           />
 
           {/* 3. Bottom Multi-tier Categories Section + Right Widgets Section */}
-          {/* z-20 让工具卡片及其上方的猫咪插画盖住上方主分类卡片，避免插画被卡片裁掉 */}
+          {/* z-20 让工具卡片及其上方的猫咪插画盖住上方主分类卡片（未展开下拉时为 z-10），避免插画被卡片裁掉；主分类卡片在弹出菜单时动态提升至 z-30 */}
           <div id="tools-section" className="relative z-20">
             <BottomSection
               subSections={subSections}
@@ -362,7 +362,7 @@ export default function App() {
               if (b.iconUrl) {
                 void updateBookmark(b.id, { iconUrl: undefined })
               }
-              void refreshIcon(hostnameOf(b.url))
+              void refreshIcon(hostnameOf(b.url), b.url)
             }}
           />
         )}
@@ -374,7 +374,7 @@ export default function App() {
             onSelectIcon={(url) => {
               void updateBookmark(iconPickerBookmark.id, { iconUrl: url || undefined })
               if (!url) {
-                void refreshIcon(hostnameOf(iconPickerBookmark.url))
+                void refreshIcon(hostnameOf(iconPickerBookmark.url), iconPickerBookmark.url)
               }
               setIconPickerBookmark(null)
             }}
