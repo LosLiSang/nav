@@ -118,13 +118,13 @@ function CategoryTabItem({
         onClick={onSelect}
         onContextMenu={onContextMenu}
         style={active ? { backgroundColor: highlightColor || '#2563eb' } : undefined}
-        className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition ${
-          active
-            ? 'text-white shadow-sm'
-            : isOver
-              ? 'bg-blue-100 text-blue-700 ring-2 ring-blue-400'
-              : 'text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-white'
-        }`}
+       className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition ${
+         active
+           ? 'text-white shadow-sm'
+           : isOver
+              ? 'bg-blue-100 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 ring-2 ring-blue-400 dark:ring-blue-500'
+             : 'text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-white'
+       }`}
       >
         {!active && (
           <span
@@ -248,15 +248,15 @@ function BookmarkCardItem({
       onContextMenu={(e) => {
         e.preventDefault()
         e.stopPropagation()
-        onContextMenu(e.clientX, e.clientY)
-      }}
-      className={`group relative flex h-9 select-none items-center gap-2 px-2.5 transition ${itemRadius} ${
-        isSortMode
-          ? 'cursor-grab border border-dashed border-neutral-300 bg-neutral-50 active:cursor-grabbing'
-          : 'cursor-pointer hover:bg-neutral-100/80'
-      }`}
-    >
-      {settings.showBookmarkIcon !== false && (
+       onContextMenu(e.clientX, e.clientY)
+     }}
+     className={`group relative flex h-9 select-none items-center gap-2 px-2.5 transition ${itemRadius} ${
+       isSortMode
+          ? 'cursor-grab border border-dashed border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/60 active:cursor-grabbing'
+          : 'cursor-pointer hover:bg-neutral-100/80 dark:hover:bg-neutral-800/80'
+     }`}
+   >
+     {settings.showBookmarkIcon !== false && (
         hasIcon ? (
           <img
             src={effectiveIconUrl}
@@ -365,14 +365,14 @@ export function MainCategoryCard({
           <button
             type="button"
             onClick={() => onSelectCategory('cat-fav')}
-            title="我的收藏"
-            className={`flex h-6.5 items-center gap-1.5 rounded-full px-3 text-xs font-medium transition ${
-              isFavActive
-                ? 'bg-amber-500 text-white shadow-sm'
-                : 'bg-amber-50/80 text-amber-600 hover:bg-amber-100'
-            }`}
-          >
-            <Star
+           title="我的收藏"
+           className={`flex h-6.5 items-center gap-1.5 rounded-full px-3 text-xs font-medium transition ${
+             isFavActive
+               ? 'bg-amber-500 text-white shadow-sm'
+                : 'bg-amber-50/80 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/50'
+           }`}
+         >
+           <Star
               className={`h-3.5 w-3.5 ${
                 isFavActive ? 'fill-white text-white' : 'fill-amber-400 text-amber-400'
               }`}
@@ -418,18 +418,18 @@ export function MainCategoryCard({
                   setNewCatName('')
                   setAddingCat(false)
                 }}
-                placeholder="新分类"
-                className="w-20 rounded-full border border-neutral-300 px-2.5 py-0.5 text-xs outline-none focus:border-blue-500"
-              />
-            </form>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setAddingCat(true)}
-              title="添加新分类"
-              className="flex-shrink-0 rounded-full px-2 py-0.5 text-xs text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700"
-            >
-              +
+               placeholder="新分类"
+                className="w-20 rounded-full border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-100 px-2.5 py-0.5 text-xs outline-none focus:border-blue-500"
+             />
+           </form>
+         ) : (
+           <button
+             type="button"
+             onClick={() => setAddingCat(true)}
+             title="添加新分类"
+              className="flex-shrink-0 rounded-full px-2 py-0.5 text-xs text-neutral-400 dark:text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200"
+           >
+             +
             </button>
           )}
         </div>

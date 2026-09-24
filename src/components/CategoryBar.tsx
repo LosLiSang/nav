@@ -34,12 +34,12 @@ function CategoryTab({
           event.preventDefault()
           if (window.confirm(`删除分类「${category.name}」及其中的网址？`)) onDelete()
         }}
-        className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition ${
-          active || (dragging && isOver)
-            ? 'bg-neutral-900 text-white'
-            : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
-        }`}
-      >
+       className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition ${
+         active || (dragging && isOver)
+           ? 'bg-neutral-900 text-white'
+            : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700'
+       }`}
+     >
         <span className="h-2 w-2 rounded-full" style={{ backgroundColor: category.color }} />
         {category.name}
       </button>

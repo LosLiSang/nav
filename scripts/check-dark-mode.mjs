@@ -326,6 +326,76 @@ async function main() {
         (panel.expectPreviewTextLight
           ? `\n        字体预览文字色=${previewLuma ? previewLuma.color + ' (亮度 ' + previewLuma.luma.toFixed(2) + ')' : '未找到预览元素'}`
           : ''),
+   )
+ }
+
+  // 10. 验证排序模式下的深色卡片样式
+  {
+    await cdp.send('Page.reload')
+    await poll(ready, 25000, 'reload for sort mode test')
+    await sleep(400)
+    await setDark()
+    await poll(hasDarkRoot, 10000, 'dark class after reload')
+
+   // 开启排序模式
+   await evaluate(`(async () => {
+     const m = ${STORE};
+      const s = m.useNavStore.getState();
+      const catWithBm = s.categories.find(c => s.bookmarks.some(b => b.categoryId === c.id));
+      if (catWithBm) {
+        s.setActiveCategory(catWithBm.id);
+      }
+      s.updateSettings({ isSortMode: true });
+   })()`)
+   await sleep(500)
+
+    const sortAudit = await evaluate(`(() => {
+      const cv = document.createElement('canvas')
+      cv.width = cv.height = 1
+      const ctx = cv.getContext('2d', { willReadFrequently: true })
+      const measure = (cssColor) => {
+        ctx.clearRect(0, 0, 1, 1)
+        ctx.fillStyle = '#000000'
+        ctx.fillStyle = cssColor
+        ctx.fillRect(0, 0, 1, 1)
+        const d = ctx.getImageData(0, 0, 1, 1).data
+        return { r: d[0], g: d[1], b: d[2], a: d[3] }
+      }
+      const luma = (c) => (0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b) / 255
+
+      const banner = [...document.querySelectorAll('div')].find(d => d.textContent.includes('已打开排序'))
+      const bookmarkCards = [...document.querySelectorAll('div.cursor-grab')]
+      
+      const light = []
+      bookmarkCards.forEach((el) => {
+        const c = measure(getComputedStyle(el).backgroundColor)
+        if (c.a < 128) return
+        if (c.r > 200 && c.g > 200 && c.b > 200) {
+          light.push('card :: ' + el.className + ' :: ' + (el.textContent?.trim().slice(0, 15) || ''))
+        }
+      })
+
+      const bannerPx = banner ? measure(getComputedStyle(banner).backgroundColor) : null
+
+      return {
+        hasBanner: Boolean(banner),
+        bannerBg: bannerPx ? 'rgb(' + bannerPx.r + ',' + bannerPx.g + ',' + bannerPx.b + ')' : null,
+        bannerIsDark: bannerPx ? luma(bannerPx) < 0.35 : false,
+        cardCount: bookmarkCards.length,
+        lightCount: light.length,
+        lightSamples: light.slice(0, 10),
+      }
+    })()`)
+
+   const shot = await cdp.send('Page.captureScreenshot', { format: 'png' })
+   const file = join(OUT_DIR, '10-sort-mode.png')
+   writeFileSync(file, Buffer.from(shot.data, 'base64'))
+
+    const pass = sortAudit.hasBanner && sortAudit.cardCount > 0 && sortAudit.lightCount === 0
+   results.push({ id: '10-sort-mode', name: '主卡片排序模式 (Sort Mode in MainCategoryCard)', pass, audit: sortAudit, file })
+   console.log(
+      `${pass ? 'PASS' : 'FAIL'}  主卡片排序模式 (Sort Mode in MainCategoryCard)\n        书签卡片总数=${sortAudit.cardCount} 残留浅色块=${sortAudit.lightCount} 提示条底色=${sortAudit.bannerBg}` +
+      (sortAudit.lightCount ? `\n        例: ${sortAudit.lightSamples.join(' | ')}` : ''),
     )
   }
 

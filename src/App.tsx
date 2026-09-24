@@ -328,21 +328,21 @@ export default function App() {
           onOpenTools={() => setActiveWidgetTab('tools')}
         />
 
-        {/* Drag Overlay for dragging bookmark item */}
-        <DragOverlay>
-          {draggingBookmark && (
-            <div className="flex h-9 w-44 cursor-grabbing items-center gap-2 rounded-lg border border-blue-400 bg-white px-3 text-xs shadow-2xl">
-              <img
-                src={faviconFor(draggingBookmark.url, draggingBookmark.iconUrl)}
-                alt=""
-                className="h-4 w-4 rounded object-contain"
-              />
-              <span className="truncate font-medium text-neutral-800">
-                {draggingBookmark.title}
-              </span>
-            </div>
-          )}
-        </DragOverlay>
+       {/* Drag Overlay for dragging bookmark item */}
+       <DragOverlay>
+         {draggingBookmark && (
+            <div className="flex h-9 w-44 cursor-grabbing items-center gap-2 rounded-lg border border-blue-400 dark:border-blue-500 bg-white dark:bg-[#18181b] px-3 text-xs shadow-2xl">
+             <img
+               src={faviconFor(draggingBookmark.url, draggingBookmark.iconUrl)}
+               alt=""
+               className="h-4 w-4 rounded object-contain"
+             />
+              <span className="truncate font-medium text-neutral-800 dark:text-neutral-100">
+               {draggingBookmark.title}
+             </span>
+           </div>
+         )}
+       </DragOverlay>
 
         {/* Right-click Context Menu */}
         {contextMenu && (
