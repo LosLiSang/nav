@@ -152,6 +152,61 @@ export function faviconFor(url: string, customIconUrl?: string): string {
   return candidates[0] || ''
 }
 
+/**
+ * 抓取目标网站的标题名称（优先使用云端 Cloudflare Worker 代理并享有边缘 30 天缓存；本地开发环境自动 fallback 本地）
+ */
+export async function fetchWebsiteTitle(rawUrl: string, force = false): Promise<string> {
+  const trimmed = rawUrl.trim()
+  if (!trimmed) return ''
+  const normalized = normalizeUrl(trimmed)
+  const encodedUrl = encodeURIComponent(normalized)
+  const forceParam = force ? '&force=1' : ''
+
+  const candidates: string[] = []
+
+  // 1. 本地开发环境候选
+  const isLocalEnv =
+    typeof window !== 'undefined' &&
+    (window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1' ||
+      window.location.hostname === '[::1]')
+  if (isLocalEnv) {
+    candidates.push(`/api/title?url=${encodedUrl}${forceParam}`)
+    candidates.push(`/api/fetch-title?url=${encodedUrl}${forceParam}`)
+  }
+
+  // 2. 线上 Cloudflare Worker 统一代理候选（与 icon 一致，边缘节点全球免翻墙直连与强缓存）
+  const syncConfig = typeof window !== 'undefined' ? loadSyncConfig() : null
+  const workerUrl = syncConfig?.url || DEFAULT_SYNC_URL || ''
+  if (workerUrl) {
+    const cleanWorker = workerUrl.replace(/\/+$/, '')
+    candidates.push(`${cleanWorker}/api/title?url=${encodedUrl}${forceParam}`)
+    candidates.push(`${cleanWorker}/api/fetch-title?url=${encodedUrl}${forceParam}`)
+  }
+
+  for (const endpoint of candidates) {
+    try {
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), 9000)
+      const res = await fetch(endpoint, {
+        signal: controller.signal,
+        headers: { Accept: 'application/json' },
+      })
+      clearTimeout(timer)
+      if (res.ok) {
+        const data = await res.json()
+        if (data && typeof data.title === 'string' && data.title.trim()) {
+          return data.title.trim()
+        }
+      }
+    } catch {
+      // 继续尝试下一个候选端点
+    }
+  }
+
+  return ''
+}
+
 // ---------------------------------------------------------------------------
 // 全局图标拉取并发队列与平滑节流调度（彻底防止 429 Too Many Requests）
 // ---------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 import { createPortal } from 'react-dom'
 import { useRef, useState } from 'react'
 import { Camera, Check, ChevronDown, Edit3, Folder, Loader2, Shield, X } from 'lucide-react'
-import { normalizeIconUrl, normalizeUrl } from '../lib/utils'
+import { fetchWebsiteTitle, normalizeIconUrl, normalizeUrl } from '../lib/utils'
 import { IconPickerModal } from './IconPickerModal'
 import type { Bookmark, Category, SubCategory } from '../types'
 
@@ -48,6 +48,7 @@ export function BookmarkDialog({
   const [showPrivacy, setShowPrivacy] = useState(false)
   const [isPrivate, setIsPrivate] = useState(false)
   const [fetchingTitle, setFetchingTitle] = useState(false)
+  const [fetchStatus, setFetchStatus] = useState<'idle' | 'failed' | 'success'>('idle')
   const [saving, setSaving] = useState(false)
   const urlInputRef = useRef<HTMLInputElement>(null)
 
@@ -60,15 +61,20 @@ export function BookmarkDialog({
     const rawUrl = url.trim()
     if (!rawUrl) return
     setFetchingTitle(true)
+    setFetchStatus('idle')
     try {
-      const normalized = normalizeUrl(rawUrl)
-      const res = await fetch(`/api/fetch-title?url=${encodeURIComponent(normalized)}`)
-      const data = await res.json()
-      if (data.title) {
-        setTitle(data.title.slice(0, 100))
+      const fetched = await fetchWebsiteTitle(rawUrl)
+      if (fetched) {
+        setTitle(fetched.slice(0, 100))
+        setFetchStatus('success')
+        setTimeout(() => setFetchStatus('idle'), 2000)
+      } else {
+        setFetchStatus('failed')
+        setTimeout(() => setFetchStatus('idle'), 2500)
       }
     } catch {
-      // ignore fetch failure
+      setFetchStatus('failed')
+      setTimeout(() => setFetchStatus('idle'), 2500)
     } finally {
       setFetchingTitle(false)
     }
@@ -142,10 +148,24 @@ export function BookmarkDialog({
               type="button"
               onClick={handleFetchTitle}
               disabled={fetchingTitle || !url.trim()}
-              className="flex items-center gap-1.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-4 py-2.5 font-medium text-neutral-700 dark:text-neutral-200 shadow-sm transition hover:bg-neutral-50 dark:hover:bg-neutral-800 disabled:opacity-50"
+              className={`flex items-center gap-1.5 rounded-xl border px-4 py-2.5 font-medium shadow-sm transition disabled:opacity-50 ${
+                fetchStatus === 'failed'
+                  ? 'border-rose-300 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400'
+                  : fetchStatus === 'success'
+                    ? 'border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400'
+                    : 'border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-800'
+              }`}
             >
               {fetchingTitle && <Loader2 className="h-3.5 w-3.5 animate-spin text-orange-500" />}
-              <span>{fetchingTitle ? '抓取中...' : '抓取标题'}</span>
+              <span>
+                {fetchingTitle
+                  ? '抓取中...'
+                  : fetchStatus === 'failed'
+                    ? '抓取失败'
+                    : fetchStatus === 'success'
+                      ? '抓取成功'
+                      : '抓取标题'}
+              </span>
             </button>
           </div>
 

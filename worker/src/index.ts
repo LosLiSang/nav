@@ -130,6 +130,72 @@ function getDomainCandidates(rawDomain: string): string[] {
   return [...new Set(candidates)]
 }
 
+function decodeHtmlEntities(str: string): string {
+  if (!str) return ''
+  return str
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => {
+      try {
+        return String.fromCodePoint(parseInt(hex, 16))
+      } catch {
+        return ''
+      }
+    })
+    .replace(/&#(\d+);/g, (_, dec) => {
+      try {
+        return String.fromCodePoint(parseInt(dec, 10))
+      } catch {
+        return ''
+      }
+    })
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&copy;/g, '©')
+    .replace(/&reg;/g, '®')
+    .replace(/&mdash;/g, '—')
+    .replace(/&ndash;/g, '–')
+    .replace(/&bull;/g, '•')
+    .replace(/&middot;/g, '·')
+    .replace(/&hellip;/g, '…')
+}
+
+function extractTitleFromHtml(html: string): string {
+  if (!html) return ''
+  // 1. <title> 标签
+  const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)
+  let raw = titleMatch ? titleMatch[1] : ''
+
+  // 2. OpenGraph og:title 回退
+  if (!raw.trim()) {
+    const ogMatch =
+      html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']*)["']/i) ||
+      html.match(/<meta[^>]+content=["']([^"']*)["'][^>]+property=["']og:title["']/i)
+    if (ogMatch) raw = ogMatch[1]
+  }
+
+  // 3. Twitter Card title 回退
+  if (!raw.trim()) {
+    const twMatch =
+      html.match(/<meta[^>]+name=["']twitter:title["'][^>]+content=["']([^"']*)["']/i) ||
+      html.match(/<meta[^>]+content=["']([^"']*)["'][^>]+name=["']twitter:title["']/i)
+    if (twMatch) raw = twMatch[1]
+  }
+
+  // 4. 标准 meta[name="title"] 回退
+  if (!raw.trim()) {
+    const metaTitleMatch =
+      html.match(/<meta[^>]+name=["']title["'][^>]+content=["']([^"']*)["']/i) ||
+      html.match(/<meta[^>]+content=["']([^"']*)["'][^>]+name=["']title["']/i)
+    if (metaTitleMatch) raw = metaTitleMatch[1]
+  }
+
+  return decodeHtmlEntities(raw.replace(/\s+/g, ' ').trim())
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url)
@@ -145,7 +211,12 @@ export default {
           ok: true,
           service: 'nav-sync',
           configured: Boolean((env.SYNC_TOKEN || '').trim()),
-          endpoints: ['GET /api/data', 'PUT /api/data', 'GET /api/icon?domain='],
+          endpoints: [
+            'GET /api/data',
+            'PUT /api/data',
+            'GET /api/icon?domain=',
+            'GET /api/title?url=',
+          ],
         },
         200,
         request,
@@ -312,6 +383,152 @@ export default {
           ...corsHeaders(request, env),
         },
       })
+    }
+
+    // 网页标题抓取：利用 Cloudflare 边缘节点代理抓取并免费缓存 30 天，无并发与速率限制
+    if ((url.pathname === '/api/title' || url.pathname === '/api/fetch-title') && request.method === 'GET') {
+      const rawTargetUrl = url.searchParams.get('url')
+      if (!rawTargetUrl) {
+        return json({ ok: false, error: 'missing_url' }, 400, request, env)
+      }
+
+      const force = url.searchParams.get('force') === '1' || url.searchParams.get('force') === 'true'
+      let targetUrl = rawTargetUrl.trim()
+      if (!/^https?:\/\//i.test(targetUrl)) {
+        targetUrl = `https://${targetUrl}`
+      }
+
+      try {
+        new URL(targetUrl)
+      } catch {
+        return json({ ok: false, error: 'invalid_url' }, 400, request, env)
+      }
+
+      const cfOptions = force
+        ? { cacheTtl: 0 }
+        : { cacheTtl: 2592000, cacheEverything: true }
+
+      const fetchHeaders: HeadersInit = {
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+        ...(force ? { 'Cache-Control': 'no-cache', Pragma: 'no-cache' } : {}),
+      }
+
+      try {
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 8000)
+
+        const res = await fetch(targetUrl, {
+          headers: fetchHeaders,
+          cf: cfOptions,
+          redirect: 'follow',
+          signal: controller.signal,
+        })
+        clearTimeout(timeoutId)
+
+        if (!res.ok) {
+          return new Response(JSON.stringify({ title: '', error: `HTTP ${res.status}` }), {
+            status: 200,
+            headers: {
+              'Content-Type': 'application/json; charset=utf-8',
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              ...corsHeaders(request, env),
+            },
+          })
+        }
+
+        const contentType = (res.headers.get('content-type') || '').toLowerCase()
+        if (
+          contentType &&
+          !contentType.includes('text/html') &&
+          !contentType.includes('application/xhtml+xml') &&
+          !contentType.includes('text/plain') &&
+          !contentType.includes('application/xml')
+        ) {
+          return new Response(JSON.stringify({ title: '' }), {
+            status: 200,
+            headers: {
+              'Content-Type': 'application/json; charset=utf-8',
+              'Cache-Control': force ? 'no-cache, no-store, must-revalidate' : 'public, max-age=2592000',
+              ...corsHeaders(request, env),
+            },
+          })
+        }
+
+        let buffer: Uint8Array = new Uint8Array(0)
+        if (res.body) {
+          const reader = res.body.getReader()
+          const chunks: Uint8Array[] = []
+          let totalBytes = 0
+          const MAX_BYTES = 128 * 1024
+
+          while (totalBytes < MAX_BYTES) {
+            const { done, value } = await reader.read()
+            if (done || !value) break
+            chunks.push(value)
+            totalBytes += value.byteLength
+            const quickText = new TextDecoder('ascii').decode(value)
+            if (/<\/head>/i.test(quickText)) {
+              break
+            }
+          }
+          try { await reader.cancel() } catch {}
+
+          buffer = new Uint8Array(totalBytes)
+          let offset = 0
+          for (const chunk of chunks) {
+            buffer.set(chunk, offset)
+            offset += chunk.byteLength
+          }
+        } else {
+          buffer = new Uint8Array(await res.arrayBuffer())
+        }
+
+        let charset = 'utf-8'
+        const headerCharsetMatch = contentType.match(/charset=([a-zA-Z0-9_-]+)/i)
+        if (headerCharsetMatch) {
+          charset = headerCharsetMatch[1].toLowerCase()
+        } else {
+          const asciiPreview = new TextDecoder('ascii').decode(buffer.slice(0, 2048))
+          const metaCharsetMatch =
+            asciiPreview.match(/<meta[^>]+charset=["']?([a-zA-Z0-9_-]+)/i) ||
+            asciiPreview.match(/<meta[^>]+http-equiv=["']?Content-Type["'][^>]+content=["'][^"']*charset=([a-zA-Z0-9_-]+)/i)
+          if (metaCharsetMatch) {
+            charset = metaCharsetMatch[1].toLowerCase()
+          }
+        }
+
+        if (charset === 'gb2312') charset = 'gbk'
+
+        let htmlText = ''
+        try {
+          htmlText = new TextDecoder(charset).decode(buffer)
+        } catch {
+          htmlText = new TextDecoder('utf-8').decode(buffer)
+        }
+
+        const title = extractTitleFromHtml(htmlText)
+
+        return new Response(JSON.stringify({ title }), {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8',
+            'Cache-Control': force ? 'no-cache, no-store, must-revalidate' : 'public, max-age=2592000',
+            ...corsHeaders(request, env),
+          },
+        })
+      } catch (err: any) {
+        return new Response(JSON.stringify({ title: '', error: err?.message || 'fetch_failed' }), {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            ...corsHeaders(request, env),
+          },
+        })
+      }
     }
 
     if (url.pathname !== '/api/data') {
