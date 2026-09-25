@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useDroppable } from '@dnd-kit/core'
 import {
   SortableContext,
   horizontalListSortingStrategy,
@@ -102,7 +101,7 @@ function CategoryTabItem({
   category,
   active,
   isSortMode,
-  isDraggingThisType,
+  draggingId,
   highlightColor,
   onSelect,
   onContextMenu,
@@ -110,63 +109,58 @@ function CategoryTabItem({
   category: Category
   active: boolean
   isSortMode?: boolean
-  isDraggingThisType?: boolean
+  draggingId?: string | null
   highlightColor?: string
   onSelect: () => void
   onContextMenu: (e: React.MouseEvent) => void
 }) {
-  const sortable = useSortable({
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+    isOver,
+  } = useSortable({
     id: `category:${category.id}`,
-    disabled: !isSortMode || !isDraggingThisType,
-  })
-  const droppable = useDroppable({
-    id: `category:${category.id}`,
-    disabled: Boolean(isDraggingThisType),
+    disabled: !isSortMode,
   })
 
-  const setNodeRef = isDraggingThisType ? sortable.setNodeRef : droppable.setNodeRef
-  const isOver = isDraggingThisType ? sortable.isOver : droppable.isOver
-  const transform = isDraggingThisType ? sortable.transform : null
-  const transition = isDraggingThisType ? sortable.transition : undefined
-  const isDragging = isDraggingThisType ? sortable.isDragging : false
-  const attributes = isDraggingThisType ? sortable.attributes : {}
-  const listeners = isDraggingThisType ? sortable.listeners : {}
+  const isDraggingThisType = Boolean(draggingId?.startsWith('category:'))
+  const isDraggingOtherType = Boolean(draggingId && !isDraggingThisType)
 
   return (
-    <div
+    <button
       ref={setNodeRef}
+      type="button"
       style={{
-        transform: CSS.Translate.toString(transform),
-        transition,
+        backgroundColor: active ? (highlightColor || '#2563eb') : undefined,
+        transform: isDraggingThisType ? CSS.Translate.toString(transform) : undefined,
+        transition: isDraggingThisType ? transition : undefined,
         opacity: isDragging ? 0.3 : 1,
         zIndex: isDragging ? 50 : undefined,
       }}
       {...attributes}
       {...listeners}
-      className="relative flex-shrink-0"
+      onClick={onSelect}
+      onContextMenu={onContextMenu}
+      className={`relative flex flex-shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium select-none transition ${
+        active
+          ? 'text-white shadow-sm'
+          : isOver && isDraggingOtherType
+            ? 'bg-blue-100 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 ring-2 ring-blue-400 dark:ring-blue-500 scale-105 shadow-md'
+            : 'text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-white'
+      } ${isSortMode ? 'cursor-grab active:cursor-grabbing border border-dashed border-blue-300 dark:border-blue-700' : ''}`}
     >
-      <button
-        type="button"
-        onClick={onSelect}
-        onContextMenu={onContextMenu}
-        style={active ? { backgroundColor: highlightColor || '#2563eb' } : undefined}
-       className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition ${
-         active
-           ? 'text-white shadow-sm'
-           : isOver
-              ? 'bg-blue-100 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 ring-2 ring-blue-400 dark:ring-blue-500 scale-105'
-             : 'text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-white'
-       } ${isSortMode ? 'cursor-grab active:cursor-grabbing border border-dashed border-blue-300 dark:border-blue-700' : ''}`}
-      >
-        {!active && (
-          <span
-            className="h-1.5 w-1.5 rounded-full"
-            style={{ backgroundColor: category.color }}
-          />
-        )}
-        <span>{category.name}</span>
-      </button>
-    </div>
+      {!active && (
+        <span
+          className="h-1.5 w-1.5 rounded-full pointer-events-none"
+          style={{ backgroundColor: category.color }}
+        />
+      )}
+      <span className="pointer-events-none">{category.name}</span>
+    </button>
   )
 }
 
@@ -423,7 +417,7 @@ export function MainCategoryCard({
                 category={cat}
                 active={activeCategoryId === cat.id}
                 isSortMode={isSortMode}
-                isDraggingThisType={Boolean(draggingId?.startsWith('category:'))}
+                draggingId={draggingId}
                 highlightColor={settings.highlightColor}
                 onSelect={() => onSelectCategory(cat.id)}
                 onContextMenu={(e) => {

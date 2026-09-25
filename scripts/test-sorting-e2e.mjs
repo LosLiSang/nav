@@ -260,6 +260,59 @@ async function main() {
 
     check('下方板块与子分类支持自由重排序', sortCategoryResult.result.value?.success === true)
 
+    // 5. 验证子分类鼠标拖拽
+    console.log('\n--- 测试 5: 验证子分类真实鼠标拖拽交互 ---')
+    const subcatDragInfo = await cdp.send('Runtime.evaluate', {
+      expression: `
+        (() => {
+          const sidebar = document.querySelector('#tools-section div[class*="w-[76px]"]');
+          if (!sidebar) return null;
+          const buttons = Array.from(sidebar.querySelectorAll('button')).filter(b => !b.textContent.includes('新增'));
+          if (buttons.length < 2) return null;
+          const r1 = buttons[0].getBoundingClientRect();
+          const r2 = buttons[1].getBoundingClientRect();
+          return {
+            b1: { text: buttons[0].textContent.trim(), x: r1.x + r1.width / 2, y: r1.y + r1.height / 2 },
+            b2: { text: buttons[1].textContent.trim(), x: r2.x + r2.width / 2, y: r2.y + r2.height / 2 },
+          };
+        })()
+      `,
+      returnByValue: true,
+    })
+
+    if (subcatDragInfo.result.value) {
+      const { b1, b2 } = subcatDragInfo.result.value
+      const startX = Math.round(b1.x)
+      const startY = Math.round(b1.y)
+      const endX = Math.round(b2.x)
+      const endY = Math.round(b2.y + 20)
+
+      await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: startX, y: startY, button: 'left', buttons: 1, clickCount: 1 })
+      await sleep(100)
+      for (let i = 1; i <= 20; i++) {
+        const curX = Math.round(startX + (endX - startX) * (i / 20))
+        const curY = Math.round(startY + (endY - startY) * (i / 20))
+        await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: curX, y: curY, button: 'left', buttons: 1 })
+        await sleep(25)
+      }
+      await sleep(150)
+      await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: endX, y: endY, button: 'left' })
+      await sleep(500)
+
+      const afterSubcats = await cdp.send('Runtime.evaluate', {
+        expression: `
+          (() => {
+            const sidebar = document.querySelector('#tools-section div[class*="w-[76px]"]');
+            if (!sidebar) return [];
+            return Array.from(sidebar.querySelectorAll('button')).map(b => b.textContent.trim()).filter(t => t !== '新增');
+          })()
+        `,
+        returnByValue: true,
+      })
+      const list = afterSubcats.result.value || []
+      check('子分类真实鼠标拖拽调换顺序成功', list.length >= 2 && list[0] === b2.text, `原始: [${b1.text}, ${b2.text}] -> 拖拽后: [${list[0]}, ${list[1]}]`)
+    }
+
     // 截图产出验证工件
     await sleep(500)
     const shot = await cdp.send('Page.captureScreenshot', { format: 'png' })

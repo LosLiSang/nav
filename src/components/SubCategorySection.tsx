@@ -95,41 +95,40 @@ function SubSectionTabItem({
   section,
   isActive,
   isSortMode,
-  isDraggingThisType,
+  draggingId,
   onSelect,
   onContextMenu,
 }: {
   section: SubSection
   isActive: boolean
   isSortMode?: boolean
-  isDraggingThisType?: boolean
+  draggingId?: string | null
   onSelect: () => void
   onContextMenu: (e: React.MouseEvent) => void
 }) {
-  const sortable = useSortable({
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+    isOver,
+  } = useSortable({
     id: `section:${section.id}`,
-    disabled: !isSortMode || !isDraggingThisType,
-  })
-  const droppable = useDroppable({
-    id: `section:${section.id}`,
-    disabled: Boolean(isDraggingThisType),
+    disabled: !isSortMode,
   })
 
-  const setNodeRef = isDraggingThisType ? sortable.setNodeRef : droppable.setNodeRef
-  const isOver = isDraggingThisType ? sortable.isOver : droppable.isOver
-  const transform = isDraggingThisType ? sortable.transform : null
-  const transition = isDraggingThisType ? sortable.transition : undefined
-  const isDragging = isDraggingThisType ? sortable.isDragging : false
-  const attributes = isDraggingThisType ? sortable.attributes : {}
-  const listeners = isDraggingThisType ? sortable.listeners : {}
+  const isDraggingThisType = Boolean(draggingId?.startsWith('section:'))
+  const isDraggingOtherType = Boolean(draggingId && !isDraggingThisType)
 
   return (
     <button
       ref={setNodeRef}
       type="button"
       style={{
-        transform: CSS.Translate.toString(transform),
-        transition,
+        transform: isDraggingThisType ? CSS.Translate.toString(transform) : undefined,
+        transition: isDraggingThisType ? transition : undefined,
         opacity: isDragging ? 0.3 : 1,
         zIndex: isDragging ? 50 : undefined,
       }}
@@ -140,8 +139,8 @@ function SubSectionTabItem({
       className={`flex flex-shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium select-none transition ${
         isActive
           ? 'bg-[#ff6900] text-white shadow-sm'
-          : isOver
-            ? 'bg-orange-100 dark:bg-orange-950/80 text-orange-700 dark:text-orange-300 ring-2 ring-orange-500 scale-105'
+          : isOver && isDraggingOtherType
+            ? 'bg-orange-100 dark:bg-orange-950/80 text-orange-700 dark:text-orange-300 ring-2 ring-orange-500 scale-105 shadow-md'
             : 'text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800'
       } ${
         isSortMode
@@ -184,41 +183,40 @@ function SubCategoryTabItem({
   subCategory,
   isSelected,
   isSortMode,
-  isDraggingThisType,
+  draggingId,
   onSelect,
   onContextMenu,
 }: {
   subCategory: SubCategory
   isSelected: boolean
   isSortMode?: boolean
-  isDraggingThisType?: boolean
+  draggingId?: string | null
   onSelect: () => void
   onContextMenu: (e: React.MouseEvent) => void
 }) {
-  const sortable = useSortable({
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+    isOver,
+  } = useSortable({
     id: `subcat:${subCategory.id}`,
-    disabled: !isSortMode || !isDraggingThisType,
-  })
-  const droppable = useDroppable({
-    id: `subcat:${subCategory.id}`,
-    disabled: Boolean(isDraggingThisType),
+    disabled: !isSortMode,
   })
 
-  const setNodeRef = isDraggingThisType ? sortable.setNodeRef : droppable.setNodeRef
-  const isOver = isDraggingThisType ? sortable.isOver : droppable.isOver
-  const transform = isDraggingThisType ? sortable.transform : null
-  const transition = isDraggingThisType ? sortable.transition : undefined
-  const isDragging = isDraggingThisType ? sortable.isDragging : false
-  const attributes = isDraggingThisType ? sortable.attributes : {}
-  const listeners = isDraggingThisType ? sortable.listeners : {}
+  const isDraggingThisType = Boolean(draggingId?.startsWith('subcat:'))
+  const isDraggingOtherType = Boolean(draggingId && !isDraggingThisType)
 
   return (
     <button
       ref={setNodeRef}
       type="button"
       style={{
-        transform: CSS.Translate.toString(transform),
-        transition,
+        transform: isDraggingThisType ? CSS.Translate.toString(transform) : undefined,
+        transition: isDraggingThisType ? transition : undefined,
         opacity: isDragging ? 0.3 : 1,
         zIndex: isDragging ? 50 : undefined,
       }}
@@ -229,8 +227,8 @@ function SubCategoryTabItem({
       className={`group relative flex w-full flex-col items-center justify-center rounded-xl p-2 text-center select-none transition ${
         isSelected
           ? 'bg-orange-50 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400 font-semibold ring-1 ring-orange-500/20'
-          : isOver
-            ? 'bg-orange-100 dark:bg-orange-950/80 text-orange-700 dark:text-orange-300 ring-2 ring-orange-500 scale-105'
+          : isOver && isDraggingOtherType
+            ? 'bg-orange-100 dark:bg-orange-950/80 text-orange-700 dark:text-orange-300 ring-2 ring-orange-500 scale-105 shadow-md'
             : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800/60 hover:text-neutral-900 dark:hover:text-white'
       } ${
         isSortMode
@@ -521,9 +519,6 @@ export function SubCategorySection({
     [bookmarks, effectiveSubCatId],
   )
 
-  const isDraggingSection = Boolean(draggingId?.startsWith('section:'))
-  const isDraggingSubCat = Boolean(draggingId?.startsWith('subcat:'))
-
   return (
     <div
       className={`flex-1 min-w-0 w-full flex flex-col overflow-hidden border border-neutral-100/90 dark:border-white/10 shadow-[0_4px_20px_rgba(0,0,0,0.06)] backdrop-blur-md text-neutral-800 dark:text-neutral-100 ${cardRadius}`}
@@ -542,7 +537,7 @@ export function SubCategorySection({
                 section={sec}
                 isActive={sec.id === currentSectionId}
                 isSortMode={isSortMode}
-                isDraggingThisType={isDraggingSection}
+                draggingId={draggingId}
                 onSelect={() => onSelectSubSection(sec.id)}
                 onContextMenu={(e) => {
                   e.preventDefault()
@@ -619,7 +614,7 @@ export function SubCategorySection({
                 subCategory={sc}
                 isSelected={sc.id === effectiveSubCatId}
                 isSortMode={isSortMode}
-                isDraggingThisType={isDraggingSubCat}
+                draggingId={draggingId}
                 onSelect={() => onSelectSubCategory(sc.id)}
                 onContextMenu={(e) => {
                   e.preventDefault()
