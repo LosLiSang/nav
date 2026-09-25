@@ -131,21 +131,21 @@ function CategoryTabItem({
   const isDraggingOtherType = Boolean(draggingId && !isDraggingThisType)
 
   return (
-    <button
-      ref={setNodeRef}
-      type="button"
-      style={{
-        backgroundColor: active ? (highlightColor || '#2563eb') : undefined,
-        transform: isDraggingThisType ? CSS.Translate.toString(transform) : undefined,
-        transition: isDraggingThisType ? transition : undefined,
+   <button
+     ref={setNodeRef}
+     type="button"
+     style={{
+       backgroundColor: active ? (highlightColor || '#2563eb') : undefined,
+        transform: !isDragging && isDraggingThisType ? CSS.Translate.toString(transform) : undefined,
+        transition: !isDragging && isDraggingThisType ? transition : undefined,
         opacity: isDragging ? 0.3 : 1,
-        zIndex: isDragging ? 50 : undefined,
+        zIndex: isDragging ? 0 : undefined,
       }}
       {...attributes}
       {...listeners}
       onClick={onSelect}
       onContextMenu={onContextMenu}
-      className={`relative flex flex-shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium select-none transition ${
+      className={`relative flex flex-shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium select-none transition-colors duration-150 ${
         active
           ? 'text-white shadow-sm'
           : isOver && isDraggingOtherType
@@ -256,13 +256,13 @@ function BookmarkCardItem({
         : 'rounded-lg'
 
   return (
-    <div
-      ref={setNodeRef}
-      style={{
-        transform: CSS.Transform.toString(transform),
-        transition,
-        opacity: isDragging ? 0.3 : 1,
-        zIndex: isDragging ? 50 : undefined,
+   <div
+     ref={setNodeRef}
+     style={{
+        transform: !isDragging ? CSS.Transform.toString(transform) : undefined,
+        transition: !isDragging ? transition : undefined,
+        opacity: isDragging ? 0.25 : 1,
+        zIndex: isDragging ? 0 : undefined,
       }}
       {...attributes}
       {...listeners}

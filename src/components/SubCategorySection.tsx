@@ -123,20 +123,20 @@ function SubSectionTabItem({
   const isDraggingOtherType = Boolean(draggingId && !isDraggingThisType)
 
   return (
-    <button
-      ref={setNodeRef}
-      type="button"
-      style={{
-        transform: isDraggingThisType ? CSS.Translate.toString(transform) : undefined,
-        transition: isDraggingThisType ? transition : undefined,
+   <button
+     ref={setNodeRef}
+     type="button"
+     style={{
+        transform: !isDragging && isDraggingThisType ? CSS.Translate.toString(transform) : undefined,
+        transition: !isDragging && isDraggingThisType ? transition : undefined,
         opacity: isDragging ? 0.3 : 1,
-        zIndex: isDragging ? 50 : undefined,
+        zIndex: isDragging ? 0 : undefined,
       }}
       {...attributes}
       {...listeners}
       onClick={onSelect}
       onContextMenu={onContextMenu}
-      className={`flex flex-shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium select-none transition ${
+      className={`flex flex-shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium select-none transition-colors duration-150 ${
         isActive
           ? 'bg-[#ff6900] text-white shadow-sm'
           : isOver && isDraggingOtherType
@@ -211,28 +211,32 @@ function SubCategoryTabItem({
   const isDraggingOtherType = Boolean(draggingId && !isDraggingThisType)
 
   return (
-    <button
-      ref={setNodeRef}
-      type="button"
-      style={{
-        transform: isDraggingThisType ? CSS.Translate.toString(transform) : undefined,
-        transition: isDraggingThisType ? transition : undefined,
-        opacity: isDragging ? 0.3 : 1,
-        zIndex: isDragging ? 50 : undefined,
+   <button
+     ref={setNodeRef}
+     type="button"
+     style={{
+        transform: !isDragging && isDraggingThisType ? CSS.Translate.toString(transform) : undefined,
+        transition: !isDragging && isDraggingThisType ? transition : undefined,
+        opacity: isDragging ? 0.35 : 1,
+        zIndex: isDragging ? 0 : undefined,
       }}
       {...attributes}
       {...listeners}
       onClick={onSelect}
       onContextMenu={onContextMenu}
-      className={`group relative flex w-full flex-col items-center justify-center rounded-xl p-2 text-center select-none transition ${
-        isSelected
-          ? 'bg-orange-50 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400 font-semibold ring-1 ring-orange-500/20'
-          : isOver && isDraggingOtherType
-            ? 'bg-orange-100 dark:bg-orange-950/80 text-orange-700 dark:text-orange-300 ring-2 ring-orange-500 scale-105 shadow-md'
-            : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800/60 hover:text-neutral-900 dark:hover:text-white'
+      className={`group relative flex w-full flex-col items-center justify-center rounded-xl p-2 text-center select-none transition-colors duration-150 ${
+        isDragging
+          ? 'border border-dashed border-orange-400 bg-orange-50/40 dark:bg-orange-950/30'
+          : isSelected
+            ? 'bg-orange-50 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400 font-semibold ring-1 ring-orange-500/20'
+            : isOver && isDraggingOtherType
+              ? 'bg-orange-100 dark:bg-orange-950/80 text-orange-700 dark:text-orange-300 ring-2 ring-orange-500 scale-105 shadow-md'
+              : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800/60 hover:text-neutral-900 dark:hover:text-white'
       } ${
         isSortMode
-          ? 'cursor-grab active:cursor-grabbing border border-dashed border-orange-300 dark:border-orange-700'
+          ? isDragging
+            ? 'cursor-grabbing'
+            : 'cursor-grab active:cursor-grabbing border border-dashed border-orange-300 dark:border-orange-700'
           : 'cursor-pointer'
       }`}
     >
@@ -330,13 +334,13 @@ function SubBookmarkItem({
         : 'rounded-lg'
 
   return (
-    <div
-      ref={setNodeRef}
-      style={{
-        transform: CSS.Transform.toString(transform),
-        transition,
-        opacity: isDragging ? 0.3 : 1,
-        zIndex: isDragging ? 50 : undefined,
+   <div
+     ref={setNodeRef}
+     style={{
+        transform: !isDragging ? CSS.Transform.toString(transform) : undefined,
+        transition: !isDragging ? transition : undefined,
+        opacity: isDragging ? 0.25 : 1,
+        zIndex: isDragging ? 0 : undefined,
       }}
       {...attributes}
       {...listeners}

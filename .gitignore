@@ -29,3 +29,6 @@ worker/.dev.vars
 *.njsproj
 *.sln
 *.sw?
+
+# Local artifacts
+.codex-remote-attachments

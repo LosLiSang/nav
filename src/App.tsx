@@ -6,6 +6,7 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
+  type CollisionDetection,
   type DragEndEvent,
   type DragStartEvent,
 } from '@dnd-kit/core'
@@ -27,6 +28,48 @@ import { SearchBar, type SearchBarHandle } from './components/SearchBar'
 import { SettingsPanel } from './components/SettingsPanel'
 import { getSubIcon } from './components/SubCategorySection'
 import { TopNavbar } from './components/TopNavbar'
+
+
+const customCollisionDetection: CollisionDetection = (args) => {
+  const activeId = String(args.active.id)
+
+  // 1. 如果正在拖拽子分类 (subcat:xxx)，限定只在子分类中进行一维最近中心检测
+  // 避免鼠标在窄列侧边栏稍微向右偏时误判到右侧大面积的内容区 (subcat-drop) 或上方版块 (section)，造成频繁闪烁跳跃
+  if (activeId.startsWith('subcat:')) {
+    const subcatContainers = args.droppableContainers.filter((c) =>
+      String(c.id).startsWith('subcat:')
+    )
+    return closestCenter({
+      ...args,
+      droppableContainers: subcatContainers,
+    })
+  }
+
+  // 2. 如果正在拖拽版块 (section:xxx)，限定只在版块 tabs 中检测
+  if (activeId.startsWith('section:')) {
+    const sectionContainers = args.droppableContainers.filter((c) =>
+      String(c.id).startsWith('section:')
+    )
+    return closestCenter({
+      ...args,
+      droppableContainers: sectionContainers,
+    })
+  }
+
+  // 3. 如果正在拖拽顶部主分类 (category:xxx)，限定只在主分类 tabs 中检测
+  if (activeId.startsWith('category:')) {
+    const categoryContainers = args.droppableContainers.filter((c) =>
+      String(c.id).startsWith('category:')
+    )
+    return closestCenter({
+      ...args,
+      droppableContainers: categoryContainers,
+    })
+  }
+
+  // 4. 拖拽普通书签时，全部 droppables（包括书签、分类、版块、DropZone）均可作为有效投放目标
+  return closestCenter(args)
+}
 
 export default function App() {
   const {
@@ -271,7 +314,7 @@ export default function App() {
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCenter}
+      collisionDetection={customCollisionDetection}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
@@ -405,9 +448,14 @@ export default function App() {
         />
 
        {/* Drag Overlay for dragging bookmark item */}
-       <DragOverlay>
+       <DragOverlay
+         dropAnimation={{
+           duration: 180,
+           easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)',
+         }}
+       >
          {draggingBookmark && (
-            <div className="flex h-9 w-44 cursor-grabbing items-center gap-2 rounded-lg border border-blue-400 dark:border-blue-500 bg-white dark:bg-[#18181b] px-3 text-xs shadow-2xl">
+            <div className="flex h-9 w-44 cursor-grabbing items-center gap-2 rounded-lg border border-blue-400 dark:border-blue-500 bg-white/95 dark:bg-[#18181b]/95 px-3 text-xs shadow-2xl backdrop-blur-md">
              <img
                src={faviconFor(draggingBookmark.url, draggingBookmark.iconUrl)}
                alt=""
@@ -421,8 +469,8 @@ export default function App() {
          {draggingId?.startsWith('category:') && (() => {
            const cat = categories.find((c) => c.id === draggingId.replace('category:', ''))
            return cat ? (
-             <div className="flex items-center gap-1.5 rounded-full bg-blue-600 px-3 py-1 text-xs font-medium text-white shadow-xl cursor-grabbing">
-               <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: cat.color }} />
+             <div className="flex items-center gap-1.5 rounded-full bg-white/95 dark:bg-[#18181b]/95 px-3.5 py-1 text-xs font-semibold text-neutral-800 dark:text-neutral-100 shadow-xl border border-blue-400 ring-2 ring-blue-500/30 cursor-grabbing backdrop-blur-md">
+               <span className="h-2 w-2 rounded-full" style={{ backgroundColor: cat.color }} />
                <span>{cat.name}</span>
              </div>
            ) : null
@@ -430,7 +478,7 @@ export default function App() {
          {draggingId?.startsWith('section:') && (() => {
            const sec = subSections.find((s) => s.id === draggingId.replace('section:', ''))
            return sec ? (
-             <div className="flex items-center gap-1.5 rounded-full bg-[#ff6900] px-3 py-1 text-xs font-medium text-white shadow-xl cursor-grabbing">
+             <div className="flex items-center gap-1.5 rounded-full bg-white/95 dark:bg-[#18181b]/95 px-3.5 py-1 text-xs font-semibold text-orange-600 dark:text-orange-400 shadow-xl border border-orange-400 ring-2 ring-orange-500/30 cursor-grabbing backdrop-blur-md">
                <span>{sec.name}</span>
              </div>
            ) : null
@@ -438,9 +486,9 @@ export default function App() {
         {draggingId?.startsWith('subcat:') && (() => {
           const sc = subCategories.find((c) => c.id === draggingId.replace('subcat:', ''))
           return sc ? (
-            <div className="flex w-[60px] flex-col items-center justify-center rounded-xl bg-orange-500 p-2 text-center text-white shadow-2xl cursor-grabbing scale-105 ring-2 ring-orange-400">
-              {getSubIcon(sc.icon, 'h-4 w-4 mb-1')}
-              <span className="text-[11px] leading-tight truncate w-full font-semibold">{sc.name}</span>
+            <div className="flex w-[60px] flex-col items-center justify-center rounded-xl bg-white/95 dark:bg-[#18181b]/95 p-2 text-center text-orange-600 dark:text-orange-400 shadow-2xl border border-orange-400 ring-2 ring-orange-500/30 cursor-grabbing scale-105 backdrop-blur-md">
+              {getSubIcon(sc.icon, 'h-4 w-4 mb-1 pointer-events-none mx-auto')}
+              <span className="text-[11px] leading-tight truncate w-full font-semibold pointer-events-none block">{sc.name}</span>
             </div>
           ) : null
         })()}
