@@ -467,6 +467,7 @@ export default function App() {
           {settings.showRightSidebar !== false && (
             <RightSidebar
               scratchpadContent={scratchpadContent}
+              memos={memos}
               cardOpacity={settings.cardOpacity}
               settings={settings}
               collapsed={settings.rightSidebarCollapsed}
@@ -476,6 +477,9 @@ export default function App() {
                 })
               }
               onSaveScratchpad={saveScratchpad}
+              onAddMemo={addMemo}
+              onToggleMemo={toggleMemo}
+              onDeleteMemo={deleteMemo}
               onRecordVisit={recordVisit}
             />
           )}
