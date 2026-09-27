@@ -159,15 +159,16 @@
        expression: `
          (() => {
           const buttons = Array.from(document.querySelectorAll('#right-workbench button'));
-           const hasScratchpad = buttons.some(b => b.textContent.includes('草稿板'));
-          const hasTodo = buttons.some(b => b.textContent.includes('便签 Todo'));
-           const hasFeeds = buttons.some(b => b.textContent.includes('动态资讯'));
-          return hasScratchpad && hasTodo && hasFeeds;
+          const hasScratchpad = buttons.some(b => b.textContent.trim() === '草稿');
+          const hasTodo = buttons.some(b => b.textContent.trim() === '便签');
+          const hasFocus = buttons.some(b => b.textContent.trim() === '专注');
+          const hasFeeds = buttons.some(b => b.textContent.trim() === '资讯');
+          return hasScratchpad && hasTodo && hasFocus && hasFeeds;
          })()
        `,
        returnByValue: true,
      })
-    check('右侧常驻工作台渲染并包含三大模块 (草稿/便签Todo/资讯)', rightSidebarOk.result.value === true)
+    check('右侧常驻工作台渲染并包含四大板块 (草稿/便签/专注/资讯)', rightSidebarOk.result.value === true)
  
      // 保存初始宽屏全貌截图工件
      const shot1 = await cdp.send('Page.captureScreenshot', { format: 'png' })
@@ -205,11 +206,11 @@
      const shot2 = await cdp.send('Page.captureScreenshot', { format: 'png' })
      writeFileSync(join(OUT_DIR, '02-scratchpad-input.png'), Buffer.from(shot2.data, 'base64'))
  
-    console.log('\n--- 测试 4: 切换到便签 Todo 并添加/切换待办项 ---')
+    console.log('\n--- 测试 4: 切换到便签 Todo 并添加待办项 ---')
      await cdp.send('Runtime.evaluate', {
        expression: `
          (() => {
-          const btn = Array.from(document.querySelectorAll('#right-workbench button')).find(b => b.textContent.includes('便签 Todo'));
+          const btn = Array.from(document.querySelectorAll('#right-workbench button')).find(b => b.textContent.trim() === '便签');
            if (btn) btn.click();
          })()
        `,
@@ -224,7 +225,7 @@
           if (input) {
             const proto = window.HTMLInputElement.prototype;
             const setter = Object.getOwnPropertyDescriptor(proto, 'value').set;
-            setter.call(input, '完成左右侧栏 Todo 升级验证');
+            setter.call(input, '深度体验 React 19 生产力');
             input.dispatchEvent(new Event('input', { bubbles: true }));
             input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
           }
@@ -237,21 +238,57 @@
        expression: `
          (() => {
           const asideText = document.querySelector('#right-workbench')?.textContent || '';
-          return asideText.includes('完成左右侧栏 Todo 升级验证');
+          return asideText.includes('深度体验 React 19 生产力');
          })()
        `,
        returnByValue: true,
      })
-    check('便签 Todo 成功新增待办条目并展示在清单中', todoAdded.result.value === true)
+    check('便签板块成功新增待办条目并展示在清单中', todoAdded.result.value === true)
  
      const shot3 = await cdp.send('Page.captureScreenshot', { format: 'png' })
     writeFileSync(join(OUT_DIR, '03-todo-memo-tab.png'), Buffer.from(shot3.data, 'base64'))
  
-     console.log('\n--- 测试 5: 切换到动态资讯并查看 GitHub/V2EX 动态 ---')
+    console.log('\n--- 测试 5: 切换到专注板块并启动番茄工作钟 ---')
      await cdp.send('Runtime.evaluate', {
        expression: `
          (() => {
-          const btn = Array.from(document.querySelectorAll('#right-workbench button')).find(b => b.textContent.includes('动态资讯'));
+          const btn = Array.from(document.querySelectorAll('#right-workbench button')).find(b => b.textContent.trim() === '专注');
+          if (btn) btn.click();
+        })()
+      `,
+    })
+    await sleep(400)
+
+    // 点击开始计时
+    await cdp.send('Runtime.evaluate', {
+      expression: `
+        (() => {
+          const startBtn = Array.from(document.querySelectorAll('#right-workbench button')).find(b => b.textContent.includes('开始'));
+          if (startBtn) startBtn.click();
+        })()
+      `,
+    })
+    await sleep(600)
+
+    const focusTimerOk = await cdp.send('Runtime.evaluate', {
+      expression: `
+        (() => {
+          const asideText = document.querySelector('#right-workbench')?.textContent || '';
+          return asideText.includes('专注中...') && asideText.includes('今日已完成番茄');
+        })()
+      `,
+      returnByValue: true,
+    })
+    check('番茄专注钟成功保留启动，并展示成就统计与倒数日', focusTimerOk.result.value === true)
+
+    const shotFocus = await cdp.send('Page.captureScreenshot', { format: 'png' })
+    writeFileSync(join(OUT_DIR, '03b-pomodoro-focus-tab.png'), Buffer.from(shotFocus.data, 'base64'))
+
+    console.log('\n--- 测试 6: 切换到动态资讯并查看 GitHub/V2EX 动态 ---')
+    await cdp.send('Runtime.evaluate', {
+      expression: `
+        (() => {
+          const btn = Array.from(document.querySelectorAll('#right-workbench button')).find(b => b.textContent.trim() === '资讯');
            if (btn) btn.click();
          })()
        `,
@@ -272,7 +309,7 @@
      const shot4 = await cdp.send('Page.captureScreenshot', { format: 'png' })
      writeFileSync(join(OUT_DIR, '04-feeds-tab.png'), Buffer.from(shot4.data, 'base64'))
  
-     console.log('\n--- 测试 6: 点击书签触发自动沉淀「近期足迹 (History)」 ---')
+    console.log('\n--- 测试 7: 点击书签触发自动沉淀「近期足迹 (History)」 ---')
      // 模拟点击一个书签触发 onRecordVisit
      await cdp.send('Runtime.evaluate', {
        expression: `
@@ -309,7 +346,7 @@
      const shot5 = await cdp.send('Page.captureScreenshot', { format: 'png' })
      writeFileSync(join(OUT_DIR, '05-history-flyout.png'), Buffer.from(shot5.data, 'base64'))
  
-     console.log('\n--- 测试 7: 折叠与恢复右侧工作台 ---')
+    console.log('\n--- 测试 8: 折叠与恢复右侧工作台 ---')
      // 点击折叠按钮
      await cdp.send('Runtime.evaluate', {
        expression: `
