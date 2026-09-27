@@ -136,7 +136,7 @@ function CategoryTabItem({
      ref={setNodeRef}
      type="button"
      style={{
-       backgroundColor: active ? (highlightColor || '#2563eb') : undefined,
+       backgroundColor: active ? (highlightColor || '#ff6900') : undefined,
         transform: !isDragging && isDraggingThisType ? CSS.Translate.toString(transform) : undefined,
         transition: !isDragging && isDraggingThisType ? transition : undefined,
         opacity: isDragging ? 0.3 : 1,

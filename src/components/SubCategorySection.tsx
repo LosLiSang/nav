@@ -96,6 +96,7 @@ function SubSectionTabItem({
   isActive,
   isSortMode,
   draggingId,
+  highlightColor = '#ff6900',
   onSelect,
   onContextMenu,
 }: {
@@ -103,6 +104,7 @@ function SubSectionTabItem({
   isActive: boolean
   isSortMode?: boolean
   draggingId?: string | null
+  highlightColor?: string
   onSelect: () => void
   onContextMenu: (e: React.MouseEvent) => void
 }) {
@@ -127,6 +129,7 @@ function SubSectionTabItem({
      ref={setNodeRef}
      type="button"
      style={{
+      backgroundColor: isActive ? highlightColor : undefined,
         transform: !isDragging && isDraggingThisType ? CSS.Translate.toString(transform) : undefined,
         transition: !isDragging && isDraggingThisType ? transition : undefined,
         opacity: isDragging ? 0.3 : 1,
@@ -138,7 +141,7 @@ function SubSectionTabItem({
       onContextMenu={onContextMenu}
       className={`flex flex-shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium select-none transition-colors duration-150 ${
         isActive
-          ? 'bg-[#ff6900] text-white shadow-sm'
+        ? 'text-white shadow-sm'
           : isOver && isDraggingOtherType
             ? 'bg-orange-100 dark:bg-orange-950/80 text-orange-700 dark:text-orange-300 ring-2 ring-orange-500 scale-105 shadow-md'
             : 'text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800'
@@ -184,6 +187,7 @@ function SubCategoryTabItem({
   isSelected,
   isSortMode,
   draggingId,
+  highlightColor = '#ff6900',
   onSelect,
   onContextMenu,
 }: {
@@ -191,6 +195,7 @@ function SubCategoryTabItem({
   isSelected: boolean
   isSortMode?: boolean
   draggingId?: string | null
+  highlightColor?: string
   onSelect: () => void
   onContextMenu: (e: React.MouseEvent) => void
 }) {
@@ -215,6 +220,8 @@ function SubCategoryTabItem({
      ref={setNodeRef}
      type="button"
      style={{
+       backgroundColor: isSelected ? `${highlightColor}18` : undefined,
+       color: isSelected ? highlightColor : undefined,
         transform: !isDragging && isDraggingThisType ? CSS.Translate.toString(transform) : undefined,
         transition: !isDragging && isDraggingThisType ? transition : undefined,
         opacity: isDragging ? 0.35 : 1,
@@ -228,7 +235,7 @@ function SubCategoryTabItem({
         isDragging
           ? 'border border-dashed border-orange-400 bg-orange-50/40 dark:bg-orange-950/30'
           : isSelected
-            ? 'bg-orange-50 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400 font-semibold ring-1 ring-orange-500/20'
+            ? 'font-semibold ring-1 ring-inset shadow-xs'
             : isOver && isDraggingOtherType
               ? 'bg-orange-100 dark:bg-orange-950/80 text-orange-700 dark:text-orange-300 ring-2 ring-orange-500 scale-105 shadow-md'
               : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800/60 hover:text-neutral-900 dark:hover:text-white'
@@ -547,6 +554,7 @@ export function SubCategorySection({
                 isActive={sec.id === currentSectionId}
                 isSortMode={isSortMode}
                 draggingId={draggingId}
+                highlightColor={settings.highlightColor || '#ff6900'}
                 onSelect={() => onSelectSubSection(sec.id)}
                 onContextMenu={(e) => {
                   e.preventDefault()
@@ -601,7 +609,8 @@ export function SubCategorySection({
           <button
             type="button"
             onClick={() => onOpenAddBookmark(effectiveSubCatId)}
-            className="flex items-center gap-1 rounded-lg bg-[#ff6900] px-3 py-1 text-xs font-medium text-white shadow-sm hover:bg-[#e05d00] transition"
+            style={{ backgroundColor: settings.highlightColor || '#ff6900' }}
+            className="flex items-center gap-1 rounded-lg px-3 py-1 text-xs font-medium text-white shadow-sm hover:opacity-90 transition"
           >
             <Plus className="h-3 w-3" />
             <span>添加</span>
@@ -624,6 +633,7 @@ export function SubCategorySection({
                 isSelected={sc.id === effectiveSubCatId}
                 isSortMode={isSortMode}
                 draggingId={draggingId}
+                highlightColor={settings.highlightColor || '#ff6900'}
                 onSelect={() => onSelectSubCategory(sc.id)}
                 onContextMenu={(e) => {
                   e.preventDefault()
@@ -791,7 +801,8 @@ export function SubCategorySection({
                   }
                   setRenamingItem(null)
                 }}
-                className="rounded-xl bg-[#ff6900] px-4 py-1.5 font-medium text-white shadow-sm hover:bg-[#e05d00] disabled:opacity-50"
+                style={{ backgroundColor: settings.highlightColor || '#ff6900' }}
+                className="rounded-xl px-4 py-1.5 font-medium text-white shadow-sm hover:opacity-90 disabled:opacity-50"
               >
                 保存
               </button>

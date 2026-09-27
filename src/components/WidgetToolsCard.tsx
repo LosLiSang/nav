@@ -42,6 +42,7 @@ export function WidgetToolsCard({
   const cardBg = isDark
     ? `rgba(24, 24, 27, ${cardOpacity / 100})`
     : `rgba(255, 255, 255, ${cardOpacity / 100})`
+  const accentColor = settings.highlightColor || '#ff6900'
 
   const [totpCodes, setTotpCodes] = useState<
     Record<string, { code: string; remainingSec: number; progress: number }>
@@ -152,9 +153,13 @@ export function WidgetToolsCard({
           <button
             type="button"
             onClick={() => onSelectWidgetTab('calendar')}
+            style={{
+              backgroundColor: (settings.activeWidgetTab === 'calendar' || settings.activeWidgetTab === 'memo') ? `${accentColor}18` : undefined,
+              color: (settings.activeWidgetTab === 'calendar' || settings.activeWidgetTab === 'memo') ? accentColor : undefined,
+            }}
             className={`rounded-full px-2.5 py-1 text-xs font-medium transition ${
               settings.activeWidgetTab === 'calendar' || settings.activeWidgetTab === 'memo'
-                ? 'bg-orange-100 text-[#ff6900] dark:bg-orange-950/40 dark:text-orange-400 font-semibold'
+                ? 'font-semibold'
                 : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
             }`}
           >
@@ -163,9 +168,13 @@ export function WidgetToolsCard({
           <button
             type="button"
             onClick={() => onSelectWidgetTab('totp')}
+            style={{
+              backgroundColor: settings.activeWidgetTab === 'totp' ? `${accentColor}18` : undefined,
+              color: settings.activeWidgetTab === 'totp' ? accentColor : undefined,
+            }}
             className={`rounded-full px-2.5 py-1 text-xs font-medium transition ${
               settings.activeWidgetTab === 'totp'
-                ? 'bg-orange-100 text-[#ff6900] dark:bg-orange-950/40 dark:text-orange-400 font-semibold'
+                ? 'font-semibold'
                 : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
             }`}
           >
@@ -174,9 +183,13 @@ export function WidgetToolsCard({
           <button
             type="button"
             onClick={() => onSelectWidgetTab('qrcode')}
+            style={{
+              backgroundColor: settings.activeWidgetTab === 'qrcode' ? `${accentColor}18` : undefined,
+              color: settings.activeWidgetTab === 'qrcode' ? accentColor : undefined,
+            }}
             className={`rounded-full px-2.5 py-1 text-xs font-medium transition ${
               settings.activeWidgetTab === 'qrcode'
-                ? 'bg-orange-100 text-[#ff6900] dark:bg-orange-950/40 dark:text-orange-400 font-semibold'
+                ? 'font-semibold'
                 : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
             }`}
           >
@@ -185,9 +198,13 @@ export function WidgetToolsCard({
           <button
             type="button"
             onClick={() => onSelectWidgetTab('tools')}
+            style={{
+              backgroundColor: settings.activeWidgetTab === 'tools' ? `${accentColor}18` : undefined,
+              color: settings.activeWidgetTab === 'tools' ? accentColor : undefined,
+            }}
             className={`rounded-full px-2.5 py-1 text-xs font-medium transition ${
               settings.activeWidgetTab === 'tools'
-                ? 'bg-orange-100 text-[#ff6900] dark:bg-orange-950/40 dark:text-orange-400 font-semibold'
+                ? 'font-semibold'
                 : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
             }`}
           >
@@ -216,8 +233,8 @@ export function WidgetToolsCard({
               <span>三</span>
               <span>四</span>
               <span>五</span>
-              <span className="text-orange-500">六</span>
-              <span className="text-orange-500">日</span>
+              <span style={{ color: accentColor }}>六</span>
+              <span style={{ color: accentColor }}>日</span>
             </div>
 
             <div className="mt-2 grid grid-cols-7 gap-1 text-center">
@@ -227,9 +244,12 @@ export function WidgetToolsCard({
                 return (
                   <div
                     key={day}
+                    style={{
+                      backgroundColor: isToday ? accentColor : undefined,
+                    }}
                     className={`flex flex-col items-center justify-center rounded-lg py-1.5 transition ${
                       isToday
-                        ? 'bg-[#ff6900] font-bold text-white shadow-sm'
+                        ? 'font-bold text-white shadow-sm'
                         : 'hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300'
                     }`}
                   >
@@ -256,7 +276,8 @@ export function WidgetToolsCard({
               <button
                 type="button"
                 onClick={() => setShowAddTotp(!showAddTotp)}
-                className="flex items-center gap-1 text-xs text-orange-600 hover:underline"
+                style={{ color: accentColor }}
+                className="flex items-center gap-1 text-xs hover:underline"
               >
                 <Plus className="h-3.5 w-3.5" />
                 <span>{showAddTotp ? '收起' : '添加账号'}</span>
@@ -300,7 +321,8 @@ export function WidgetToolsCard({
                   </button>
                   <button
                     type="submit"
-                    className="rounded-lg bg-[#ff6900] px-3.5 py-1 text-white shadow-sm"
+                    style={{ backgroundColor: accentColor }}
+                    className="rounded-lg px-3.5 py-1 text-white shadow-sm hover:opacity-90 transition"
                   >
                     保存
                   </button>

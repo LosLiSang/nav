@@ -164,10 +164,16 @@ export default function App() {
   )
 
   const isDark = settings.themeMode === 'dark'
+  const accentColor = settings.highlightColor || '#ff6900'
 
   useEffect(() => {
     void initialize()
   }, [initialize])
+
+  // Dynamically set CSS custom property for global theme accent color
+  useEffect(() => {
+    document.documentElement.style.setProperty('--accent-color', accentColor)
+  }, [accentColor])
 
   // Dynamically load online web font if specified
   useEffect(() => {

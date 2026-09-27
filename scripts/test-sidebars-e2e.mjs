@@ -295,8 +295,102 @@
      const shot6 = await cdp.send('Page.captureScreenshot', { format: 'png' })
      writeFileSync(join(OUT_DIR, '06-collapsed-view.png'), Buffer.from(shot6.data, 'base64'))
  
+    console.log('\n--- 测试 6: 打开全局设置并切换为「经典蓝」全局主题色 ---')
+    // 点击展开右侧栏
+    await cdp.send('Runtime.evaluate', {
+      expression: `
+        (() => {
+          const openBtn = document.querySelector('button[title*="展开常驻工作台"]');
+          if (openBtn) openBtn.click();
+        })()
+      `,
+    })
+    await sleep(300)
+
+    // 点击顶部导航的「设置」按钮
+    await cdp.send('Runtime.evaluate', {
+      expression: `
+        (() => {
+          const settingsBtn = Array.from(document.querySelectorAll('header button')).find(b => b.textContent.includes('设置'));
+          if (settingsBtn) settingsBtn.click();
+        })()
+      `,
+    })
+    await sleep(500)
+
+    // 点击设置面板里的「经典蓝」调色板按钮
+    await cdp.send('Runtime.evaluate', {
+      expression: `
+        (() => {
+          const blueBtn = document.querySelector('button[title="经典蓝"]');
+          if (blueBtn) blueBtn.click();
+        })()
+      `,
+    })
+    await sleep(500)
+
+    // 关闭设置面板
+    await cdp.send('Runtime.evaluate', {
+      expression: `
+        (() => {
+          const closeBtn = document.querySelector('button[aria-label="关闭"]');
+          if (closeBtn) closeBtn.click();
+        })()
+      `,
+    })
+    await sleep(500)
+
+    // 验证各区域高亮色是否已统一变成 rgb(37, 99, 235) / #2563eb
+    const themeUnified = await cdp.send('Runtime.evaluate', {
+      expression: `
+        (() => {
+          const engineBtn = document.querySelector('section button.rounded-full');
+          const engineBg = engineBtn ? window.getComputedStyle(engineBtn).backgroundColor : '';
+          const isBlue = engineBg.includes('37, 99, 235') || engineBg.includes('rgb(37, 99, 235)');
+          return isBlue;
+        })()
+      `,
+      returnByValue: true,
+    })
+    check('全局主题色一键切换为经典蓝，且全站高亮元素同步换色', themeUnified.result.value === true)
+
+    const shotTheme = await cdp.send('Page.captureScreenshot', { format: 'png' })
+    writeFileSync(join(OUT_DIR, '07-theme-color-blue-unified.png'), Buffer.from(shotTheme.data, 'base64'))
+
+    // 切回活力橙默认色以便保持原汁原味
+    await cdp.send('Runtime.evaluate', {
+      expression: `
+        (() => {
+          const settingsBtn = Array.from(document.querySelectorAll('header button')).find(b => b.textContent.includes('设置'));
+          if (settingsBtn) settingsBtn.click();
+        })()
+      `,
+    })
+    await sleep(300)
+    await cdp.send('Runtime.evaluate', {
+      expression: `
+        (() => {
+          const orangeBtn = document.querySelector('button[title="活力橙"]');
+          if (orangeBtn) orangeBtn.click();
+        })()
+      `,
+    })
+    await sleep(300)
+    await cdp.send('Runtime.evaluate', {
+      expression: `
+        (() => {
+          const closeBtn = document.querySelector('button[aria-label="关闭"]');
+          if (closeBtn) closeBtn.click();
+        })()
+      `,
+    })
+    await sleep(400)
+
+    const shotFinal = await cdp.send('Page.captureScreenshot', { format: 'png' })
+    writeFileSync(join(OUT_DIR, '08-theme-color-orange-unified.png'), Buffer.from(shotFinal.data, 'base64'))
+
      console.log('\n=============================================')
-     console.log(`全部测试通过！已生成 6 个端到端验证工件于：\n${OUT_DIR}`)
+     console.log(`全部测试通过！已生成 8 个端到端验证工件于：\n${OUT_DIR}`)
      console.log('=============================================\n')
    } finally {
      if (proc) {

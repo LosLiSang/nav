@@ -99,7 +99,7 @@ export const DEFAULT_SETTINGS: Settings = {
   cardWidth: 1380,
   avatarUrl: 'https://api.dicebear.com/7.x/bottts/svg?seed=star&backgroundColor=ffd5dc',
   userName: 'Nav 探索者',
-  highlightColor: '#2563eb',
+  highlightColor: '#ff6900',
   weatherCity: '杭州',
   themeMode: 'light',
   fallbackIconMode: 'letter',

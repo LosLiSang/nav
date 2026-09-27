@@ -261,6 +261,7 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
    const cardBg = isDark
      ? `rgba(24, 24, 27, ${cardOpacity / 100})`
      : `rgba(255, 255, 255, ${cardOpacity / 100})`
+  const accentColor = settings.highlightColor || '#ff6900'
  
    const cardRadius =
      settings.cornerRadius === 'none'
@@ -375,7 +376,7 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
                  <span className="font-medium text-neutral-700 dark:text-neutral-300">
                    {doneMemos}/{totalMemos} 项已完成
                  </span>
-                 <span className="font-semibold text-orange-500 text-[11px] font-mono">
+                <span style={{ color: accentColor }} className="font-semibold text-[11px] font-mono">
                    {completionRate}%
                  </span>
                </div>
@@ -383,8 +384,8 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
                {/* Subtle Progress Bar */}
                <div className="h-1.5 w-full overflow-hidden rounded-full bg-black/5 dark:bg-white/10">
                  <div
-                   className="h-full rounded-full bg-gradient-to-r from-orange-400 to-emerald-500 transition-all duration-300"
-                   style={{ width: `${completionRate}%` }}
+                  className="h-full rounded-full transition-all duration-300"
+                  style={{ width: `${completionRate}%`, backgroundColor: accentColor }}
                  />
                </div>
  
@@ -404,9 +405,12 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
                  <button
                    type="button"
                    onClick={() => setTodoFilter('pending')}
+                  style={{
+                    backgroundColor: todoFilter === 'pending' ? accentColor : undefined,
+                  }}
                    className={`rounded-lg px-2 py-0.5 font-medium transition ${
                      todoFilter === 'pending'
-                       ? 'bg-orange-500 text-white shadow-sm'
+                      ? 'text-white shadow-sm'
                        : 'text-neutral-500 dark:text-neutral-400 hover:bg-black/5 dark:hover:bg-white/5'
                    }`}
                  >
@@ -441,7 +445,8 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
                  type="button"
                  onClick={handleAddTodo}
                  disabled={!todoInput.trim()}
-                 className="absolute right-1.5 flex h-6 w-6 items-center justify-center rounded-lg bg-orange-500 text-white transition hover:bg-orange-600 disabled:opacity-30"
+                style={{ backgroundColor: accentColor }}
+                className="absolute right-1.5 flex h-6 w-6 items-center justify-center rounded-lg text-white transition hover:opacity-90 disabled:opacity-30"
                  title="保存待办 (Enter)"
                >
                  <CornerDownLeft className="h-3 w-3" />
@@ -528,9 +533,12 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
            <div className="space-y-3.5">
              {/* Linked Task Card */}
              {focusedMemo ? (
-               <div className="flex items-center justify-between rounded-xl border border-orange-500/20 bg-orange-500/5 px-3 py-2 text-xs">
+               <div
+                 style={{ borderColor: `${accentColor}30`, backgroundColor: `${accentColor}12` }}
+                 className="flex items-center justify-between rounded-xl border px-3 py-2 text-xs"
+               >
                  <div className="flex items-center gap-1.5 min-w-0">
-                   <Target className="h-3.5 w-3.5 text-orange-500 shrink-0" />
+                   <Target style={{ color: accentColor }} className="h-3.5 w-3.5 shrink-0" />
                    <span className="truncate text-neutral-700 dark:text-neutral-300 font-medium">
                      当前专注：{focusedMemo.text}
                    </span>
@@ -553,7 +561,8 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
                    <button
                      type="button"
                      onClick={() => setActiveTab('todo')}
-                     className="text-[11px] text-orange-500 hover:text-orange-600"
+                     style={{ color: accentColor }}
+                     className="text-[11px] hover:underline"
                    >
                      选择待办
                    </button>
@@ -568,9 +577,12 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
                  <button
                    type="button"
                    onClick={() => switchPomoMode('work')}
+                   style={{
+                     backgroundColor: pomoMode === 'work' ? accentColor : undefined,
+                   }}
                    className={`rounded-full px-2.5 py-0.5 font-medium transition ${
                      pomoMode === 'work'
-                       ? 'bg-orange-500 text-white shadow-sm'
+                       ? 'text-white shadow-sm'
                        : 'text-neutral-600 dark:text-neutral-400'
                    }`}
                  >
@@ -615,7 +627,8 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
                      cx="50"
                      cy="50"
                      r="42"
-                     className="stroke-orange-500 transition-all duration-300"
+                     style={{ stroke: accentColor }}
+                     className="transition-all duration-300"
                      strokeWidth="5"
                      strokeDasharray="263.89"
                      strokeDashoffset={263.89 - (263.89 * pomoProgress) / 100}
@@ -638,10 +651,13 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
                  <button
                    type="button"
                    onClick={toggleTimer}
+                   style={{
+                     backgroundColor: isRunning ? undefined : accentColor,
+                   }}
                    className={`flex items-center gap-1.5 rounded-xl px-4 py-1.5 text-xs font-semibold text-white shadow-sm transition ${
                      isRunning
                        ? 'bg-neutral-700 hover:bg-neutral-800'
-                       : 'bg-orange-500 hover:bg-orange-600'
+                       : 'hover:opacity-90'
                    }`}
                  >
                    {isRunning ? (
@@ -671,7 +687,7 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
              {/* Today Stats */}
              <div className="flex items-center justify-between rounded-xl border border-black/5 dark:border-white/5 bg-black/[0.02] dark:bg-white/[0.02] px-3 py-2 text-xs">
                <span className="text-neutral-500">今日已完成番茄：</span>
-               <span className="font-semibold text-orange-500 font-mono">
+               <span style={{ color: accentColor }} className="font-semibold font-mono">
                  {todayPomoCount} 个 ({todayPomoCount * 25} 分钟)
                </span>
              </div>
