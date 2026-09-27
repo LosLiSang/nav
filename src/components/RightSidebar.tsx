@@ -277,7 +277,7 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
            type="button"
            onClick={onToggleCollapse}
            title="展开常驻工作台 (Alt + \)"
-           className={`flex h-28 w-9 flex-col items-center justify-center gap-1.5 ${cardRadius} border border-white/60 dark:border-white/10 shadow-lg backdrop-blur-md transition hover:scale-105 hover:border-blue-400`}
+          className={`flex h-24 w-8 flex-col items-center justify-center gap-1.5 ${cardRadius} border border-white/60 dark:border-white/10 shadow-lg backdrop-blur-md transition hover:scale-105 hover:border-blue-400`}
            style={{ backgroundColor: cardBg }}
          >
            <PanelRightOpen className="h-4 w-4 text-neutral-600 dark:text-neutral-300" />
@@ -292,7 +292,7 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
    return (
      <aside
       id="right-workbench"
-       className={`sticky top-14 hidden shrink-0 xl:flex flex-col w-[330px] 2xl:w-[350px] h-[calc(100vh-4.6rem)] ${cardRadius} border border-white/60 dark:border-white/10 shadow-2xl backdrop-blur-md overflow-hidden z-30 transition-all duration-200`}
+      className={`sticky top-14 hidden shrink-0 xl:flex flex-col w-[290px] 2xl:w-[310px] max-h-[calc(100vh-4.6rem)] h-auto ${cardRadius} border border-white/60 dark:border-white/10 shadow-2xl backdrop-blur-md overflow-hidden z-30 transition-all duration-200`}
        style={{ backgroundColor: cardBg }}
      >
        {/* Top Header */}
@@ -354,12 +354,13 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
        <div className="flex-1 overflow-y-auto p-3.5">
          {/* ================= Tab 1: Scratchpad ================= */}
          {activeTab === 'scratchpad' && (
-           <div className="flex h-full flex-col">
+          <div className="flex flex-col">
              <textarea
+              rows={7}
                value={text}
                onChange={(e) => handleTextChange(e.target.value)}
                placeholder="随手粘贴临时代码、调试命令、JSON、网址或思路... 本地即写即存。"
-               className="w-full flex-1 resize-none bg-transparent text-[13px] leading-relaxed text-neutral-800 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 outline-none font-mono"
+              className="w-full min-h-[140px] max-h-[420px] resize-none bg-transparent text-[13px] leading-relaxed text-neutral-800 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 outline-none font-mono"
                spellCheck={false}
              />
            </div>
@@ -367,7 +368,7 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
  
          {/* ================= Tab 2: Todo / Memo ================= */}
          {activeTab === 'todo' && (
-           <div className="flex h-full flex-col space-y-3">
+          <div className="flex flex-col space-y-3">
              {/* Progress & Filters */}
              <div className="space-y-2 rounded-2xl border border-black/5 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] p-3">
                <div className="flex items-center justify-between text-xs">
@@ -448,7 +449,7 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
              </div>
  
              {/* Todo Items List */}
-             <div className="flex-1 overflow-y-auto space-y-1.5 pr-0.5">
+            <div className="max-h-[380px] overflow-y-auto space-y-1.5 pr-0.5">
                {filteredMemos.length === 0 ? (
                  <div className="flex flex-col items-center justify-center py-12 text-center text-neutral-400">
                    <CheckCircle2 className="h-8 w-8 text-neutral-300 dark:text-neutral-600 mb-2" />
