@@ -142,19 +142,7 @@
      }, 15000, 'Page init')
      await sleep(1000)
  
-     console.log('\n--- 测试 1: 验证左侧常驻 Dock 与快捷键提示 ---')
-     const leftDockOk = await cdp.send('Runtime.evaluate', {
-       expression: `
-         (() => {
-          const dockLinks = document.querySelectorAll('#left-dock a[href*="github.com"], #left-dock a[href*="chatgpt.com"]');
-           return dockLinks.length >= 2;
-         })()
-       `,
-       returnByValue: true,
-     })
-     check('左侧常驻 Dock 成功渲染核心超频站点', leftDockOk.result.value === true)
- 
-     console.log('\n--- 测试 2: 验证右侧常驻工作台及其选项卡 ---')
+    console.log('\n--- 测试 1: 验证右侧常驻工作台及其三大板块 (草稿/便签/专注) ---')
      const rightSidebarOk = await cdp.send('Runtime.evaluate', {
        expression: `
          (() => {
@@ -162,19 +150,19 @@
           const hasScratchpad = buttons.some(b => b.textContent.trim() === '草稿');
           const hasTodo = buttons.some(b => b.textContent.trim() === '便签');
           const hasFocus = buttons.some(b => b.textContent.trim() === '专注');
-          const hasFeeds = buttons.some(b => b.textContent.trim() === '资讯');
-          return hasScratchpad && hasTodo && hasFocus && hasFeeds;
+          const hasNoFeeds = !buttons.some(b => b.textContent.trim() === '资讯');
+          return hasScratchpad && hasTodo && hasFocus && hasNoFeeds;
          })()
        `,
        returnByValue: true,
      })
-    check('右侧常驻工作台渲染并包含四大板块 (草稿/便签/专注/资讯)', rightSidebarOk.result.value === true)
+    check('右侧常驻工作台渲染并包含三大精简板块 (草稿/便签/专注)，资讯流已移除', rightSidebarOk.result.value === true)
  
      // 保存初始宽屏全貌截图工件
      const shot1 = await cdp.send('Page.captureScreenshot', { format: 'png' })
      writeFileSync(join(OUT_DIR, '01-sidebars-desktop-view.png'), Buffer.from(shot1.data, 'base64'))
  
-     console.log('\n--- 测试 3: 草稿板即写即存与字符统计 ---')
+    console.log('\n--- 测试 2: 草稿板即写即存与字符统计 ---')
      await cdp.send('Runtime.evaluate', {
        expression: `
          (() => {
@@ -206,7 +194,7 @@
      const shot2 = await cdp.send('Page.captureScreenshot', { format: 'png' })
      writeFileSync(join(OUT_DIR, '02-scratchpad-input.png'), Buffer.from(shot2.data, 'base64'))
  
-    console.log('\n--- 测试 4: 切换到便签 Todo 并添加待办项 ---')
+    console.log('\n--- 测试 3: 切换到便签 Todo 并添加待办项 ---')
      await cdp.send('Runtime.evaluate', {
        expression: `
          (() => {
@@ -248,7 +236,7 @@
      const shot3 = await cdp.send('Page.captureScreenshot', { format: 'png' })
     writeFileSync(join(OUT_DIR, '03-todo-memo-tab.png'), Buffer.from(shot3.data, 'base64'))
  
-    console.log('\n--- 测试 5: 切换到专注板块并启动番茄工作钟 ---')
+    console.log('\n--- 测试 4: 切换到专注板块并启动番茄工作钟 ---')
      await cdp.send('Runtime.evaluate', {
        expression: `
          (() => {
@@ -284,69 +272,7 @@
     const shotFocus = await cdp.send('Page.captureScreenshot', { format: 'png' })
     writeFileSync(join(OUT_DIR, '03b-pomodoro-focus-tab.png'), Buffer.from(shotFocus.data, 'base64'))
 
-    console.log('\n--- 测试 6: 切换到动态资讯并查看 GitHub/V2EX 动态 ---')
-    await cdp.send('Runtime.evaluate', {
-      expression: `
-        (() => {
-          const btn = Array.from(document.querySelectorAll('#right-workbench button')).find(b => b.textContent.trim() === '资讯');
-           if (btn) btn.click();
-         })()
-       `,
-     })
-     await sleep(400)
- 
-     const feedsOk = await cdp.send('Runtime.evaluate', {
-       expression: `
-         (() => {
-          const asideText = document.querySelector('#right-workbench')?.textContent || '';
-           return asideText.includes('GitHub') && (asideText.includes('shadcn') || asideText.includes('uv') || asideText.includes('workers'));
-         })()
-       `,
-       returnByValue: true,
-     })
-     check('动态资讯成功展示热点聚合条目', feedsOk.result.value === true)
- 
-     const shot4 = await cdp.send('Page.captureScreenshot', { format: 'png' })
-     writeFileSync(join(OUT_DIR, '04-feeds-tab.png'), Buffer.from(shot4.data, 'base64'))
- 
-    console.log('\n--- 测试 7: 点击书签触发自动沉淀「近期足迹 (History)」 ---')
-     // 模拟点击一个书签触发 onRecordVisit
-     await cdp.send('Runtime.evaluate', {
-       expression: `
-         (() => {
-           // 找到主分类里的第一个书签卡片并模拟点击
-           const bmCard = document.querySelector('#root main div.group');
-           if (bmCard) {
-             bmCard.click();
-           }
-         })()
-       `,
-     })
-     await sleep(600)
- 
-     // 打开左侧足迹面板
-     await cdp.send('Runtime.evaluate', {
-       expression: `
-         (() => {
-          const histBtn = document.querySelector('#left-dock button[title="近期访问足迹"]');
-           if (histBtn) histBtn.click();
-         })()
-       `,
-     })
-     await sleep(400)
- 
-     const historyOpened = await cdp.send('Runtime.evaluate', {
-       expression: `
-        Boolean(document.querySelector('#left-dock')?.textContent.includes('近期足迹'))
-       `,
-       returnByValue: true,
-     })
-     check('近期足迹抽屉成功展开并记录访问足迹', historyOpened.result.value === true)
- 
-     const shot5 = await cdp.send('Page.captureScreenshot', { format: 'png' })
-     writeFileSync(join(OUT_DIR, '05-history-flyout.png'), Buffer.from(shot5.data, 'base64'))
- 
-    console.log('\n--- 测试 8: 折叠与恢复右侧工作台 ---')
+    console.log('\n--- 测试 5: 折叠与恢复右侧工作台 ---')
      // 点击折叠按钮
      await cdp.send('Runtime.evaluate', {
        expression: `

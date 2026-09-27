@@ -6,9 +6,7 @@ import { useEffect, useRef, useState } from 'react'
   Clock,
    Copy,
   CornerDownLeft,
-   ExternalLink,
    FileEdit,
-   Flame,
   ListTodo,
    PanelRightClose,
    PanelRightOpen,
@@ -33,10 +31,9 @@ import type { CountdownTarget, MemoItem, Settings } from '../types'
   onAddMemo: (text: string) => Promise<void> | void
   onToggleMemo: (id: string) => Promise<void> | void
   onDeleteMemo: (id: string) => Promise<void> | void
-   onRecordVisit?: (link: { title: string; url: string; iconUrl?: string }) => void
  }
  
-type ActiveTab = 'scratchpad' | 'todo' | 'focus' | 'feeds'
+type ActiveTab = 'scratchpad' | 'todo' | 'focus'
 type TodoFilter = 'all' | 'pending' | 'done'
 type PomodoroMode = 'work' | 'shortBreak' | 'longBreak'
 
@@ -44,29 +41,6 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
   { id: 'cd-1', title: '2027 新年元旦', targetDate: '2027-01-01' },
   { id: 'cd-2', title: '五一假期', targetDate: '2026-05-01' },
 ]
- 
- const PRESET_FEEDS = {
-   github: [
-     { id: 'gh-1', title: 'shadcn/ui - Beautifully designed components built with Tailwind', url: 'https://github.com/shadcn-ui/ui', extra: '★ 82k' },
-     { id: 'gh-2', title: 'tldraw/tldraw - Collaborative digital whiteboard library', url: 'https://github.com/tldraw/tldraw', extra: '★ 36k' },
-     { id: 'gh-3', title: 'astral-sh/uv - An extremely fast Python package and project manager', url: 'https://github.com/astral-sh/uv', extra: '★ 44k' },
-     { id: 'gh-4', title: 'cloudflare/workers-sdk - Tools for building Cloudflare Workers', url: 'https://github.com/cloudflare/workers-sdk', extra: '★ 5.8k' },
-     { id: 'gh-5', title: 'dexie/Dexie.js - Minimalistic wrapper for IndexedDB', url: 'https://github.com/dexie/Dexie.js', extra: '★ 11k' },
-   ],
-   v2ex: [
-     { id: 'v2-1', title: '大家现在在本地优先应用里都是怎么做多端同步的？', url: 'https://www.v2ex.com', extra: '42 回复' },
-     { id: 'v2-2', title: '分享一个自用的轻量极简浏览器起始页设计', url: 'https://www.v2ex.com', extra: '38 回复' },
-     { id: 'v2-3', title: 'Cloudflare D1 + Worker 实战体验与心得', url: 'https://www.v2ex.com', extra: '67 回复' },
-     { id: 'v2-4', title: '日常写代码临时草稿剪贴板你是怎么解决的？', url: 'https://www.v2ex.com', extra: '29 回复' },
-     { id: 'v2-5', title: '2026 年现代前端构建工具链选择讨论', url: 'https://www.v2ex.com', extra: '85 回复' },
-   ],
-   sspai: [
-     { id: 'ss-1', title: '提升桌面与工作流掌控感：从定制个人专属导航页开始', url: 'https://sspai.com', extra: '生产力' },
-     { id: 'ss-2', title: '番茄工作法与时间块管理的现代极简实践', url: 'https://sspai.com', extra: '效率方法' },
-     { id: 'ss-3', title: '告别数据绑架：本地优先 (Local-First) 应用指南', url: 'https://sspai.com', extra: '数字生活' },
-     { id: 'ss-4', title: '用最舒服的姿势写临时 Markdown 便签', url: 'https://sspai.com', extra: '工具推荐' },
-   ],
- }
  
  export function RightSidebar({
    scratchpadContent,
@@ -79,7 +53,6 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
   onAddMemo,
   onToggleMemo,
   onDeleteMemo,
-   onRecordVisit,
  }: Props) {
    const isDark = settings.themeMode === 'dark'
    const [activeTab, setActiveTab] = useState<ActiveTab>('scratchpad')
@@ -284,17 +257,6 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
 
   const focusedMemo = memos.find((m) => m.id === focusedMemoId)
 
-   // ----------------- 3. Micro Feeds (摸鱼动态) -----------------
-   const [feedSource, setFeedSource] = useState<'github' | 'v2ex' | 'sspai'>('github')
-   const [isRefreshing, setIsRefreshing] = useState(false)
- 
-   function refreshFeeds() {
-     setIsRefreshing(true)
-     setTimeout(() => setIsRefreshing(false), 500)
-   }
- 
-   const currentFeeds = PRESET_FEEDS[feedSource]
- 
    // ----------------- 容器样式 -----------------
    const cardBg = isDark
      ? `rgba(24, 24, 27, ${cardOpacity / 100})`
@@ -336,11 +298,11 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
        {/* Top Header */}
        <div className="flex h-11 shrink-0 items-center justify-between border-b border-black/5 dark:border-white/10 px-3.5">
          {/* Segmented Tabs */}
-         <div className="flex items-center gap-0.5 rounded-xl bg-black/5 dark:bg-white/5 p-0.5 text-xs">
+          <div className="flex items-center gap-1 rounded-xl bg-black/5 dark:bg-white/5 p-0.5 text-xs">
            <button
              type="button"
              onClick={() => setActiveTab('scratchpad')}
-             className={`flex items-center gap-1 rounded-lg px-2 py-1 font-medium transition ${
+              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 font-medium transition ${
                activeTab === 'scratchpad'
                  ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm'
                  : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
@@ -353,7 +315,7 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
            <button
              type="button"
              onClick={() => setActiveTab('todo')}
-             className={`flex items-center gap-1 rounded-lg px-2 py-1 font-medium transition ${
+              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 font-medium transition ${
                activeTab === 'todo'
                  ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm'
                  : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
@@ -366,7 +328,7 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
            <button
              type="button"
              onClick={() => setActiveTab('focus')}
-             className={`flex items-center gap-1 rounded-lg px-2 py-1 font-medium transition ${
+              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 font-medium transition ${
                activeTab === 'focus'
                  ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm'
                  : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
@@ -374,19 +336,6 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
            >
              <Clock className="h-3.5 w-3.5 text-orange-500" />
              <span>专注</span>
-           </button>
- 
-           <button
-             type="button"
-             onClick={() => setActiveTab('feeds')}
-             className={`flex items-center gap-1 rounded-lg px-2 py-1 font-medium transition ${
-               activeTab === 'feeds'
-                 ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm'
-                 : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
-             }`}
-           >
-             <Flame className="h-3.5 w-3.5 text-rose-500" />
-             <span>资讯</span>
            </button>
          </div>
  
@@ -810,89 +759,6 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
                    )
                  })}
                </div>
-             </div>
-           </div>
-         )}
- 
-         {/* ================= Tab 3: Feeds ================= */}
-         {activeTab === 'feeds' && (
-           <div className="space-y-3">
-             {/* Feed Source Tabs */}
-             <div className="flex items-center justify-between">
-               <div className="flex gap-1 text-[11px]">
-                 <button
-                   type="button"
-                   onClick={() => setFeedSource('github')}
-                   className={`rounded-lg px-2 py-1 font-medium transition ${
-                     feedSource === 'github'
-                       ? 'bg-neutral-800 text-white dark:bg-white dark:text-neutral-900'
-                       : 'text-neutral-600 dark:text-neutral-400 hover:bg-black/5 dark:hover:bg-white/5'
-                   }`}
-                 >
-                   GitHub
-                 </button>
-                 <button
-                   type="button"
-                   onClick={() => setFeedSource('v2ex')}
-                   className={`rounded-lg px-2 py-1 font-medium transition ${
-                     feedSource === 'v2ex'
-                       ? 'bg-neutral-800 text-white dark:bg-white dark:text-neutral-900'
-                       : 'text-neutral-600 dark:text-neutral-400 hover:bg-black/5 dark:hover:bg-white/5'
-                   }`}
-                 >
-                   V2EX
-                 </button>
-                 <button
-                   type="button"
-                   onClick={() => setFeedSource('sspai')}
-                   className={`rounded-lg px-2 py-1 font-medium transition ${
-                     feedSource === 'sspai'
-                       ? 'bg-neutral-800 text-white dark:bg-white dark:text-neutral-900'
-                       : 'text-neutral-600 dark:text-neutral-400 hover:bg-black/5 dark:hover:bg-white/5'
-                   }`}
-                 >
-                   少数派
-                 </button>
-               </div>
- 
-               <button
-                 type="button"
-                 onClick={refreshFeeds}
-                 title="刷新资讯"
-                 className={`flex h-6 w-6 items-center justify-center rounded-lg text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition ${
-                   isRefreshing ? 'animate-spin' : ''
-                 }`}
-               >
-                 <RotateCcw className="h-3 w-3" />
-               </button>
-             </div>
- 
-             {/* Feed Items List */}
-             <div className="space-y-1.5">
-               {currentFeeds.map((feed, index) => (
-                 <a
-                   key={feed.id}
-                   href={feed.url}
-                   target="_blank"
-                   rel="noopener noreferrer"
-                   onClick={() => onRecordVisit?.({ title: feed.title, url: feed.url })}
-                   className="group flex flex-col gap-1 rounded-xl border border-black/5 dark:border-white/5 bg-black/[0.02] dark:bg-white/[0.02] p-2.5 transition hover:bg-black/[0.05] dark:hover:bg-white/[0.05]"
-                 >
-                   <div className="flex items-start justify-between gap-2">
-                     <span className="text-xs font-medium text-neutral-800 dark:text-neutral-200 group-hover:text-blue-500 line-clamp-2 leading-snug">
-                       {feed.title}
-                     </span>
-                     <ExternalLink className="h-3 w-3 shrink-0 text-neutral-400 opacity-0 group-hover:opacity-100 transition" />
-                   </div>
-                   {feed.extra && (
-                     <div className="flex items-center gap-1.5 text-[10px] text-neutral-400">
-                       <span className="font-semibold text-neutral-500 dark:text-neutral-400">#{index + 1}</span>
-                       <span>•</span>
-                       <span>{feed.extra}</span>
-                     </div>
-                   )}
-                 </a>
-               ))}
              </div>
            </div>
          )}

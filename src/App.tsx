@@ -22,7 +22,6 @@ import { BottomSection } from './components/BottomSection'
 import { ConfirmModal } from './components/ConfirmModal'
 import { FloatingDock } from './components/FloatingDock'
 import { IconPickerModal } from './components/IconPickerModal'
-import { LeftSidebar } from './components/LeftSidebar'
 import { MainCategoryCard } from './components/MainCategoryCard'
 import { ProfileModal } from './components/ProfileModal'
 import { RightSidebar } from './components/RightSidebar'
@@ -82,8 +81,6 @@ export default function App() {
     bookmarks,
     memos,
     totpAccounts,
-    recentVisits,
-    superPinnedLinks,
     scratchpadContent,
     settings,
     searchQuery,
@@ -123,11 +120,6 @@ export default function App() {
     deleteMemo,
     addTotpAccount,
     deleteTotpAccount,
-    recordVisit,
-    removeRecentVisit,
-    clearRecentVisits,
-    addSuperPinnedLink,
-    removeSuperPinnedLink,
     saveScratchpad,
     saveCachedIcon,
     saveFailedIcon,
@@ -359,23 +351,8 @@ export default function App() {
           onOpenProfile={() => setProfileOpen(true)}
         />
 
-        {/* Main Layout Container: Left Dock + Center Workspace + Persistent Right Sidebar */}
+        {/* Main Layout Container: Center Workspace + Persistent Right Sidebar */}
         <div className="relative z-10 mx-auto flex w-full max-w-[1920px] justify-center items-start gap-3 px-2 sm:px-4 py-3.5">
-          {/* Left Sidebar: Super Pinned Dock + History */}
-          {settings.showLeftSidebar !== false && (
-            <LeftSidebar
-              pinnedLinks={superPinnedLinks}
-              recentVisits={recentVisits}
-              cardOpacity={settings.cardOpacity}
-              settings={settings}
-              onAddPinnedLink={addSuperPinnedLink}
-              onRemovePinnedLink={removeSuperPinnedLink}
-              onRemoveRecentVisit={removeRecentVisit}
-              onClearRecentVisits={clearRecentVisits}
-              onRecordVisit={recordVisit}
-            />
-          )}
-
           {/* Main Content Area */}
           <main
             className="flex-1 min-w-0 space-y-3.5 transition-[max-width] duration-200"
@@ -418,7 +395,6 @@ export default function App() {
             onContextMenuBookmark={(b, x, y) => setContextMenu({ bookmark: b, x, y })}
             onOpenBookmarkStyle={() => setBookmarkStyleOpen(true)}
             onUpdateSettings={updateSettings}
-            onRecordVisit={recordVisit}
           />
 
           {/* 3. Bottom Multi-tier Categories Section + Right Widgets Section */}
@@ -458,12 +434,11 @@ export default function App() {
                 void addTotpAccount(name, secret, issuer)
               }
               onDeleteTotp={(id) => void deleteTotpAccount(id)}
-              onRecordVisit={recordVisit}
             />
           </div>
         </main>
 
-          {/* Right Persistent Sidebar: Scratchpad + Focus & Status + Micro Feeds */}
+          {/* Right Persistent Sidebar: Scratchpad + Todo + Focus */}
           {settings.showRightSidebar !== false && (
             <RightSidebar
               scratchpadContent={scratchpadContent}
@@ -480,7 +455,6 @@ export default function App() {
               onAddMemo={addMemo}
               onToggleMemo={toggleMemo}
               onDeleteMemo={deleteMemo}
-              onRecordVisit={recordVisit}
             />
           )}
         </div>
