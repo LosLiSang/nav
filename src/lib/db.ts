@@ -4,9 +4,11 @@ import type {
   CachedIcon,
   Category,
   MemoItem,
+  RecentVisit,
   Settings,
   SubCategory,
   SubSection,
+  SuperPinnedLink,
   TotpItem,
 } from '../types'
 
@@ -32,6 +34,9 @@ class NavDatabase extends Dexie {
   totpAccounts!: Table<TotpItem, string>
   settings!: Table<SettingRecord, string>
   iconCache!: Table<CachedIcon, string>
+  recentVisits!: Table<RecentVisit, string>
+  superPinnedLinks!: Table<SuperPinnedLink, string>
+  scratchpad!: Table<{ id: string; content: string; updatedAt: number }, string>
 
   constructor() {
     super(resolveDatabaseName())
@@ -53,6 +58,19 @@ class NavDatabase extends Dexie {
       totpAccounts: 'id, createdAt',
       settings: 'key',
       iconCache: 'domain, updatedAt',
+    })
+    this.version(4).stores({
+      categories: 'id, order',
+      subSections: 'id, order',
+      subCategories: 'id, sectionId, order',
+      bookmarks: 'id, categoryId, subCategoryId, order',
+      memos: 'id, createdAt',
+      totpAccounts: 'id, createdAt',
+      settings: 'key',
+      iconCache: 'domain, updatedAt',
+      recentVisits: 'id, visitedAt',
+      superPinnedLinks: 'id, order',
+      scratchpad: 'id',
     })
   }
 }

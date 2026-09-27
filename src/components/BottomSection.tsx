@@ -42,6 +42,7 @@ type Props = {
   onDeleteMemo: (id: string) => void
   onAddTotp: (name: string, secret: string, issuer?: string) => void
   onDeleteTotp: (id: string) => void
+  onRecordVisit?: (link: { title: string; url: string; iconUrl?: string }) => void
 }
 
 export function BottomSection(props: Props) {
@@ -73,6 +74,7 @@ export function BottomSection(props: Props) {
           onDeleteSubCategory={props.onDeleteSubCategory}
           onOpenAddBookmark={props.onOpenAddBookmark}
           onContextMenuBookmark={props.onContextMenuBookmark}
+          onRecordVisit={props.onRecordVisit}
         />
 
         {/* Right: Widget tools (Memo, Calendar, 2FA, QR, Dev tools + cute Cat illustration) */}

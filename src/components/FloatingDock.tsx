@@ -10,6 +10,7 @@ import {
 type Props = {
   isSortMode: boolean
   themeMode?: 'light' | 'dark'
+  collapsedRightSidebar?: boolean
   onToggleSortMode: () => void
   onToggleTheme: () => void
   onOpenMemo: () => void
@@ -19,13 +20,14 @@ type Props = {
 export function FloatingDock({
   isSortMode,
   themeMode,
+  collapsedRightSidebar = false,
   onToggleSortMode,
   onToggleTheme,
   onOpenMemo,
   onOpenTools,
 }: Props) {
   return (
-    <aside className="fixed right-3 top-1/2 z-30 hidden -translate-y-1/2 flex-col items-center gap-2 rounded-full border border-white/60 dark:border-white/10 bg-white/80 dark:bg-[#18181b]/80 p-1.5 shadow-xl backdrop-blur-md lg:flex">
+    <aside className={`fixed right-3 top-1/2 z-30 hidden -translate-y-1/2 flex-col items-center gap-2 rounded-full border border-white/60 dark:border-white/10 bg-white/80 dark:bg-[#18181b]/80 p-1.5 shadow-xl backdrop-blur-md lg:flex ${collapsedRightSidebar ? '' : 'xl:hidden'}`}>
       {/* Note */}
       <button
         type="button"

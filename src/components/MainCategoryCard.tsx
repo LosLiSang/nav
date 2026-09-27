@@ -47,6 +47,7 @@ type Props = {
   onContextMenuBookmark: (bookmark: Bookmark, x: number, y: number) => void
   onOpenBookmarkStyle: () => void
   onUpdateSettings?: (values: Partial<Settings>) => void
+  onRecordVisit?: (link: { title: string; url: string; iconUrl?: string }) => void
 }
 
 const HELP_ITEMS = [
@@ -173,6 +174,7 @@ function BookmarkCardItem({
   onSaveCachedIcon,
   onSaveFailedIcon,
   onContextMenu,
+  onRecordVisit,
 }: {
   bookmark: Bookmark
   isSortMode: boolean
@@ -182,6 +184,7 @@ function BookmarkCardItem({
   onSaveCachedIcon?: (domain: string, dataOrBlob: string | Blob, objectUrl?: string) => void
   onSaveFailedIcon?: (domain: string) => void
   onContextMenu: (x: number, y: number) => void
+  onRecordVisit?: (link: { title: string; url: string; iconUrl?: string }) => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: bookmark.id,
@@ -269,6 +272,7 @@ function BookmarkCardItem({
       onClick={() => {
         if (!isSortMode) {
           window.open(bookmark.url, '_blank', 'noopener,noreferrer')
+          onRecordVisit?.({ title: bookmark.title, url: bookmark.url, iconUrl: bookmark.iconUrl })
         }
       }}
       onContextMenu={(e) => {
@@ -340,6 +344,7 @@ export function MainCategoryCard({
   onContextMenuBookmark,
   onOpenBookmarkStyle,
   onUpdateSettings,
+  onRecordVisit,
 }: Props) {
   const [addingCat, setAddingCat] = useState(false)
   const [newCatName, setNewCatName] = useState('')
@@ -830,6 +835,7 @@ export function MainCategoryCard({
                   onSaveCachedIcon={onSaveCachedIcon}
                   onSaveFailedIcon={onSaveFailedIcon}
                   onContextMenu={(x, y) => onContextMenuBookmark(bookmark, x, y)}
+                  onRecordVisit={onRecordVisit}
                 />
               ))}
             </div>

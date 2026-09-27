@@ -75,6 +75,28 @@ export type TotpItem = {
   createdAt: number
 }
 
+export type RecentVisit = {
+  id: string
+  title: string
+  url: string
+  iconUrl?: string
+  visitedAt: number
+}
+
+export type SuperPinnedLink = {
+  id: string
+  title: string
+  url: string
+  iconUrl?: string
+  order: number
+}
+
+export type CountdownTarget = {
+  id: string
+  title: string
+  targetDate: string
+}
+
 export type WidgetTab = 'calendar' | 'memo' | 'qrcode' | 'totp' | 'tools'
 
 export type Settings = {
@@ -110,6 +132,10 @@ export type Settings = {
   themeMode?: 'light' | 'dark'
   fallbackIconMode?: FallbackIconMode
   defaultPlaceholderIconUrl?: string
+  showRightSidebar?: boolean
+  rightSidebarCollapsed?: boolean
+  showLeftSidebar?: boolean
+  leftSidebarCollapsed?: boolean
 }
 
 export type NavData = {
@@ -119,5 +145,8 @@ export type NavData = {
   bookmarks: Bookmark[]
   memos: MemoItem[]
   totpAccounts: TotpItem[]
+  recentVisits?: RecentVisit[]
+  superPinnedLinks?: SuperPinnedLink[]
+  scratchpadContent?: string
   settings: Settings
 }

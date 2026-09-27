@@ -6,6 +6,7 @@ import type {
   Settings,
   SubCategory,
   SubSection,
+  SuperPinnedLink,
   TotpItem,
 } from '../types'
 
@@ -103,6 +104,10 @@ export const DEFAULT_SETTINGS: Settings = {
   themeMode: 'light',
   fallbackIconMode: 'letter',
   defaultPlaceholderIconUrl: '',
+  showRightSidebar: true,
+  rightSidebarCollapsed: false,
+  showLeftSidebar: true,
+  leftSidebarCollapsed: false,
 }
 
 export function defaultCategories(): Category[] {
@@ -420,5 +425,16 @@ export function defaultTotpAccounts(): TotpItem[] {
       secret: 'MFRGGZDFMZTWQ2LK',
       createdAt: now + 1,
     },
+  ]
+}
+
+export function defaultSuperPinnedLinks(): SuperPinnedLink[] {
+  return [
+    { id: 'pin-github', title: 'GitHub', url: 'https://github.com', order: 0 },
+    { id: 'pin-chatgpt', title: 'ChatGPT', url: 'https://chatgpt.com', order: 1 },
+    { id: 'pin-notion', title: 'Notion', url: 'https://notion.so', order: 2 },
+    { id: 'pin-mail', title: 'Gmail', url: 'https://mail.google.com', order: 3 },
+    { id: 'pin-bilibili', title: '哔哩哔哩', url: 'https://bilibili.com', order: 4 },
+    { id: 'pin-v2ex', title: 'V2EX', url: 'https://v2ex.com', order: 5 },
   ]
 }

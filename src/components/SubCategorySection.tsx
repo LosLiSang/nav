@@ -257,6 +257,7 @@ function SubBookmarkItem({
   onSaveCachedIcon,
   onSaveFailedIcon,
   onContextMenu,
+  onRecordVisit,
 }: {
   bookmark: Bookmark
   isSortMode?: boolean
@@ -266,6 +267,7 @@ function SubBookmarkItem({
   onSaveCachedIcon?: (domain: string, dataOrBlob: string | Blob, objectUrl?: string) => void
   onSaveFailedIcon?: (domain: string) => void
   onContextMenu: (x: number, y: number) => void
+  onRecordVisit?: (link: { title: string; url: string; iconUrl?: string }) => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: bookmark.id,
@@ -347,6 +349,7 @@ function SubBookmarkItem({
       onClick={() => {
         if (!isSortMode) {
           window.open(bookmark.url, '_blank', 'noopener,noreferrer')
+          onRecordVisit?.({ title: bookmark.title, url: bookmark.url, iconUrl: bookmark.iconUrl })
         }
       }}
       onContextMenu={(e) => {
@@ -421,6 +424,7 @@ type Props = {
   onDeleteSubCategory: (id: string) => void
   onOpenAddBookmark: (subCategoryId?: string) => void
   onContextMenuBookmark: (bookmark: Bookmark, x: number, y: number) => void
+  onRecordVisit?: (link: { title: string; url: string; iconUrl?: string }) => void
 }
 
 export function SubCategorySection({
@@ -447,6 +451,7 @@ export function SubCategorySection({
   onDeleteSubCategory,
   onOpenAddBookmark,
   onContextMenuBookmark,
+  onRecordVisit,
 }: Props) {
   const cardRadius =
     settings.cornerRadius === 'none'
@@ -696,6 +701,7 @@ export function SubCategorySection({
                     onSaveCachedIcon={onSaveCachedIcon}
                     onSaveFailedIcon={onSaveFailedIcon}
                     onContextMenu={(x, y) => onContextMenuBookmark(bookmark, x, y)}
+                  onRecordVisit={onRecordVisit}
                   />
                 ))}
               </div>
