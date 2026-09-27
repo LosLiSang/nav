@@ -2,7 +2,6 @@ import { SubCategorySection } from './SubCategorySection'
 import { WidgetToolsCard } from './WidgetToolsCard'
 import type {
   Bookmark,
-  MemoItem,
   Settings,
   SubCategory,
   SubSection,
@@ -30,18 +29,15 @@ type Props = {
   onDeleteSubCategory: (id: string) => void
   onOpenAddBookmark: (subCategoryId?: string) => void
   onContextMenuBookmark: (bookmark: Bookmark, x: number, y: number) => void
-  memos: MemoItem[]
   totpAccounts: TotpItem[]
   settings: Settings
   cardOpacity: number
   isSortMode?: boolean
   draggingId?: string | null
   onSelectWidgetTab: (tab: WidgetTab) => void
-  onAddMemo: (text: string) => void
-  onToggleMemo: (id: string) => void
-  onDeleteMemo: (id: string) => void
   onAddTotp: (name: string, secret: string, issuer?: string) => void
   onDeleteTotp: (id: string) => void
+  onRecordVisit?: (link: { title: string; url: string; iconUrl?: string }) => void
 }
 
 export function BottomSection(props: Props) {
@@ -73,18 +69,15 @@ export function BottomSection(props: Props) {
           onDeleteSubCategory={props.onDeleteSubCategory}
           onOpenAddBookmark={props.onOpenAddBookmark}
           onContextMenuBookmark={props.onContextMenuBookmark}
+          onRecordVisit={props.onRecordVisit}
         />
 
         {/* Right: Widget tools (Memo, Calendar, 2FA, QR, Dev tools + cute Cat illustration) */}
         <WidgetToolsCard
-          memos={props.memos}
           totpAccounts={props.totpAccounts}
           settings={props.settings}
           cardOpacity={props.cardOpacity}
           onSelectWidgetTab={props.onSelectWidgetTab}
-          onAddMemo={props.onAddMemo}
-          onToggleMemo={props.onToggleMemo}
-          onDeleteMemo={props.onDeleteMemo}
           onAddTotp={props.onAddTotp}
           onDeleteTotp={props.onDeleteTotp}
         />

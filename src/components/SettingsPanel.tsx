@@ -1,6 +1,7 @@
 import { createPortal } from 'react-dom'
 import { useState } from 'react'
 import {
+  Check,
   Cloud,
   CloudOff,
   Download,
@@ -142,6 +143,50 @@ export function SettingsPanel({ settings, onClose, onChange, sync, onClearIconCa
         <div className="flex-1 overflow-y-auto p-6 space-y-5 text-xs">
           {activeTab === 'appearance' ? (
             <>
+              {/* Global Theme Accent Color */}
+              <div>
+                <label className="block font-medium text-neutral-800 dark:text-neutral-200 mb-2">
+                  全局主题高亮色
+                </label>
+                <div className="flex flex-wrap items-center gap-2 rounded-xl border border-neutral-200 dark:border-neutral-700 p-3 bg-neutral-50/50 dark:bg-neutral-800/40">
+                  {[
+                    { label: '活力橙', color: '#ff6900' },
+                    { label: '经典蓝', color: '#2563eb' },
+                    { label: '翡翠绿', color: '#10b981' },
+                    { label: '极客紫', color: '#8b5cf6' },
+                    { label: '热情红', color: '#ef4444' },
+                    { label: '珊瑚粉', color: '#f43f5e' },
+                    { label: '琥珀黄', color: '#f59e0b' },
+                    { label: '曜石黑', color: '#171717' },
+                  ].map((c) => {
+                    const isSelected = (settings.highlightColor || '#ff6900') === c.color
+                    return (
+                      <button
+                        key={c.color}
+                        type="button"
+                        onClick={() => onChange({ highlightColor: c.color })}
+                        style={{ backgroundColor: c.color }}
+                        className={`flex h-7 w-7 items-center justify-center rounded-full text-white transition ${
+                          isSelected ? 'ring-2 ring-offset-2 ring-neutral-400 scale-110 shadow-sm' : 'hover:scale-105'
+                        }`}
+                        title={c.label}
+                      >
+                        {isSelected && <Check className="h-4 w-4 stroke-[3]" />}
+                      </button>
+                    )
+                  })}
+                  <label className="ml-auto flex items-center gap-1.5 cursor-pointer text-neutral-600 dark:text-neutral-300 text-[11px]">
+                    <span>自定义:</span>
+                    <input
+                      type="color"
+                      value={settings.highlightColor || '#ff6900'}
+                      onChange={(e) => onChange({ highlightColor: e.target.value })}
+                      className="h-6 w-6 cursor-pointer rounded border-0 bg-transparent"
+                    />
+                  </label>
+                </div>
+              </div>
+
               {/* 1. Wallpaper Presets */}
               <div>
                 <label className="block font-medium text-neutral-800 dark:text-neutral-200 mb-2">背景壁纸设置</label>

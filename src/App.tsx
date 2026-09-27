@@ -24,6 +24,7 @@ import { FloatingDock } from './components/FloatingDock'
 import { IconPickerModal } from './components/IconPickerModal'
 import { MainCategoryCard } from './components/MainCategoryCard'
 import { ProfileModal } from './components/ProfileModal'
+import { RightSidebar } from './components/RightSidebar'
 import { SearchBar, type SearchBarHandle } from './components/SearchBar'
 import { SettingsPanel } from './components/SettingsPanel'
 import { getSubIcon } from './components/SubCategorySection'
@@ -80,6 +81,7 @@ export default function App() {
     bookmarks,
     memos,
     totpAccounts,
+    scratchpadContent,
     settings,
     searchQuery,
     cachedIcons,
@@ -118,6 +120,7 @@ export default function App() {
     deleteMemo,
     addTotpAccount,
     deleteTotpAccount,
+    saveScratchpad,
     saveCachedIcon,
     saveFailedIcon,
     refreshIcon,
@@ -150,6 +153,7 @@ export default function App() {
   const [deletingBookmark, setDeletingBookmark] = useState<Bookmark | null>(null)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [iconPickerBookmark, setIconPickerBookmark] = useState<Bookmark | null>(null)
+  const [rightSidebarTab, setRightSidebarTab] = useState<'scratchpad' | 'todo' | 'focus'>('scratchpad')
   const [contextMenu, setContextMenu] = useState<{
     bookmark: Bookmark
     x: number
@@ -161,10 +165,16 @@ export default function App() {
   )
 
   const isDark = settings.themeMode === 'dark'
+  const accentColor = settings.highlightColor || '#ff6900'
 
   useEffect(() => {
     void initialize()
   }, [initialize])
+
+  // Dynamically set CSS custom property for global theme accent color
+  useEffect(() => {
+    document.documentElement.style.setProperty('--accent-color', accentColor)
+  }, [accentColor])
 
   // Dynamically load online web font if specified
   useEffect(() => {
@@ -348,25 +358,27 @@ export default function App() {
           onOpenProfile={() => setProfileOpen(true)}
         />
 
-        {/* Main Content Area */}
-        <main
-          className="relative z-10 mx-auto w-full px-3.5 py-3.5 sm:px-6 space-y-3.5 transition-[max-width] duration-200"
-          style={{
-            maxWidth:
-              settings.cardWidth === 0
-                ? '100%'
-                : `${settings.cardWidth ?? 1380}px`,
-          }}
-        >
-          {/* 1. Search Box */}
-          <SearchBar
-            ref={searchBarRef}
-            engines={SEARCH_ENGINES}
-            settings={settings}
-            query={searchQuery}
-            onChangeQuery={setSearchQuery}
-            onSelectEngine={setActiveSearchEngine}
-          />
+        {/* Main Layout Container: Center Workspace + Persistent Right Sidebar */}
+        <div className="relative z-10 mx-auto flex w-full max-w-[1920px] justify-center items-start gap-3 px-2 sm:px-4 lg:pr-14 py-3.5">
+          {/* Main Content Area */}
+          <main
+            className="flex-1 min-w-0 space-y-3.5 transition-[max-width] duration-200"
+            style={{
+              maxWidth:
+                settings.cardWidth === 0
+                  ? '100%'
+                  : `${settings.cardWidth ?? 1380}px`,
+            }}
+          >
+            {/* 1. Search Box */}
+            <SearchBar
+              ref={searchBarRef}
+              engines={SEARCH_ENGINES}
+              settings={settings}
+              query={searchQuery}
+              onChangeQuery={setSearchQuery}
+              onSelectEngine={setActiveSearchEngine}
+            />
 
           {/* 2. Top Main Category Card & 7-column Bookmarks Grid */}
           <MainCategoryCard
@@ -419,12 +431,8 @@ export default function App() {
               onDeleteSubCategory={(id) => void deleteSubCategory(id)}
               onOpenAddBookmark={(subCatId) => openAddDialog(undefined, subCatId)}
               onContextMenuBookmark={(b, x, y) => setContextMenu({ bookmark: b, x, y })}
-              memos={memos}
               totpAccounts={totpAccounts}
               onSelectWidgetTab={setActiveWidgetTab}
-              onAddMemo={(text) => void addMemo(text)}
-              onToggleMemo={(id) => void toggleMemo(id)}
-              onDeleteMemo={(id) => void deleteMemo(id)}
               onAddTotp={(name, secret, issuer) =>
                 void addTotpAccount(name, secret, issuer)
               }
@@ -432,6 +440,29 @@ export default function App() {
             />
           </div>
         </main>
+
+          {/* Right Persistent Sidebar: Scratchpad + Todo + Focus */}
+          {settings.showRightSidebar !== false && (
+            <RightSidebar
+              scratchpadContent={scratchpadContent}
+              memos={memos}
+              cardOpacity={settings.cardOpacity}
+              settings={settings}
+              collapsed={settings.rightSidebarCollapsed}
+              activeTab={rightSidebarTab}
+              onSelectTab={setRightSidebarTab}
+              onToggleCollapse={() =>
+                void updateSettings({
+                  rightSidebarCollapsed: !settings.rightSidebarCollapsed,
+                })
+              }
+              onSaveScratchpad={saveScratchpad}
+              onAddMemo={addMemo}
+              onToggleMemo={toggleMemo}
+              onDeleteMemo={deleteMemo}
+            />
+          )}
+        </div>
 
         {/* Far Right Floating Quick Dock */}
         <FloatingDock
@@ -443,8 +474,15 @@ export default function App() {
             })
           }
           onToggleSortMode={toggleSortMode}
-          onOpenMemo={() => setActiveWidgetTab('memo')}
-          onOpenTools={() => setActiveWidgetTab('tools')}
+          onOpenMemo={() => {
+            void updateSettings({ rightSidebarCollapsed: false })
+            setRightSidebarTab('todo')
+          }}
+          onOpenTools={() => {
+            const el = document.getElementById('tools-section')
+            el?.scrollIntoView({ behavior: 'smooth' })
+            setActiveWidgetTab('tools')
+          }}
         />
 
        {/* Drag Overlay for dragging bookmark item */}

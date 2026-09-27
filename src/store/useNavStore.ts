@@ -10,6 +10,7 @@ import {
   defaultMemos,
   defaultSubCategories,
   defaultSubSections,
+  defaultSuperPinnedLinks,
   defaultTotpAccounts,
 } from '../lib/defaults'
 import type {
@@ -17,9 +18,11 @@ import type {
   Category,
   MemoItem,
   NavData,
+  RecentVisit,
   Settings,
   SubCategory,
   SubSection,
+  SuperPinnedLink,
   TotpItem,
 } from '../types'
 import {
@@ -49,6 +52,9 @@ type NavState = {
   bookmarks: Bookmark[]
   memos: MemoItem[]
   totpAccounts: TotpItem[]
+  recentVisits: RecentVisit[]
+  superPinnedLinks: SuperPinnedLink[]
+  scratchpadContent: string
   settings: Settings
   searchQuery: string
   cachedIcons: Record<string, string>
@@ -133,6 +139,15 @@ type NavState = {
   exportBackup: () => Promise<NavData>
   importBackup: (data: Partial<NavData>) => Promise<void>
   resetToDefaults: () => Promise<void>
+
+  // History & Pinned & Scratchpad
+  recordVisit: (link: { id?: string; title: string; url: string; iconUrl?: string }) => Promise<void>
+  removeRecentVisit: (id: string) => Promise<void>
+  clearRecentVisits: () => Promise<void>
+  addSuperPinnedLink: (link: { title: string; url: string; iconUrl?: string }) => Promise<void>
+  removeSuperPinnedLink: (id: string) => Promise<void>
+  reorderSuperPinnedLinks: (activeId: string, overId: string) => Promise<void>
+  saveScratchpad: (content: string) => Promise<void>
 }
 
 const SETTINGS_KEY = 'app'
@@ -361,6 +376,9 @@ export const useNavStore = create<NavState>((set, get) => ({
   bookmarks: [],
   memos: [],
   totpAccounts: [],
+  recentVisits: [],
+  superPinnedLinks: [],
+  scratchpadContent: '',
   settings: DEFAULT_SETTINGS,
   searchQuery: '',
   cachedIcons: {},
@@ -391,6 +409,9 @@ export const useNavStore = create<NavState>((set, get) => ({
           totpAccounts,
           settingRecord,
           cachedIconRows,
+          recentVisitsRows,
+          superPinnedRows,
+          scratchpadRow,
         ] = await Promise.all([
           db.categories.toArray().catch(() => []),
           db.subSections.toArray().catch(() => []),
@@ -400,6 +421,9 @@ export const useNavStore = create<NavState>((set, get) => ({
           db.totpAccounts.toArray().catch(() => []),
           db.settings.get(SETTINGS_KEY).catch(() => undefined),
           db.iconCache.toArray().catch(() => []),
+          db.recentVisits.toArray().catch(() => []),
+          db.superPinnedLinks.toArray().catch(() => []),
+          db.scratchpad.get('default').catch(() => undefined),
         ])
 
         const nextCachedIcons: Record<string, string> = {}
@@ -424,6 +448,14 @@ export const useNavStore = create<NavState>((set, get) => ({
         let nextBookmarks = bookmarks
         let nextMemos = memos
         let nextTotpAccounts = totpAccounts
+        let nextRecentVisits = recentVisitsRows
+        let nextSuperPinned = superPinnedRows
+        const nextScratchpad = scratchpadRow?.content || ''
+
+        if (nextSuperPinned.length === 0) {
+          nextSuperPinned = defaultSuperPinnedLinks()
+          void db.superPinnedLinks.bulkAdd(nextSuperPinned).catch(() => {})
+        }
 
         let nextSettings: Settings = {
           ...DEFAULT_SETTINGS,
@@ -492,6 +524,9 @@ export const useNavStore = create<NavState>((set, get) => ({
           bookmarks: [...nextBookmarks].sort((a, b) => a.order - b.order),
           memos: [...nextMemos].sort((a, b) => b.createdAt - a.createdAt),
           totpAccounts: [...nextTotpAccounts].sort((a, b) => a.createdAt - b.createdAt),
+          recentVisits: [...nextRecentVisits].sort((a, b) => b.visitedAt - a.visitedAt),
+          superPinnedLinks: [...nextSuperPinned].sort((a, b) => a.order - b.order),
+          scratchpadContent: nextScratchpad,
           settings: nextSettings,
           cachedIcons: nextCachedIcons,
           failedDomains: nextFailedDomains,
@@ -1270,11 +1305,114 @@ export const useNavStore = create<NavState>((set, get) => ({
       db.memos.clear(),
       db.totpAccounts.clear(),
       db.settings.clear(),
+      db.recentVisits.clear(),
+      db.superPinnedLinks.clear(),
+      db.scratchpad.clear(),
     ])
     saveLocalTimestamp(Math.max(Date.now(), get().remoteUpdatedAt + 1))
     initializationPromise = null
     set({ ready: false })
     await get().initialize()
+  },
+
+  async recordVisit(link) {
+    const prev = get().recentVisits
+    const now = Date.now()
+    const existing = prev.find((v) => v.url === link.url)
+    const nextItem: RecentVisit = {
+      id: existing?.id || `visit-${now}-${Math.random().toString(36).slice(2, 6)}`,
+      title: link.title || link.url,
+      url: link.url,
+      iconUrl: link.iconUrl,
+      visitedAt: now,
+    }
+    const filtered = prev.filter((v) => v.url !== link.url)
+    const nextList = [nextItem, ...filtered].slice(0, 10)
+    set({ recentVisits: nextList })
+    try {
+      await db.recentVisits.put(nextItem)
+      const all = await db.recentVisits.toArray()
+      if (all.length > 10) {
+        const toDelete = all.sort((a, b) => b.visitedAt - a.visitedAt).slice(10)
+        await Promise.all(toDelete.map((item) => db.recentVisits.delete(item.id)))
+      }
+    } catch (err) {
+      console.error('Failed to save recent visit:', err)
+    }
+  },
+
+  async removeRecentVisit(id) {
+    const next = get().recentVisits.filter((v) => v.id !== id)
+    set({ recentVisits: next })
+    try {
+      await db.recentVisits.delete(id)
+    } catch (err) {
+      console.error('Failed to remove recent visit:', err)
+    }
+  },
+
+  async clearRecentVisits() {
+    set({ recentVisits: [] })
+    try {
+      await db.recentVisits.clear()
+    } catch (err) {
+      console.error('Failed to clear recent visits:', err)
+    }
+  },
+
+  async addSuperPinnedLink(link) {
+    const prev = get().superPinnedLinks
+    const now = Date.now()
+    const newItem: SuperPinnedLink = {
+      id: `pin-${now}`,
+      title: link.title,
+      url: link.url,
+      iconUrl: link.iconUrl,
+      order: prev.length,
+    }
+    const next = [...prev, newItem]
+    set({ superPinnedLinks: next })
+    try {
+      await db.superPinnedLinks.put(newItem)
+    } catch (err) {
+      console.error('Failed to add super pinned link:', err)
+    }
+  },
+
+  async removeSuperPinnedLink(id) {
+    const next = get().superPinnedLinks.filter((p) => p.id !== id)
+    set({ superPinnedLinks: next })
+    try {
+      await db.superPinnedLinks.delete(id)
+    } catch (err) {
+      console.error('Failed to remove super pinned link:', err)
+    }
+  },
+
+  async reorderSuperPinnedLinks(activeId, overId) {
+    const prev = get().superPinnedLinks
+    const oldIndex = prev.findIndex((p) => p.id === activeId)
+    const newIndex = prev.findIndex((p) => p.id === overId)
+    if (oldIndex === -1 || newIndex === -1) return
+    const next = arrayMove(prev, oldIndex, newIndex).map((item, idx) => ({
+      ...item,
+      order: idx,
+    }))
+    set({ superPinnedLinks: next })
+    try {
+      await Promise.all(next.map((item) => db.superPinnedLinks.put(item)))
+    } catch (err) {
+      console.error('Failed to reorder super pinned links:', err)
+    }
+  },
+
+  async saveScratchpad(content) {
+    set({ scratchpadContent: content })
+    try {
+      await db.scratchpad.put({ id: 'default', content, updatedAt: Date.now() })
+    } catch (err) {
+      console.error('Failed to save scratchpad:', err)
+    }
   },
 }))
 
