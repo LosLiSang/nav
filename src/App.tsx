@@ -424,12 +424,8 @@ export default function App() {
               onDeleteSubCategory={(id) => void deleteSubCategory(id)}
               onOpenAddBookmark={(subCatId) => openAddDialog(undefined, subCatId)}
               onContextMenuBookmark={(b, x, y) => setContextMenu({ bookmark: b, x, y })}
-              memos={memos}
               totpAccounts={totpAccounts}
               onSelectWidgetTab={setActiveWidgetTab}
-              onAddMemo={(text) => void addMemo(text)}
-              onToggleMemo={(id) => void toggleMemo(id)}
-              onDeleteMemo={(id) => void deleteMemo(id)}
               onAddTotp={(name, secret, issuer) =>
                 void addTotpAccount(name, secret, issuer)
               }

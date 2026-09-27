@@ -10,34 +10,25 @@ import {
 } from 'lucide-react'
 import { generateTotp } from '../lib/totp'
 import type {
-  MemoItem,
   Settings,
   TotpItem,
   WidgetTab,
 } from '../types'
 
 type Props = {
-  memos: MemoItem[]
   totpAccounts: TotpItem[]
   settings: Settings
   cardOpacity: number
   onSelectWidgetTab: (tab: WidgetTab) => void
-  onAddMemo: (text: string) => void
-  onToggleMemo: (id: string) => void
-  onDeleteMemo: (id: string) => void
   onAddTotp: (name: string, secret: string, issuer?: string) => void
   onDeleteTotp: (id: string) => void
 }
 
 export function WidgetToolsCard({
-  memos,
   totpAccounts,
   settings,
   cardOpacity,
   onSelectWidgetTab,
-  onAddMemo,
-  onToggleMemo,
-  onDeleteMemo,
   onAddTotp,
   onDeleteTotp,
 }: Props) {
@@ -52,7 +43,6 @@ export function WidgetToolsCard({
     ? `rgba(24, 24, 27, ${cardOpacity / 100})`
     : `rgba(255, 255, 255, ${cardOpacity / 100})`
 
-  const [memoInput, setMemoInput] = useState('')
   const [totpCodes, setTotpCodes] = useState<
     Record<string, { code: string; remainingSec: number; progress: number }>
   >({})
@@ -163,23 +153,12 @@ export function WidgetToolsCard({
             type="button"
             onClick={() => onSelectWidgetTab('calendar')}
             className={`rounded-full px-2.5 py-1 text-xs font-medium transition ${
-              settings.activeWidgetTab === 'calendar'
+              settings.activeWidgetTab === 'calendar' || settings.activeWidgetTab === 'memo'
                 ? 'bg-orange-100 text-[#ff6900] dark:bg-orange-950/40 dark:text-orange-400 font-semibold'
                 : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
             }`}
           >
             日历
-          </button>
-          <button
-            type="button"
-            onClick={() => onSelectWidgetTab('memo')}
-            className={`rounded-full px-2.5 py-1 text-xs font-medium transition ${
-              settings.activeWidgetTab === 'memo'
-                ? 'bg-orange-100 text-[#ff6900] dark:bg-orange-950/40 dark:text-orange-400 font-semibold'
-                : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
-            }`}
-          >
-            便签
           </button>
           <button
             type="button"
@@ -216,80 +195,8 @@ export function WidgetToolsCard({
           </button>
         </div>
 
-        {/* Tab 1: Memo */}
-        {settings.activeWidgetTab === 'memo' && (
-          <div className="flex flex-col p-3.5">
-            <form
-              onSubmit={(e) => {
-                e.preventDefault()
-                if (memoInput.trim()) {
-                  onAddMemo(memoInput)
-                  setMemoInput('')
-                }
-              }}
-              className="flex items-center gap-2"
-            >
-              <input
-                value={memoInput}
-                onChange={(e) => setMemoInput(e.target.value)}
-                placeholder="记灵感、记号码、记备忘..."
-                className="min-w-0 flex-1 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-[#27272a] text-neutral-800 dark:text-neutral-100 px-3 py-2 text-xs outline-none placeholder:text-neutral-400 dark:placeholder:text-neutral-500 focus:border-orange-400"
-              />
-              <button
-                type="submit"
-                className="rounded-lg bg-[#ff945c] px-4 py-2 text-xs font-medium text-white shadow-sm transition hover:bg-[#ff803d]"
-              >
-                保存
-              </button>
-            </form>
-
-            <div className="mt-3 grid grid-cols-1 gap-2 max-h-[240px] overflow-y-auto pr-1 text-xs">
-              {memos.length === 0 ? (
-                <div className="py-8 text-center text-neutral-400">暂无便签</div>
-              ) : (
-                memos.map((memo) => (
-                  <div
-                    key={memo.id}
-                    className="group flex items-center justify-between gap-2 rounded-xl border border-neutral-100 dark:border-neutral-800 bg-neutral-50/70 dark:bg-[#27272a]/70 p-2.5 hover:bg-neutral-100/80 dark:hover:bg-[#27272a]"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => onToggleMemo(memo.id)}
-                      className="flex min-w-0 flex-1 items-center gap-2 text-left"
-                    >
-                      <span
-                        className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border transition ${
-                          memo.done
-                            ? 'border-orange-500 bg-orange-500 text-white'
-                            : 'border-neutral-300 dark:border-neutral-600'
-                        }`}
-                      >
-                        {memo.done && <Check className="h-2.5 w-2.5" />}
-                      </span>
-                      <span
-                        className={`truncate ${
-                          memo.done ? 'text-neutral-400 line-through' : 'text-neutral-700 dark:text-neutral-200'
-                        }`}
-                      >
-                        {memo.text}
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onDeleteMemo(memo.id)}
-                      className="text-neutral-400 hover:text-red-500"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        )}
-
         {/* Tab 2: Calendar */}
-        {settings.activeWidgetTab === 'calendar' && (
+        {(settings.activeWidgetTab === 'calendar' || settings.activeWidgetTab === 'memo') && (
           <div className="p-3.5 text-xs">
             <div className="flex items-center justify-between pb-2">
               <button type="button" className="text-neutral-400 hover:text-neutral-700">
