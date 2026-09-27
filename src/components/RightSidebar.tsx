@@ -26,6 +26,8 @@ import type { CountdownTarget, MemoItem, Settings } from '../types'
    cardOpacity: number
    settings: Settings
    collapsed?: boolean
+  activeTab?: ActiveTab
+  onSelectTab?: (tab: ActiveTab) => void
    onToggleCollapse: () => void
    onSaveScratchpad: (content: string) => Promise<void>
   onAddMemo: (text: string) => Promise<void> | void
@@ -48,6 +50,8 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
    cardOpacity,
    settings,
    collapsed = false,
+  activeTab: controlledTab,
+  onSelectTab,
    onToggleCollapse,
    onSaveScratchpad,
   onAddMemo,
@@ -55,7 +59,13 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
   onDeleteMemo,
  }: Props) {
    const isDark = settings.themeMode === 'dark'
-   const [activeTab, setActiveTab] = useState<ActiveTab>('scratchpad')
+  const [internalTab, setInternalTab] = useState<ActiveTab>('scratchpad')
+  const activeTab = controlledTab ?? internalTab
+
+  function handleTabChange(tab: ActiveTab) {
+    setInternalTab(tab)
+    onSelectTab?.(tab)
+  }
  
    // ----------------- 1. Scratchpad (即时草稿板) -----------------
    const [text, setText] = useState(scratchpadContent)
@@ -302,7 +312,7 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
           <div className="flex items-center gap-1 rounded-xl bg-black/5 dark:bg-white/5 p-0.5 text-xs">
            <button
              type="button"
-             onClick={() => setActiveTab('scratchpad')}
+              onClick={() => handleTabChange('scratchpad')}
               className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 font-medium transition ${
                activeTab === 'scratchpad'
                  ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm'
@@ -315,7 +325,7 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
  
            <button
              type="button"
-             onClick={() => setActiveTab('todo')}
+              onClick={() => handleTabChange('todo')}
               className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 font-medium transition ${
                activeTab === 'todo'
                  ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm'
@@ -328,7 +338,7 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
 
            <button
              type="button"
-             onClick={() => setActiveTab('focus')}
+              onClick={() => handleTabChange('focus')}
               className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 font-medium transition ${
                activeTab === 'focus'
                  ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm'
@@ -504,7 +514,7 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
                            type="button"
                            onClick={() => {
                              setFocusedMemoId(memo.id)
-                             setActiveTab('focus')
+                             handleTabChange('focus')
                            }}
                            className="text-neutral-400 hover:text-orange-500 transition p-0.5"
                            title="为此任务开启专注番茄钟"
@@ -560,7 +570,7 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
                  {pendingMemos > 0 && (
                    <button
                      type="button"
-                     onClick={() => setActiveTab('todo')}
+                     onClick={() => handleTabChange('todo')}
                      style={{ color: accentColor }}
                      className="text-[11px] hover:underline"
                    >

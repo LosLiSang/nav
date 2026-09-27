@@ -153,6 +153,7 @@ export default function App() {
   const [deletingBookmark, setDeletingBookmark] = useState<Bookmark | null>(null)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [iconPickerBookmark, setIconPickerBookmark] = useState<Bookmark | null>(null)
+  const [rightSidebarTab, setRightSidebarTab] = useState<'scratchpad' | 'todo' | 'focus'>('scratchpad')
   const [contextMenu, setContextMenu] = useState<{
     bookmark: Bookmark
     x: number
@@ -358,7 +359,7 @@ export default function App() {
         />
 
         {/* Main Layout Container: Center Workspace + Persistent Right Sidebar */}
-        <div className="relative z-10 mx-auto flex w-full max-w-[1920px] justify-center items-start gap-3 px-2 sm:px-4 py-3.5">
+        <div className="relative z-10 mx-auto flex w-full max-w-[1920px] justify-center items-start gap-3 px-2 sm:px-4 lg:pr-14 py-3.5">
           {/* Main Content Area */}
           <main
             className="flex-1 min-w-0 space-y-3.5 transition-[max-width] duration-200"
@@ -448,6 +449,8 @@ export default function App() {
               cardOpacity={settings.cardOpacity}
               settings={settings}
               collapsed={settings.rightSidebarCollapsed}
+              activeTab={rightSidebarTab}
+              onSelectTab={setRightSidebarTab}
               onToggleCollapse={() =>
                 void updateSettings({
                   rightSidebarCollapsed: !settings.rightSidebarCollapsed,
@@ -465,15 +468,21 @@ export default function App() {
         <FloatingDock
           isSortMode={settings.isSortMode}
           themeMode={settings.themeMode}
-          collapsedRightSidebar={settings.rightSidebarCollapsed}
           onToggleTheme={() =>
             updateSettings({
               themeMode: settings.themeMode === 'dark' ? 'light' : 'dark',
             })
           }
           onToggleSortMode={toggleSortMode}
-          onOpenMemo={() => setActiveWidgetTab('memo')}
-          onOpenTools={() => setActiveWidgetTab('tools')}
+          onOpenMemo={() => {
+            void updateSettings({ rightSidebarCollapsed: false })
+            setRightSidebarTab('todo')
+          }}
+          onOpenTools={() => {
+            const el = document.getElementById('tools-section')
+            el?.scrollIntoView({ behavior: 'smooth' })
+            setActiveWidgetTab('tools')
+          }}
         />
 
        {/* Drag Overlay for dragging bookmark item */}
