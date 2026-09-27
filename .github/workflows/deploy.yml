@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - master
+      - dev
   workflow_dispatch:
 
 permissions:
@@ -20,30 +21,55 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout main branch (Production)
         uses: actions/checkout@v4
+        with:
+          ref: main
+          path: main-repo
+
+      - name: Checkout dev branch (Preview)
+        uses: actions/checkout@v4
+        continue-on-error: true
+        id: checkout-dev
+        with:
+          ref: ${{ github.ref == 'refs/heads/dev' && github.sha || 'dev' }}
+          path: dev-repo
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
+          cache-dependency-path: '**/package-lock.json'
 
-      - name: Install dependencies
-        run: npm ci || npm install
-
-      - name: Build
-        run: npm run build
+      - name: Build main branch (Production)
+        working-directory: main-repo
+        run: |
+          npm ci || npm install
+          npm run build
+          mkdir -p ../site-dist
+          cp -r dist/* ../site-dist/
         env:
           # 非机密，只是 Worker 地址：构建进站点后「云同步」面板会预填它，
           # 换设备时只需要再填一次 token。真正的 SYNC_TOKEN 绝不能出现在这里
           # （Pages 是公开站点，构建产物等于全网可见）。
           VITE_SYNC_URL: https://nav-sync.lisang.workers.dev
 
+      - name: Build dev branch (Preview)
+        if: steps.checkout-dev.outcome == 'success'
+        working-directory: dev-repo
+        run: |
+          npm ci || npm install
+          npm run build
+          mkdir -p ../site-dist/dev
+          cp -r dist/* ../site-dist/dev/
+        env:
+          VITE_SYNC_URL: https://nav-sync.lisang.workers.dev
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: site-dist
 
   deploy:
     environment:
