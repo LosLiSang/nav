@@ -79,13 +79,20 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
      if (!el) return
      const scrollParent = el.closest('.overflow-y-auto') as HTMLElement | null
      const prevScrollTop = scrollParent ? scrollParent.scrollTop : 0
+     const isAtBottom = scrollParent
+       ? Math.abs(scrollParent.scrollHeight - scrollParent.clientHeight - scrollParent.scrollTop) < 30
+       : false
 
      el.style.height = 'auto'
-     const newHeight = Math.max(140, el.scrollHeight)
+     const newHeight = Math.max(140, el.scrollHeight + 4)
      el.style.height = `${newHeight}px`
 
      if (scrollParent) {
-       scrollParent.scrollTop = prevScrollTop
+       if (isAtBottom) {
+         scrollParent.scrollTop = scrollParent.scrollHeight
+       } else {
+         scrollParent.scrollTop = prevScrollTop
+       }
      }
    }, [])
 
@@ -402,7 +409,7 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
                value={text}
                onChange={(e) => handleTextChange(e.target.value)}
                placeholder="随手粘贴临时代码、调试命令、JSON、网址或思路... 本地即写即存。"
-              className="w-full min-h-[140px] resize-none bg-transparent text-[13px] leading-relaxed text-neutral-800 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 outline-none font-mono"
+              className="w-full min-h-[140px] resize-none overflow-hidden bg-transparent text-[13px] leading-relaxed text-neutral-800 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 outline-none font-mono"
                spellCheck={false}
               style={{ fieldSizing: 'content' } as React.CSSProperties}
              />
