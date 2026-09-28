@@ -14,6 +14,10 @@
 
 本地优先（Local-First）、现代化个人专属浏览器起始页与生产力工作台。
 
+<p align="center">
+  <img src="docs/preview.png" alt="nav preview" width="100%" />
+</p>
+
 ---
 
 ## 💡 About (关于本项目)
