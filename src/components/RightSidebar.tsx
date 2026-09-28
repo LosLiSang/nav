@@ -409,9 +409,13 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
                value={text}
                onChange={(e) => handleTextChange(e.target.value)}
                placeholder="随手粘贴临时代码、调试命令、JSON、网址或思路... 本地即写即存。"
-              className="w-full min-h-[140px] resize-none overflow-hidden bg-transparent text-[13px] leading-relaxed text-neutral-800 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 outline-none font-mono"
+              className="scratchpad-textarea w-full min-h-[140px] resize-none !overflow-hidden bg-transparent text-[13px] leading-relaxed text-neutral-800 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 outline-none font-mono"
                spellCheck={false}
-              style={{ fieldSizing: 'content' } as React.CSSProperties}
+              style={{
+                fieldSizing: 'content',
+                overflow: 'hidden',
+                scrollbarWidth: 'none',
+              } as React.CSSProperties}
              />
            </div>
          )}

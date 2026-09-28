@@ -41,3 +41,16 @@
 .dark * {
   scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
 }
+
+/* 彻底隐藏草稿文本框自身的任何内嵌滚动条，仅保留外层卡片滚动条 */
+.scratchpad-textarea {
+  overflow: hidden !important;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+.scratchpad-textarea::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
