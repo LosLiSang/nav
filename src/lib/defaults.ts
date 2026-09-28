@@ -183,9 +183,6 @@ export function defaultBookmarks(): Bookmark[] {
       { title: 'Canva 在线设计', url: 'https://www.canva.cn' },
       { title: '阿里云控制台', url: 'https://www.aliyun.com' },
 
-      { title: '杭电计算机学院', url: 'https://computer.hdu.edu.cn' },
-      { title: '杭电研究生院', url: 'https://yjs.hdu.edu.cn' },
-      { title: '数字杭电 CAS', url: 'https://cas.hdu.edu.cn' },
       { title: '高德地图', url: 'https://www.amap.com' },
       { title: 'DeepL 翻译', url: 'https://www.deepl.com/translator' },
       { title: '少数派', url: 'https://sspai.com' },
