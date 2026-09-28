@@ -188,7 +188,7 @@ async function main() {
       returnByValue: true,
     })
     const stats = calendarStats.result.value
-    check('网格生成规范 42 格', stats.totalCells === 42, `总格子数: ${stats.totalCells}`)
+    check('网格紧凑规范 35 格（5行自适应，剔除无用下月多余行）', stats.totalCells === 35, `总格子数: ${stats.totalCells}`)
     check('当月真实天数精准 30 天（无 9月31日）', stats.currentMonthDaysCount === 30, `当月天数: ${stats.currentMonthDaysCount}`)
     check('农历重大节日精准识别（9月25日中秋节）', stats.hasMidAutumn === true, '显示中秋节')
     check('二十四节气精准识别（9月23日秋分）', stats.hasAutumnEquinox === true, '显示秋分')

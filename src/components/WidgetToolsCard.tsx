@@ -246,31 +246,31 @@ export function WidgetToolsCard({
 
         {/* Tab 2: Calendar */}
         {(settings.activeWidgetTab === 'calendar' || settings.activeWidgetTab === 'memo') && (
-          <div className="p-3.5 text-xs">
-            <div className="flex items-center justify-between pb-2">
+          <div className="p-2.5 text-xs">
+            <div className="flex items-center justify-between pb-1.5">
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"
                   onClick={handlePrevMonth}
-                  className="rounded p-1 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200 transition"
+                  className="rounded p-0.5 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200 transition"
                   title="上一月"
                 >
-                  <ChevronLeft className="h-4 w-4" />
+                  <ChevronLeft className="h-3.5 w-3.5" />
                 </button>
-                <span className="font-semibold text-neutral-800 dark:text-neutral-200 text-sm">
+                <span className="font-bold text-neutral-800 dark:text-neutral-200 text-xs tracking-tight">
                   {viewYear}年 {String(viewMonth + 1).padStart(2, '0')}月
                 </span>
                 <button
                   type="button"
                   onClick={handleNextMonth}
-                  className="rounded p-1 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200 transition"
+                  className="rounded p-0.5 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200 transition"
                   title="下一月"
                 >
-                  <ChevronRight className="h-4 w-4" />
+                  <ChevronRight className="h-3.5 w-3.5" />
                 </button>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] text-neutral-400 dark:text-neutral-500 font-normal">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-normal">
                   {selectedDayInfo.lunarYearName}{selectedDayInfo.lunarZodiac ? `${selectedDayInfo.lunarZodiac}年` : ''}
                 </span>
                 {!isViewingCurrentMonth && (
@@ -278,7 +278,7 @@ export function WidgetToolsCard({
                     type="button"
                     onClick={handleGoToday}
                     style={{ color: accentColor }}
-                    className="text-[11px] font-medium hover:underline"
+                    className="text-[10px] font-medium hover:underline"
                   >
                     回今天
                   </button>
@@ -286,7 +286,7 @@ export function WidgetToolsCard({
               </div>
             </div>
 
-            <div className="grid grid-cols-7 gap-1 text-center font-medium text-neutral-400 py-1 border-y border-neutral-100 dark:border-neutral-800">
+            <div className="grid grid-cols-7 gap-0.5 text-center font-medium text-neutral-400 py-0.5 text-[11px] border-y border-neutral-100 dark:border-neutral-800">
               <span>一</span>
               <span>二</span>
               <span>三</span>
@@ -296,7 +296,7 @@ export function WidgetToolsCard({
               <span style={{ color: accentColor }}>日</span>
             </div>
 
-            <div className="mt-2 grid grid-cols-7 gap-1 text-center">
+            <div className="mt-1 grid grid-cols-7 gap-0.5 text-center">
               {calendarGrid.map((dayInfo, idx) => {
                 const isToday = dayInfo.isToday
                 const isSelected = dayInfo.isSelected && !isToday
@@ -331,9 +331,9 @@ export function WidgetToolsCard({
                     }}
                     title={dayInfo.tooltip}
                     style={customStyle}
-                    className={`flex flex-col items-center justify-center rounded-lg py-1.5 transition cursor-pointer select-none ${bgClass}`}
+                    className={`flex flex-col items-center justify-center rounded-md py-1 transition cursor-pointer select-none ${bgClass}`}
                   >
-                    <span className="text-xs leading-none font-medium">{dayInfo.day}</span>
+                    <span className="text-[12px] leading-tight font-medium">{dayInfo.day}</span>
                     <span
                       style={{
                         color: isToday
@@ -342,7 +342,7 @@ export function WidgetToolsCard({
                             ? accentColor
                             : undefined,
                       }}
-                      className={`text-[8px] leading-none mt-0.5 scale-90 truncate max-w-[95%] ${
+                      className={`text-[8px] leading-tight mt-0.5 scale-90 truncate max-w-[95%] ${
                         isToday
                           ? 'text-white/85 font-medium'
                           : isHoliday && dayInfo.isCurrentMonth
@@ -358,7 +358,7 @@ export function WidgetToolsCard({
             </div>
 
             {/* Bottom info strip for selected date */}
-            <div className="mt-2.5 flex items-center justify-between border-t border-neutral-100 dark:border-neutral-800/80 pt-2 px-1 text-[11px] text-neutral-500 dark:text-neutral-400">
+            <div className="mt-1.5 flex items-center justify-between border-t border-neutral-100 dark:border-neutral-800/80 pt-1.5 px-0.5 text-[10.5px] text-neutral-500 dark:text-neutral-400">
               <div className="flex items-center gap-1.5 truncate">
                 <span className="font-semibold text-neutral-800 dark:text-neutral-200">
                   {selectedDayInfo.month}月{selectedDayInfo.day}日
@@ -368,13 +368,13 @@ export function WidgetToolsCard({
                 {selectedDayInfo.holiday && (
                   <span
                     style={{ backgroundColor: `${accentColor}18`, color: accentColor }}
-                    className="rounded px-1.5 py-0.5 text-[10px] font-semibold"
+                    className="rounded px-1 py-0.2 text-[9.5px] font-semibold"
                   >
                     {selectedDayInfo.holiday}
                   </span>
                 )}
               </div>
-              <span className="text-[10px] text-neutral-400 dark:text-neutral-500 flex-shrink-0">
+              <span className="text-[9.5px] text-neutral-400 dark:text-neutral-500 flex-shrink-0">
                 {['周日', '周一', '周二', '周三', '周四', '周五', '周六'][selectedDayInfo.date.getDay()]}
               </span>
             </div>

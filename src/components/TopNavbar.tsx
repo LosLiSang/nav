@@ -175,16 +175,13 @@ export function TopNavbar({
 
               {/* Current weather summary banner */}
               {weatherInfo && (
-                <div className="mt-2 flex items-center justify-between rounded-xl bg-orange-50/60 dark:bg-orange-950/20 px-2.5 py-1.5 border border-orange-100 dark:border-orange-900/30 text-[11px]">
+                <div className="mt-2 flex items-center rounded-xl bg-orange-50/60 dark:bg-orange-950/20 px-2.5 py-1.5 border border-orange-100 dark:border-orange-900/30 text-[11px]">
                   <div className="flex items-center gap-1.5 font-medium text-neutral-800 dark:text-neutral-200">
                     {renderWeatherIcon(weatherInfo.icon)}
                     <span>{city}</span>
                     <span>{weatherInfo.weather}</span>
                     <span className="font-mono font-bold text-orange-600 dark:text-orange-400">{weatherInfo.temp}</span>
                   </div>
-                  <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
-                    {weatherInfo.source}
-                  </span>
                 </div>
               )}
 

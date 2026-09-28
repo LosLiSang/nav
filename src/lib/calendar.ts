@@ -240,12 +240,15 @@ export function getMonthCalendarGrid(viewYear: number, viewMonth: number, select
   const rawFirstDayOfWeek = firstDayOfMonth.getDay()
   // 周一作为 0 偏移，周日作为 6 偏移
   const offset = (rawFirstDayOfWeek + 6) % 7
+  const daysInCurrentMonth = new Date(viewYear, viewMonth + 1, 0).getDate()
+  const totalDays = offset + daysInCurrentMonth
+  // 5 行覆盖 35 天，极少数跨 6 行时才使用 42 天，保持紧凑精致
+  const totalCells = totalDays > 35 ? 42 : 35
 
   const startDate = new Date(viewYear, viewMonth, 1 - offset)
   const grid: CalendarDayInfo[] = []
 
-  // 固定生成 42 天（6 行 7 列），保证月份切换时卡片高度稳定如一
-  for (let i = 0; i < 42; i++) {
+  for (let i = 0; i < totalCells; i++) {
     const currentDate = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + i)
     grid.push(getCalendarDayInfo(currentDate, viewYear, viewMonth, selectedDate))
   }
