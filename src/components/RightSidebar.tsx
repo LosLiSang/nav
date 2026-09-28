@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
  import {
    Check,
   CheckCircle2,
@@ -72,6 +72,35 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
   const [prevContent, setPrevContent] = useState(scratchpadContent)
    const [copied, setCopied] = useState(false)
    const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+
+   const adjustTextareaHeight = useCallback(() => {
+     const el = textareaRef.current
+     if (!el) return
+     const scrollParent = el.closest('.overflow-y-auto') as HTMLElement | null
+     const prevScrollTop = scrollParent ? scrollParent.scrollTop : 0
+     const isAtBottom = scrollParent
+       ? Math.abs(scrollParent.scrollHeight - scrollParent.clientHeight - scrollParent.scrollTop) < 30
+       : false
+
+     el.style.height = 'auto'
+     const newHeight = Math.max(140, el.scrollHeight + 4)
+     el.style.height = `${newHeight}px`
+
+     if (scrollParent) {
+       if (isAtBottom) {
+         scrollParent.scrollTop = scrollParent.scrollHeight
+       } else {
+         scrollParent.scrollTop = prevScrollTop
+       }
+     }
+   }, [])
+
+   useLayoutEffect(() => {
+     if (activeTab === 'scratchpad') {
+       adjustTextareaHeight()
+     }
+   }, [text, activeTab, adjustTextareaHeight])
  
   if (scratchpadContent !== prevContent) {
     setPrevContent(scratchpadContent)
@@ -80,6 +109,7 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
  
    function handleTextChange(val: string) {
      setText(val)
+     adjustTextareaHeight()
      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
      saveTimerRef.current = setTimeout(() => {
        void onSaveScratchpad(val)
@@ -103,6 +133,13 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
  
    const charCount = text.length
    const lineCount = text ? text.split('\n').length : 0
+
+   useEffect(() => {
+     if (activeTab !== 'scratchpad') return
+     const handleResize = () => adjustTextareaHeight()
+     window.addEventListener('resize', handleResize)
+     return () => window.removeEventListener('resize', handleResize)
+   }, [activeTab, adjustTextareaHeight])
  
   // ----------------- 2. Todo / Memo (便签待办) -----------------
   const [todoInput, setTodoInput] = useState('')
@@ -365,14 +402,20 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
        <div className="flex-1 overflow-y-auto p-3.5">
          {/* ================= Tab 1: Scratchpad ================= */}
          {activeTab === 'scratchpad' && (
-          <div className="flex flex-col">
+          <div className="flex flex-col cursor-text" onClick={() => textareaRef.current?.focus()}>
              <textarea
-              rows={7}
+              ref={textareaRef}
+              rows={6}
                value={text}
                onChange={(e) => handleTextChange(e.target.value)}
                placeholder="随手粘贴临时代码、调试命令、JSON、网址或思路... 本地即写即存。"
-              className="w-full min-h-[140px] max-h-[420px] resize-none bg-transparent text-[13px] leading-relaxed text-neutral-800 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 outline-none font-mono"
+              className="scratchpad-textarea w-full min-h-[140px] resize-none !overflow-hidden bg-transparent text-[13px] leading-relaxed text-neutral-800 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 outline-none font-mono"
                spellCheck={false}
+              style={{
+                fieldSizing: 'content',
+                overflow: 'hidden',
+                scrollbarWidth: 'none',
+              } as React.CSSProperties}
              />
            </div>
          )}
