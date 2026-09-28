@@ -26,7 +26,7 @@ import { MainCategoryCard } from './components/MainCategoryCard'
 import { ProfileModal } from './components/ProfileModal'
 import { RightSidebar } from './components/RightSidebar'
 import { SearchBar, type SearchBarHandle } from './components/SearchBar'
-import { SettingsPanel } from './components/SettingsPanel'
+import { SettingsPanel, type TabType } from './components/SettingsPanel'
 import { getSubIcon } from './components/SubCategorySection'
 import { TopNavbar } from './components/TopNavbar'
 
@@ -146,6 +146,7 @@ export default function App() {
   const searchBarRef = useRef<SearchBarHandle>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settingsTab, setSettingsTab] = useState<TabType>('appearance')
   const [profileOpen, setProfileOpen] = useState(false)
   const [bookmarkStyleOpen, setBookmarkStyleOpen] = useState(false)
   const [editingBookmark, setEditingBookmark] = useState<Bookmark | null>(null)
@@ -353,8 +354,12 @@ export default function App() {
         <TopNavbar
           avatarUrl={settings.avatarUrl}
           city={settings.weatherCity || '杭州'}
+          settings={settings}
           onUpdateCity={(city) => void updateSettings({ weatherCity: city })}
-          onOpenSettings={() => setSettingsOpen(true)}
+          onOpenSettings={(tab) => {
+            if (tab) setSettingsTab(tab)
+            setSettingsOpen(true)
+          }}
           onOpenProfile={() => setProfileOpen(true)}
         />
 
@@ -602,7 +607,11 @@ export default function App() {
         {settingsOpen && (
           <SettingsPanel
             settings={settings}
-            onClose={() => setSettingsOpen(false)}
+              initialTab={settingsTab}
+              onClose={() => {
+                setSettingsOpen(false)
+                setSettingsTab('appearance')
+              }}
             onChange={updateSettings}
             onClearIconCache={refreshAllIcons}
             sync={{

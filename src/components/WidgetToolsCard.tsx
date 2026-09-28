@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import QRCode from 'qrcode'
 import {
   Check,
@@ -9,6 +9,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { generateTotp } from '../lib/totp'
+import { getCalendarDayInfo, getMonthCalendarGrid } from '../lib/calendar'
 import type {
   Settings,
   TotpItem,
@@ -58,6 +59,37 @@ export function WidgetToolsCard({
   const [devToolTab, setDevToolTab] = useState<'base64' | 'url' | 'timestamp' | 'uuid'>('base64')
   const [devInput, setDevInput] = useState('')
   const [devOutput, setDevOutput] = useState('')
+
+  const [viewDate, setViewDate] = useState(() => new Date())
+  const [selectedDate, setSelectedDate] = useState<Date | null>(() => new Date())
+
+  const viewYear = viewDate.getFullYear()
+  const viewMonth = viewDate.getMonth()
+  const [today] = useState(() => new Date())
+  const calendarGrid = useMemo(
+    () => getMonthCalendarGrid(viewYear, viewMonth, selectedDate),
+    [viewYear, viewMonth, selectedDate]
+  )
+
+  const isViewingCurrentMonth =
+    viewYear === today.getFullYear() && viewMonth === today.getMonth()
+
+  const selectedDayInfo = useMemo(() => {
+    const target = selectedDate || today
+    return getCalendarDayInfo(target, target.getFullYear(), target.getMonth(), target)
+  }, [selectedDate, today])
+
+  function handlePrevMonth() {
+    setViewDate(new Date(viewYear, viewMonth - 1, 1))
+  }
+  function handleNextMonth() {
+    setViewDate(new Date(viewYear, viewMonth + 1, 1))
+  }
+  function handleGoToday() {
+    const now = new Date()
+    setViewDate(now)
+    setSelectedDate(now)
+  }
 
   useEffect(() => {
     if (settings.activeWidgetTab !== 'totp' || totpAccounts.length === 0) return
@@ -216,15 +248,42 @@ export function WidgetToolsCard({
         {(settings.activeWidgetTab === 'calendar' || settings.activeWidgetTab === 'memo') && (
           <div className="p-3.5 text-xs">
             <div className="flex items-center justify-between pb-2">
-              <button type="button" className="text-neutral-400 hover:text-neutral-700">
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-              <span className="font-semibold text-neutral-800 dark:text-neutral-200 text-sm">
-                {new Date().getFullYear()}年 {String(new Date().getMonth() + 1).padStart(2, '0')}月
-              </span>
-              <button type="button" className="text-neutral-400 hover:text-neutral-700">
-                <ChevronRight className="h-4 w-4" />
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={handlePrevMonth}
+                  className="rounded p-1 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200 transition"
+                  title="上一月"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <span className="font-semibold text-neutral-800 dark:text-neutral-200 text-sm">
+                  {viewYear}年 {String(viewMonth + 1).padStart(2, '0')}月
+                </span>
+                <button
+                  type="button"
+                  onClick={handleNextMonth}
+                  className="rounded p-1 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200 transition"
+                  title="下一月"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-neutral-400 dark:text-neutral-500 font-normal">
+                  {selectedDayInfo.lunarYearName}{selectedDayInfo.lunarZodiac ? `${selectedDayInfo.lunarZodiac}年` : ''}
+                </span>
+                {!isViewingCurrentMonth && (
+                  <button
+                    type="button"
+                    onClick={handleGoToday}
+                    style={{ color: accentColor }}
+                    className="text-[11px] font-medium hover:underline"
+                  >
+                    回今天
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="grid grid-cols-7 gap-1 text-center font-medium text-neutral-400 py-1 border-y border-neutral-100 dark:border-neutral-800">
@@ -238,32 +297,86 @@ export function WidgetToolsCard({
             </div>
 
             <div className="mt-2 grid grid-cols-7 gap-1 text-center">
-              {Array.from({ length: 31 }).map((_, i) => {
-                const day = i + 1
-                const isToday = day === new Date().getDate()
+              {calendarGrid.map((dayInfo, idx) => {
+                const isToday = dayInfo.isToday
+                const isSelected = dayInfo.isSelected && !isToday
+                const isHoliday = dayInfo.isHoliday
+
+                let bgClass = 'hover:bg-neutral-100 dark:hover:bg-neutral-800/80 text-neutral-700 dark:text-neutral-300'
+                let customStyle: React.CSSProperties | undefined = undefined
+
+                if (isToday) {
+                  bgClass = 'font-bold text-white shadow-sm ring-1 ring-white/20'
+                  customStyle = { backgroundColor: accentColor }
+                } else if (isSelected) {
+                  bgClass = 'font-semibold'
+                  customStyle = {
+                    backgroundColor: `${accentColor}18`,
+                    color: accentColor,
+                    outline: `1.5px solid ${accentColor}88`,
+                  }
+                } else if (!dayInfo.isCurrentMonth) {
+                  bgClass = 'opacity-30 hover:opacity-75 text-neutral-400 dark:text-neutral-500'
+                }
+
                 return (
-                  <div
-                    key={day}
-                    style={{
-                      backgroundColor: isToday ? accentColor : undefined,
+                  <button
+                    key={`${dayInfo.year}-${dayInfo.month}-${dayInfo.day}-${idx}`}
+                    type="button"
+                    onClick={() => {
+                      setSelectedDate(dayInfo.date)
+                      if (!dayInfo.isCurrentMonth) {
+                        setViewDate(new Date(dayInfo.year, dayInfo.month - 1, 1))
+                      }
                     }}
-                    className={`flex flex-col items-center justify-center rounded-lg py-1.5 transition ${
-                      isToday
-                        ? 'font-bold text-white shadow-sm'
-                        : 'hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300'
-                    }`}
+                    title={dayInfo.tooltip}
+                    style={customStyle}
+                    className={`flex flex-col items-center justify-center rounded-lg py-1.5 transition cursor-pointer select-none ${bgClass}`}
                   >
-                    <span className="text-xs leading-none">{day}</span>
+                    <span className="text-xs leading-none font-medium">{dayInfo.day}</span>
                     <span
-                      className={`text-[8px] leading-none mt-0.5 scale-90 ${
-                        isToday ? 'text-white/80' : 'text-neutral-400'
+                      style={{
+                        color: isToday
+                          ? 'rgba(255,255,255,0.85)'
+                          : isHoliday && dayInfo.isCurrentMonth
+                            ? accentColor
+                            : undefined,
+                      }}
+                      className={`text-[8px] leading-none mt-0.5 scale-90 truncate max-w-[95%] ${
+                        isToday
+                          ? 'text-white/85 font-medium'
+                          : isHoliday && dayInfo.isCurrentMonth
+                            ? 'font-semibold'
+                            : 'text-neutral-400 dark:text-neutral-500'
                       }`}
                     >
-                      {day % 5 === 0 ? '休' : '初' + ((day % 10) + 1)}
+                      {dayInfo.subText}
                     </span>
-                  </div>
+                  </button>
                 )
               })}
+            </div>
+
+            {/* Bottom info strip for selected date */}
+            <div className="mt-2.5 flex items-center justify-between border-t border-neutral-100 dark:border-neutral-800/80 pt-2 px-1 text-[11px] text-neutral-500 dark:text-neutral-400">
+              <div className="flex items-center gap-1.5 truncate">
+                <span className="font-semibold text-neutral-800 dark:text-neutral-200">
+                  {selectedDayInfo.month}月{selectedDayInfo.day}日
+                </span>
+                <span>·</span>
+                <span>农历{selectedDayInfo.lunarMonthName}{selectedDayInfo.lunarDayName}</span>
+                {selectedDayInfo.holiday && (
+                  <span
+                    style={{ backgroundColor: `${accentColor}18`, color: accentColor }}
+                    className="rounded px-1.5 py-0.5 text-[10px] font-semibold"
+                  >
+                    {selectedDayInfo.holiday}
+                  </span>
+                )}
+              </div>
+              <span className="text-[10px] text-neutral-400 dark:text-neutral-500 flex-shrink-0">
+                {['周日', '周一', '周二', '周三', '周四', '周五', '周六'][selectedDayInfo.date.getDay()]}
+              </span>
             </div>
           </div>
         )}

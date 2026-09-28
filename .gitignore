@@ -32,3 +32,4 @@ worker/.dev.vars
 
 # Local artifacts
 .codex-remote-attachments
+artifacts/
