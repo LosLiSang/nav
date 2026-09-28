@@ -1,5 +1,17 @@
 # nav
 
+<p align="left">
+  <a href="https://github.com/LosLiSang/nav/releases"><img src="https://img.shields.io/github/v/release/LosLiSang/nav?color=3b82f6&label=release" alt="Release"></a>
+  <a href="https://github.com/LosLiSang/nav/actions/workflows/deploy.yml"><img src="https://img.shields.io/github/actions/workflow/status/LosLiSang/nav/deploy.yml?branch=main&label=deploy" alt="Deploy"></a>
+  <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black" alt="React 19">
+  <img src="https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white" alt="TypeScript">
+  <img src="https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white" alt="Vite">
+  <img src="https://img.shields.io/badge/Tailwind_CSS-v4-06B6D4?logo=tailwindcss&logoColor=white" alt="Tailwind CSS">
+  <img src="https://img.shields.io/badge/Cloudflare-Workers%20%2B%20D1-F38020?logo=cloudflare&logoColor=white" alt="Cloudflare Workers">
+  <img src="https://img.shields.io/badge/Local--First-IndexedDB-8B5CF6" alt="Local First">
+  <img src="https://img.shields.io/badge/license-MIT-10b981" alt="License">
+</p>
+
 本地优先（Local-First）、现代化个人专属浏览器起始页与生产力工作台。
 
 ---
@@ -194,38 +206,6 @@ Authorization: Bearer <SYNC_TOKEN>
   "force": false
 }
 ```
-
----
-
-## 📦 Release (发版说明与发版规范)
-
-### 语义化分支模型
-
-本项目遵循标准规范化的分支发布策略：
-
-- **`main` 分支**：生产稳定分支。每次向 `main` 合并时，GitHub Actions 会构建部署至正式线上环境。
-- **`dev` 分支**：日常功能开发与集成测试分支。推送到 `dev` 会自动发布至预览环境（`/dev/` 子路径），供即时测试。
-
-### 发版工作流
-
-1. 新功能开发、样式调优及 Bug 修复在 `dev` 分支完成并自测；
-2. 推送 `dev` 分支后，在 GitHub 上发起 Pull Request（`base: main` ← `compare: dev`）；
-3. 建议采用 **压缩合并 (Squash and Merge)** 将多条细碎迭代整理为一条清晰规范的 Commit 归入主线；
-4. 合并成功后，GitHub Pages 自动触发正式主站上线。
-
-### 版本演进亮点
-
-- **v2.2.0**：
-  - 增强右侧常驻工作台草稿板体验，支持随文字行数向下平滑自适应展开（Auto-grow），移除原 420px 封顶限制；
-  - 彻底封杀 `<textarea>` 原生内核在文本溢出计算时的双滚动条干扰，保持纯净单层滚动；
-  - 优化长文本编辑底端视口自动跟随逻辑。
-- **v2.1.0**：
-  - 新增「全局主题高亮焦点色」，统一搜索引擎指示灯、日历、待办进度、专注番茄钟焦点色调；
-  - 扩充预设各领域精品书签资源与多级二级分类。
-- **v2.0.0**：
-  - 架构重构为右侧常驻多功能工作台（草稿板、待办清单、番茄钟、倒数日）；
-  - 引入 Cloudflare D1 边缘单行文档快照存储与原子冲突判决机制；
-  - 全面支持 TOTP 动态安全验证码。
 
 ---
 
