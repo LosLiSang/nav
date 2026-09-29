@@ -1,11 +1,29 @@
 import { useEffect, useRef, useState } from 'react'
-import { Calendar, ChevronDown, MapPin, Settings, Sun, X } from 'lucide-react'
+import {
+  Calendar,
+  ChevronDown,
+  Cloud,
+  CloudFog,
+  CloudLightning,
+  CloudRain,
+  CloudSnow,
+  CloudSun,
+  MapPin,
+  RefreshCw,
+  Settings,
+  SlidersHorizontal,
+  Sun,
+  X,
+} from 'lucide-react'
+import type { Settings as SettingsType } from '../types'
+import { fetchWeather, type WeatherIconType, type WeatherInfo } from '../lib/weather'
 
 type Props = {
   avatarUrl?: string
   city?: string
+  settings?: SettingsType
   onUpdateCity?: (city: string) => void
-  onOpenSettings: () => void
+  onOpenSettings: (tab?: 'appearance' | 'weather' | 'sync') => void
   onOpenProfile: () => void
 }
 
@@ -14,6 +32,7 @@ const POPULAR_CITIES = ['杭州', '北京', '上海', '广州', '深圳', '成�
 export function TopNavbar({
   avatarUrl,
   city = '杭州',
+  settings,
   onUpdateCity,
   onOpenSettings,
   onOpenProfile,
@@ -21,7 +40,28 @@ export function TopNavbar({
   const [timeText, setTimeText] = useState('')
   const [showCityPicker, setShowCityPicker] = useState(false)
   const [customCityInput, setCustomCityInput] = useState('')
+  const [weatherInfo, setWeatherInfo] = useState<WeatherInfo | null>(null)
+  const [loadingWeather, setLoadingWeather] = useState(false)
+  const [weatherError, setWeatherError] = useState<string | null>(null)
   const cityPickerRef = useRef<HTMLDivElement>(null)
+
+  const loadWeather = async (force = false) => {
+    setLoadingWeather(true)
+    try {
+      const info = await fetchWeather(city, settings || {}, { forceRefresh: force })
+      setWeatherInfo(info)
+      setWeatherError(null)
+    } catch (err: any) {
+      console.warn('天气获取失败:', err)
+      setWeatherError(err.message || '获取失败')
+    } finally {
+      setLoadingWeather(false)
+    }
+  }
+
+  useEffect(() => {
+    void loadWeather(false)
+  }, [city, settings?.weatherProvider, settings?.weatherApiKey, settings?.weatherCustomUrl, settings?.weatherAutoRefreshMinutes])
 
   useEffect(() => {
     function updateTime() {
@@ -49,6 +89,26 @@ export function TopNavbar({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
+  const renderWeatherIcon = (icon?: WeatherIconType) => {
+    switch (icon) {
+      case 'cloud-sun':
+        return <CloudSun className="h-3.5 w-3.5 text-amber-500 ml-0.5" />
+      case 'cloud':
+        return <Cloud className="h-3.5 w-3.5 text-sky-400 ml-0.5" />
+      case 'rain':
+        return <CloudRain className="h-3.5 w-3.5 text-blue-400 ml-0.5" />
+      case 'lightning':
+        return <CloudLightning className="h-3.5 w-3.5 text-amber-400 ml-0.5" />
+      case 'snow':
+        return <CloudSnow className="h-3.5 w-3.5 text-cyan-300 ml-0.5" />
+      case 'fog':
+        return <CloudFog className="h-3.5 w-3.5 text-neutral-400 ml-0.5" />
+      case 'sun':
+      default:
+        return <Sun className="h-3.5 w-3.5 text-amber-500 ml-0.5" />
+    }
+  }
+
   return (
     <header className="sticky top-0 z-40 flex h-11 w-full items-center justify-between border-b border-black/5 dark:border-white/10 bg-white/95 dark:bg-[#18181b]/90 px-4 text-[13px] shadow-[0_1px_3px_rgba(0,0,0,0.04)] backdrop-blur-md">
       {/* Left: Date | Weather | City (Always visible) */}
@@ -65,13 +125,23 @@ export function TopNavbar({
           <button
             type="button"
             onClick={() => setShowCityPicker((prev) => !prev)}
-            className="flex items-center gap-1 rounded-lg px-1.5 py-0.5 transition hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-200 font-medium"
-            title="点击切换城市"
+            className="flex items-center gap-1 rounded-lg px-1.5 py-0.5 transition hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-200 font-medium cursor-pointer"
+            title={`点击切换城市或刷新天气 (数据源: ${weatherInfo?.source || (loadingWeather ? '正在获取' : '未连接')})`}
           >
             <MapPin className="h-3 w-3 text-orange-500" />
             <span>{city}</span>
-            <Sun className="h-3.5 w-3.5 text-amber-500 ml-0.5" />
-            <span className="text-neutral-600 dark:text-neutral-400 font-normal">晴 25°C</span>
+            {renderWeatherIcon(weatherInfo?.icon)}
+            <span className="text-neutral-600 dark:text-neutral-400 font-normal">
+              {weatherInfo ? (
+                `${weatherInfo.weather} ${weatherInfo.temp}`
+              ) : loadingWeather ? (
+                <span className="text-neutral-400 animate-pulse">加载中...</span>
+              ) : weatherError ? (
+                <span className="text-neutral-400" title={weatherError}>待更新</span>
+              ) : (
+                '天气'
+              )}
+            </span>
             <ChevronDown className="h-3 w-3 text-neutral-400" />
           </button>
 
@@ -79,15 +149,41 @@ export function TopNavbar({
           {showCityPicker && (
             <div className="absolute left-0 top-7 z-50 w-64 rounded-2xl border border-neutral-100 dark:border-neutral-800 bg-white dark:bg-[#18181b] p-3.5 text-xs shadow-2xl backdrop-blur-md animate-in fade-in zoom-in-95 duration-100">
               <div className="flex items-center justify-between pb-2 border-b border-neutral-100 dark:border-neutral-800 font-medium text-neutral-800 dark:text-neutral-200">
-                <span>切换城市天气</span>
-                <button
-                  type="button"
-                  onClick={() => setShowCityPicker(false)}
-                  className="text-neutral-400 dark:text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-200"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
+                <span className="flex items-center gap-1.5">
+                  <MapPin className="h-3.5 w-3.5 text-orange-500" />
+                  <span>切换城市与天气</span>
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    title="立即刷新天气"
+                    disabled={loadingWeather}
+                    onClick={() => void loadWeather(true)}
+                    className="p-1 rounded text-neutral-400 dark:text-neutral-500 hover:text-orange-500 dark:hover:text-orange-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition cursor-pointer"
+                  >
+                    <RefreshCw className={`h-3 w-3 ${loadingWeather ? 'animate-spin text-orange-500' : ''}`} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowCityPicker(false)}
+                    className="p-1 rounded text-neutral-400 dark:text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition cursor-pointer"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               </div>
+
+              {/* Current weather summary banner */}
+              {weatherInfo && (
+                <div className="mt-2 flex items-center rounded-xl bg-orange-50/60 dark:bg-orange-950/20 px-2.5 py-1.5 border border-orange-100 dark:border-orange-900/30 text-[11px]">
+                  <div className="flex items-center gap-1.5 font-medium text-neutral-800 dark:text-neutral-200">
+                    {renderWeatherIcon(weatherInfo.icon)}
+                    <span>{city}</span>
+                    <span>{weatherInfo.weather}</span>
+                    <span className="font-mono font-bold text-orange-600 dark:text-orange-400">{weatherInfo.temp}</span>
+                  </div>
+                </div>
+              )}
 
               <div className="mt-2.5">
                 <span className="text-[11px] text-neutral-400 block mb-1.5">热门城市：</span>
@@ -135,6 +231,20 @@ export function TopNavbar({
                   </button>
                 </div>
               </div>
+
+              <div className="mt-2.5 pt-2 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCityPicker(false)
+                    onOpenSettings('weather')
+                  }}
+                  className="flex items-center gap-1 text-[11px] text-orange-600 dark:text-orange-400 hover:underline cursor-pointer"
+                >
+                  <SlidersHorizontal className="h-3 w-3" />
+                  <span>配置自定义天气 API</span>
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -144,7 +254,7 @@ export function TopNavbar({
       <div className="flex items-center gap-2">
         <button
           type="button"
-          onClick={onOpenSettings}
+          onClick={() => onOpenSettings()}
           className="flex items-center gap-1 rounded border border-neutral-200/90 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-2.5 py-1 text-xs text-neutral-700 dark:text-neutral-200 shadow-sm transition hover:bg-neutral-50 dark:hover:bg-neutral-700"
           title="全局界面与壁纸设置"
         >

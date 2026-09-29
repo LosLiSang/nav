@@ -1,11 +1,16 @@
 import { createPortal } from 'react-dom'
 import { useState } from 'react'
 import {
+  AlertCircle,
   Check,
+  CheckCircle2,
   Cloud,
   CloudOff,
+  CloudSun,
   Download,
+  ExternalLink,
   Image as ImageIcon,
+  Loader2,
   Palette,
   RefreshCw,
   Sliders,
@@ -16,7 +21,8 @@ import { WALLPAPER_PRESETS } from '../lib/defaults'
 import { DEFAULT_SYNC_URL, generateSyncToken, normalizeSyncUrl } from '../lib/sync'
 import type { SyncConfig } from '../lib/sync'
 import type { SyncStatus } from '../store/useNavStore'
-import type { CornerRadius, FallbackIconMode, Settings } from '../types'
+import type { CornerRadius, FallbackIconMode, Settings, WeatherProvider } from '../types'
+import { testWeatherConfig, type WeatherInfo } from '../lib/weather'
 import { IconPickerModal } from './IconPickerModal'
 
 type SyncProps = {
@@ -37,13 +43,14 @@ type SyncProps = {
 
 type Props = {
   settings: Settings
+  initialTab?: TabType
   onClose: () => void
   onChange: (values: Partial<Settings>) => void
   sync: SyncProps
   onClearIconCache?: () => Promise<void>
 }
 
-type TabType = 'appearance' | 'sync'
+export type TabType = 'appearance' | 'weather' | 'sync'
 
 const STATUS_STYLE: Record<SyncStatus, { label: string; className: string }> = {
   off: { label: '未开启', className: 'bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400' },
@@ -61,13 +68,16 @@ function formatTime(ts: number): string {
   return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
 }
 
-export function SettingsPanel({ settings, onClose, onChange, sync, onClearIconCache }: Props) {
-  const [activeTab, setActiveTab] = useState<TabType>('appearance')
+export function SettingsPanel({ settings, initialTab, onClose, onChange, sync, onClearIconCache }: Props) {
+  const [activeTab, setActiveTab] = useState<TabType>(initialTab || 'appearance')
   const [showFallbackIconPicker, setShowFallbackIconPicker] = useState(false)
   const [customUrl, setCustomUrl] = useState(settings.wallpaperUrl)
   const [syncUrl, setSyncUrl] = useState(sync.config?.url ?? DEFAULT_SYNC_URL)
   const [syncToken, setSyncToken] = useState(sync.config?.token ?? '')
   const [cacheCleared, setCacheCleared] = useState(false)
+  const [testCity, setTestCity] = useState(settings.weatherCity || '广州')
+  const [testingWeather, setTestingWeather] = useState(false)
+  const [testResult, setTestResult] = useState<{ success: boolean; data?: WeatherInfo; error?: string } | null>(null)
 
   const statusStyle = STATUS_STYLE[sync.status]
   const maskedToken = sync.config
@@ -110,6 +120,18 @@ export function SettingsPanel({ settings, onClose, onChange, sync, onClearIconCa
             >
               <Palette className="h-4 w-4 text-orange-500" />
               界面与壁纸
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('weather')}
+              className={`flex flex-1 items-center justify-center gap-2 rounded-lg py-2 font-medium transition ${
+                activeTab === 'weather'
+                  ? 'bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 shadow-sm'
+                  : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200'
+              }`}
+            >
+              <CloudSun className="h-4 w-4 text-amber-500" />
+              天气服务
             </button>
             <button
               type="button"
@@ -446,6 +468,348 @@ export function SettingsPanel({ settings, onClose, onChange, sync, onClearIconCa
                 )}
               </div>
             </>
+          ) : activeTab === 'weather' ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <CloudSun className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+                  <label className="font-semibold text-neutral-900 dark:text-neutral-100">
+                    顶栏天气服务与 API 配置
+                  </label>
+                </div>
+                <span className="rounded-full bg-orange-50 dark:bg-orange-950/40 px-2.5 py-0.5 text-[10px] font-medium text-orange-600 dark:text-orange-400">
+                  {settings.weatherProvider === 'amap'
+                    ? '高德开放平台'
+                    : settings.weatherProvider === 'qweather'
+                    ? '和风天气'
+                    : settings.weatherProvider === 'wttr'
+                    ? 'wttr.in'
+                    : settings.weatherProvider === 'custom'
+                    ? '自定义接口'
+                    : 'Open-Meteo (免Key)'}
+                </span>
+              </div>
+
+              <div className="rounded-xl bg-neutral-50 dark:bg-neutral-800/60 p-3.5 border border-neutral-200/80 dark:border-neutral-700/80">
+                <p className="leading-relaxed text-neutral-500 dark:text-neutral-400 text-[11px]">
+                  导航页顶栏实时展示城市气温与天气状况。系统提供开箱即用的免 Key 公共气象接口，同时也支持接入国内主流的高德、和风天气，或配置私有自定义的天气 API 接口。
+                </p>
+              </div>
+
+              {/* Weather Provider Selection */}
+              <div>
+                <label className="block font-medium text-neutral-800 dark:text-neutral-200 mb-2">
+                  选择天气数据源类型
+                </label>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {[
+                    { id: 'open-meteo', name: 'Open-Meteo', desc: '免Key · 全球与国内' },
+                    { id: 'amap', name: '高德开放平台', desc: '国内稳定 · 需 Web Key' },
+                    { id: 'qweather', name: '和风天气', desc: '中文气象 · 需 API Key' },
+                    { id: 'wttr', name: 'wttr.in', desc: '轻量极简 · 免 Key' },
+                    { id: 'custom', name: '自定义 API', desc: 'REST 模板与 JSON 解析' },
+                  ].map((p) => {
+                    const isSelected = (settings.weatherProvider || 'open-meteo') === p.id
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => onChange({ weatherProvider: p.id as WeatherProvider })}
+                        className={`flex flex-col items-start rounded-xl border p-2.5 text-left transition ${
+                          isSelected
+                            ? 'border-orange-500 bg-orange-50/60 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400 ring-1 ring-orange-500 font-semibold'
+                            : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800'
+                        }`}
+                      >
+                        <span className="text-xs font-medium">{p.name}</span>
+                        <span className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5">
+                          {p.desc}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Provider-specific settings */}
+              {settings.weatherProvider === 'amap' && (
+                <div className="space-y-2.5 rounded-xl border border-neutral-200 dark:border-neutral-700 p-3 bg-neutral-50/50 dark:bg-neutral-800/40">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-[11px] font-medium text-neutral-700 dark:text-neutral-300">
+                      高德 Web 服务 Key
+                    </label>
+                    <a
+                      href="https://lbs.amap.com/api/webservice/guide/api/weatherinfo"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-[10px] text-orange-600 dark:text-orange-400 hover:underline"
+                    >
+                      申请高德 Web Key
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </div>
+                  <input
+                    type="password"
+                    value={settings.weatherApiKey || ''}
+                    onChange={(e) => onChange({ weatherApiKey: e.target.value })}
+                    placeholder="填入高德控制台申请的 Web 服务 Key"
+                    className="w-full rounded-xl border border-neutral-200 dark:border-neutral-700 px-3 py-2 text-xs outline-none focus:border-orange-500 bg-transparent"
+                  />
+                  <p className="text-[10px] text-neutral-400 dark:text-neutral-500">
+                    在高德开放平台「应用管理」中创建应用并添加 Key，服务类型务必选择「Web 服务」。
+                  </p>
+                </div>
+              )}
+
+              {settings.weatherProvider === 'qweather' && (
+                <div className="space-y-2.5 rounded-xl border border-neutral-200 dark:border-neutral-700 p-3 bg-neutral-50/50 dark:bg-neutral-800/40">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-[11px] font-medium text-neutral-700 dark:text-neutral-300">
+                      和风天气 API Key
+                    </label>
+                    <a
+                      href="https://dev.qweather.com/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-[10px] text-orange-600 dark:text-orange-400 hover:underline"
+                    >
+                      前往和风控制台
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </div>
+                  <input
+                    type="password"
+                    value={settings.weatherApiKey || ''}
+                    onChange={(e) => onChange({ weatherApiKey: e.target.value })}
+                    placeholder="填入和风天气 Web API Key"
+                    className="w-full rounded-xl border border-neutral-200 dark:border-neutral-700 px-3 py-2 text-xs outline-none focus:border-orange-500 bg-transparent"
+                  />
+                  <p className="text-[10px] text-neutral-400 dark:text-neutral-500">
+                    支持和风天气开发版或商业版 API，自动通过城市名称解析地点并查询实时天气。
+                  </p>
+                </div>
+              )}
+
+              {settings.weatherProvider === 'custom' && (
+                <div className="space-y-3 rounded-xl border border-neutral-200 dark:border-neutral-700 p-3.5 bg-neutral-50/50 dark:bg-neutral-800/40">
+                  <div>
+                    <label className="block text-[11px] font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                      自定义接口请求 URL (GET)
+                    </label>
+                    <input
+                      value={settings.weatherCustomUrl || ''}
+                      onChange={(e) => onChange({ weatherCustomUrl: e.target.value })}
+                      placeholder="https://api.example.com/weather?city={city}&key={key}"
+                      className="w-full rounded-xl border border-neutral-200 dark:border-neutral-700 px-3 py-2 text-xs outline-none focus:border-orange-500 bg-transparent font-mono text-[11px]"
+                    />
+                    <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">
+                      支持变量占位符：<code className="text-orange-600 dark:text-orange-400 font-mono">{'{city}'}</code>（自动替换为当前城市名，已转义）、<code className="text-orange-600 dark:text-orange-400 font-mono">{'{key}'}</code>（自动替换为下方密钥）。
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                      接口鉴权密钥 (可选)
+                    </label>
+                    <input
+                      type="password"
+                      value={settings.weatherApiKey || ''}
+                      onChange={(e) => onChange({ weatherApiKey: e.target.value })}
+                      placeholder="如果接口 URL 中包含 {key} 或需要密钥鉴权"
+                      className="w-full rounded-xl border border-neutral-200 dark:border-neutral-700 px-3 py-2 text-xs outline-none focus:border-orange-500 bg-transparent"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <div>
+                      <label className="block text-[11px] font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                        天气字段路径 (可选)
+                      </label>
+                      <input
+                        value={settings.weatherCustomFieldPath || ''}
+                        onChange={(e) => onChange({ weatherCustomFieldPath: e.target.value })}
+                        placeholder="如 data.weather 或 now.text"
+                        className="w-full rounded-xl border border-neutral-200 dark:border-neutral-700 px-3 py-1.5 text-xs outline-none focus:border-orange-500 bg-transparent font-mono text-[11px]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                        温度字段路径 (可选)
+                      </label>
+                      <input
+                        value={settings.weatherCustomTempPath || ''}
+                        onChange={(e) => onChange({ weatherCustomTempPath: e.target.value })}
+                        placeholder="如 data.temp 或 now.temp"
+                        className="w-full rounded-xl border border-neutral-200 dark:border-neutral-700 px-3 py-1.5 text-xs outline-none focus:border-orange-500 bg-transparent font-mono text-[11px]"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-neutral-400 dark:text-neutral-500">
+                    提示：留空时系统会自动智能探测常见 JSON 格式；若返回纯文本（如 "多云 26°C"）也能自动解析。
+                  </p>
+                </div>
+              )}
+
+              {(settings.weatherProvider === 'open-meteo' || !settings.weatherProvider) && (
+                <div className="rounded-xl border border-emerald-200/80 dark:border-emerald-900/60 bg-emerald-50/50 dark:bg-emerald-950/20 p-3">
+                  <p className="text-[11px] text-emerald-800 dark:text-emerald-300 leading-relaxed">
+                    ✓ Open-Meteo 为非商业用途开放，无需注册任何 API Key 即可实时查询全球与国内城市的真实气温和天气代码。
+                  </p>
+                </div>
+              )}
+
+              {settings.weatherProvider === 'wttr' && (
+                <div className="rounded-xl border border-blue-200/80 dark:border-blue-900/60 bg-blue-50/50 dark:bg-blue-950/20 p-3">
+                  <p className="text-[11px] text-blue-800 dark:text-blue-300 leading-relaxed">
+                    ✓ wttr.in 免费免 Key，支持直接返回当前城市基础天气与温度。
+                  </p>
+                </div>
+              )}
+
+              {/* Common Configuration: City & Refresh Interval */}
+              <div className="space-y-3 pt-2 border-t border-neutral-100 dark:border-neutral-800">
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-[11px] font-medium text-neutral-700 dark:text-neutral-300">
+                      默认查询城市
+                    </label>
+                    <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
+                      顶栏可随时点击快速切换
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      value={settings.weatherCity || '广州'}
+                      onChange={(e) => {
+                        onChange({ weatherCity: e.target.value })
+                        setTestCity(e.target.value)
+                      }}
+                      placeholder="输入城市中文名，如 广州、杭州、北京"
+                      className="min-w-0 flex-1 rounded-xl border border-neutral-200 dark:border-neutral-700 px-3 py-2 text-xs outline-none focus:border-orange-500 bg-transparent"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">
+                    数据缓存与自动刷新频率
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { minutes: 15, label: '15 分钟', desc: '适中' },
+                      { minutes: 30, label: '30 分钟 (推荐)', desc: '省额度' },
+                      { minutes: 60, label: '60 分钟', desc: '低频' },
+                    ].map((item) => {
+                      const isSelected = (settings.weatherAutoRefreshMinutes ?? 30) === item.minutes
+                      return (
+                        <button
+                          key={item.minutes}
+                          type="button"
+                          onClick={() => onChange({ weatherAutoRefreshMinutes: item.minutes })}
+                          className={`flex flex-col items-center justify-center rounded-xl border py-2 text-xs transition ${
+                            isSelected
+                              ? 'border-orange-500 bg-orange-50/60 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400 ring-1 ring-orange-500 font-semibold'
+                              : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800'
+                          }`}
+                        >
+                          <span>{item.label}</span>
+                          <span className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5">{item.desc}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Test Connection Card */}
+              <div className="space-y-3 pt-3 border-t border-neutral-100 dark:border-neutral-800">
+                <div className="flex items-center justify-between">
+                  <label className="block text-[11px] font-semibold text-neutral-800 dark:text-neutral-200">
+                    连通性测试与数据预览
+                  </label>
+                  <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
+                    测试填写的 API 是否有效
+                  </span>
+                </div>
+
+                <div className="flex gap-2">
+                  <input
+                    value={testCity}
+                    onChange={(e) => setTestCity(e.target.value)}
+                    placeholder="测试城市 (默认当前城市)"
+                    className="min-w-0 flex-1 rounded-xl border border-neutral-200 dark:border-neutral-700 px-3 py-2 text-xs outline-none focus:border-orange-500 bg-transparent"
+                  />
+                  <button
+                    type="button"
+                    disabled={testingWeather}
+                    onClick={async () => {
+                      setTestingWeather(true)
+                      setTestResult(null)
+                      const res = await testWeatherConfig(settings, testCity || settings.weatherCity || '广州')
+                      setTestResult(res)
+                      setTestingWeather(false)
+                    }}
+                    className="flex items-center gap-1.5 rounded-xl bg-orange-500 px-4 py-2 text-xs font-medium text-white shadow-sm hover:bg-orange-600 disabled:opacity-50 transition cursor-pointer"
+                  >
+                    {testingWeather ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        <span>请求中...</span>
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="h-3.5 w-3.5" />
+                        <span>测试接口</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {testResult && (
+                  <div
+                    className={`rounded-xl border p-3 text-xs animate-in fade-in duration-150 ${
+                      testResult.success
+                        ? 'border-emerald-200 dark:border-emerald-900/60 bg-emerald-50/50 dark:bg-emerald-950/20 text-emerald-900 dark:text-emerald-200'
+                        : 'border-red-200 dark:border-red-900/60 bg-red-50/50 dark:bg-red-950/20 text-red-900 dark:text-red-200'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 font-medium">
+                      {testResult.success ? (
+                        <>
+                          <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                          <span>接口测试成功！</span>
+                        </>
+                      ) : (
+                        <>
+                          <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
+                          <span>请求失败</span>
+                        </>
+                      )}
+                    </div>
+                    {testResult.success && testResult.data ? (
+                      <div className="mt-2 flex items-center justify-between rounded-lg bg-white/80 dark:bg-neutral-900/80 p-2.5 border border-emerald-100 dark:border-emerald-900/40">
+                        <div className="flex items-center gap-2">
+                          <CloudSun className="h-4 w-4 text-amber-500" />
+                          <span className="font-semibold">{testResult.data.city}</span>
+                          <span className="text-neutral-500 dark:text-neutral-400">·</span>
+                          <span>{testResult.data.weather}</span>
+                          <span className="font-mono font-bold text-orange-600 dark:text-orange-400">
+                            {testResult.data.temp}
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
+                          来源: {testResult.data.source}
+                        </span>
+                      </div>
+                    ) : (
+                      <p className="mt-1.5 text-[11px] text-red-600 dark:text-red-400 leading-relaxed">
+                        {testResult.error || '未能获取到有效数据，请检查网络、API Key 或接口地址是否支持浏览器跨域 (CORS)'}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
           ) : (
             <>
               {/* Cloud Sync Tab */}

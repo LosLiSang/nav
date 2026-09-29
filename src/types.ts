@@ -1,6 +1,7 @@
 export type CornerRadius = 'none' | 'md' | 'xl'
 export type IconShape = 'square' | 'rounded' | 'circle'
 export type FallbackIconMode = 'letter' | 'globe' | 'bookmark' | 'custom'
+export type WeatherProvider = 'open-meteo' | 'amap' | 'qweather' | 'wttr' | 'custom'
 
 export type CategoryStyle = {
   iconShape: IconShape
@@ -129,6 +130,12 @@ export type Settings = {
   userName?: string
   highlightColor?: string
   weatherCity?: string
+  weatherProvider?: WeatherProvider
+  weatherApiKey?: string
+  weatherCustomUrl?: string
+  weatherCustomFieldPath?: string
+  weatherCustomTempPath?: string
+  weatherAutoRefreshMinutes?: number
   themeMode?: 'light' | 'dark'
   fallbackIconMode?: FallbackIconMode
   defaultPlaceholderIconUrl?: string
