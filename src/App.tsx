@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   closestCenter,
+  pointerWithin,
   DndContext,
   DragOverlay,
   PointerSensor,
@@ -68,7 +69,29 @@ const customCollisionDetection: CollisionDetection = (args) => {
     })
   }
 
-  // 4. 拖拽普通书签时，全部 droppables（包括书签、分类、版块、DropZone）均可作为有效投放目标
+  // 4. 拖拽普通书签时：优先检测指针直接悬停的具体目标（书签卡片、分类/版块/子分类标签）
+  // 避免大面积背景 DropZone 在全局最近中心计算时误吸附，导致同分类内书签排序被吞
+  const pointerCollisions = pointerWithin(args)
+  if (pointerCollisions.length > 0) {
+    const specific = pointerCollisions.find(
+      (c) => !String(c.id).startsWith('subcat-drop:'),
+    )
+    if (specific) return [specific]
+    return pointerCollisions
+  }
+
+  // 若指针脱离（快速滑动等），优先寻找最近的具体书签/标签，无命中时再回退到全部目标
+  const specificContainers = args.droppableContainers.filter(
+    (c) => !String(c.id).startsWith('subcat-drop:'),
+  )
+  const itemCollisions = closestCenter({
+    ...args,
+    droppableContainers: specificContainers,
+  })
+  if (itemCollisions.length > 0) {
+    return itemCollisions
+  }
+
   return closestCenter(args)
 }
 
