@@ -209,7 +209,7 @@ export function IconPickerModal({ currentIconUrl, onSelectIcon, onClose }: Props
 
   return createPortal(
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-2xl bg-white dark:bg-neutral-900 p-5 text-neutral-800 dark:text-neutral-200 shadow-2xl max-h-[85vh] flex flex-col animate-in fade-in zoom-in-95 duration-150">
+      <div className="nav-dialog w-full max-w-md rounded-2xl bg-white dark:bg-neutral-900 p-5 text-neutral-800 dark:text-neutral-200 shadow-2xl max-h-[85vh] flex flex-col animate-in fade-in zoom-in-95 duration-150">
         <div className="flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 pb-3">
           <div className="flex items-center gap-2">
             <Camera className="h-4 w-4 text-orange-500" />

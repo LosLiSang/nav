@@ -92,7 +92,7 @@ export function SettingsPanel({ settings, initialTab, onClose, onChange, sync, o
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-      <div className="flex flex-col w-full max-w-lg rounded-2xl bg-white dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200 shadow-2xl max-h-[85vh] overflow-hidden animate-in fade-in zoom-in-95 duration-150 border border-neutral-200/80 dark:border-neutral-800">
+      <div className="nav-dialog flex flex-col w-full max-w-lg rounded-2xl bg-white dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200 shadow-2xl max-h-[85vh] overflow-hidden animate-in fade-in zoom-in-95 duration-150 border border-neutral-200/80 dark:border-neutral-800">
         
         {/* Fixed Header */}
         <div className="p-6 pb-3 border-b border-neutral-100 dark:border-neutral-800">
@@ -301,7 +301,7 @@ export function SettingsPanel({ settings, initialTab, onClose, onChange, sync, o
               {/* 3. Corner Radius */}
               <div className="border-t border-neutral-100 dark:border-neutral-800 pt-3.5">
                 <label className="block font-medium text-neutral-800 dark:text-neutral-200 mb-2">
-                  搜索框与卡片圆角风格
+                  搜索框、卡片与对话框圆角风格
                 </label>
                 <div className="grid grid-cols-3 gap-2">
                   {[

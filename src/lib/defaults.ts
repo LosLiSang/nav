@@ -114,6 +114,7 @@ export const DEFAULT_SETTINGS: Settings = {
   rightSidebarCollapsed: false,
   showLeftSidebar: false,
   leftSidebarCollapsed: true,
+  searchFilterBookmarks: true,
 }
 
 export function defaultCategories(): Category[] {

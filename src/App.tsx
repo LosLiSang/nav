@@ -219,9 +219,14 @@ export default function App() {
     document.documentElement.classList.toggle('dark', isDark)
   }, [isDark])
 
+  // 对话框通过 portal 挂在 body 下，用 <html data-radius> 让它们跟随全局圆角风格
+  useEffect(() => {
+    document.documentElement.dataset.radius = settings.cornerRadius
+  }, [settings.cornerRadius])
+
   // Bookmarks for active main category (filtered by query if any)
   const activeMainBookmarks = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase()
+    const q = settings.searchFilterBookmarks === false ? '' : searchQuery.trim().toLowerCase()
 
     // ⭐ Special category: 'cat-fav' (Favorites)
     const inCat =
@@ -237,7 +242,7 @@ export default function App() {
       (b) =>
         b.title.toLowerCase().includes(q) || b.url.toLowerCase().includes(q),
     )
-  }, [bookmarks, settings.activeCategoryId, searchQuery])
+  }, [bookmarks, settings.activeCategoryId, settings.searchFilterBookmarks, searchQuery])
 
   const draggingBookmark = draggingId
     ? bookmarks.find((b) => b.id === draggingId)
@@ -406,6 +411,7 @@ export default function App() {
               query={searchQuery}
               onChangeQuery={setSearchQuery}
               onSelectEngine={setActiveSearchEngine}
+              onChangeSettings={updateSettings}
             />
 
           {/* 2. Top Main Category Card & 7-column Bookmarks Grid */}

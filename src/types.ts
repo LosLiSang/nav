@@ -143,6 +143,8 @@ export type Settings = {
   rightSidebarCollapsed?: boolean
   showLeftSidebar?: boolean
   leftSidebarCollapsed?: boolean
+  /** 在搜索框输入时是否同时过滤下方书签，默认开启 */
+  searchFilterBookmarks?: boolean
 }
 
 export type NavData = {

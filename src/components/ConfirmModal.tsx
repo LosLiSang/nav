@@ -26,7 +26,7 @@ export function ConfirmModal({
 
   return createPortal(
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm animate-in fade-in duration-100">
-      <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-[#18181b] p-5 shadow-2xl border border-neutral-100 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200 animate-in zoom-in-95 duration-150">
+      <div className="nav-dialog w-full max-w-sm rounded-2xl bg-white dark:bg-[#18181b] p-5 shadow-2xl border border-neutral-100 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200 animate-in zoom-in-95 duration-150">
         <div className="flex items-center justify-between pb-3 border-b border-neutral-100 dark:border-neutral-800">
           <div className="flex items-center gap-2 font-semibold text-sm">
             {isDanger ? (

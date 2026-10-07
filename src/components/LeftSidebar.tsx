@@ -311,7 +311,7 @@
        {/* Add Pin Modal */}
        {showAddPin && (
          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-           <div className="w-full max-w-xs rounded-2xl bg-white dark:bg-[#18181b] p-5 shadow-2xl border border-neutral-100 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200">
+           <div className="nav-dialog w-full max-w-xs rounded-2xl bg-white dark:bg-[#18181b] p-5 shadow-2xl border border-neutral-100 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200">
              <h3 className="font-semibold text-sm mb-3">添加常驻应用 Dock</h3>
              <div className="space-y-2.5 text-xs">
                <div>
