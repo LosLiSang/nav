@@ -908,8 +908,30 @@ export const useNavStore = create<NavState>((set, get) => ({
   async moveBookmarkToCategory(bookmarkId, categoryId) {
     const { bookmarks } = get()
     const active = bookmarks.find((bookmark) => bookmark.id === bookmarkId)
-    if (!active || (active.categoryId === categoryId && !active.subCategoryId)) return
-    const categoryBookmarks = bookmarks.filter((bookmark) => bookmark.categoryId === categoryId)
+    if (!active) return
+    const categoryBookmarks = bookmarks
+      .filter((bookmark) => bookmark.categoryId === categoryId && !bookmark.subCategoryId)
+      .sort((a, b) => a.order - b.order)
+
+    if (active.categoryId === categoryId && !active.subCategoryId) {
+      if (categoryBookmarks.length <= 1) return
+      const last = categoryBookmarks[categoryBookmarks.length - 1]
+      if (last.id === bookmarkId) return
+      const otherIds = categoryBookmarks.filter((b) => b.id !== bookmarkId).map((b) => b.id)
+      const orderedIds = [...otherIds, bookmarkId]
+      const nextBookmarks = bookmarks.map((b) => {
+        const order = orderedIds.indexOf(b.id)
+        if (b.id === bookmarkId) {
+          return { ...b, order: order >= 0 ? order : b.order, updatedAt: Date.now() }
+        }
+        return order >= 0 ? { ...b, order, updatedAt: Date.now() } : b
+      })
+      await db.bookmarks.bulkPut(nextBookmarks.filter((b) => orderedIds.includes(b.id)))
+      set({ bookmarks: nextBookmarks })
+      scheduleSyncPush()
+      return
+    }
+
     const updated: Bookmark = {
       ...active,
       categoryId,
@@ -929,8 +951,30 @@ export const useNavStore = create<NavState>((set, get) => ({
   async moveBookmarkToSubCategory(bookmarkId, subCategoryId) {
     const { bookmarks } = get()
     const active = bookmarks.find((bookmark) => bookmark.id === bookmarkId)
-    if (!active || (active.subCategoryId === subCategoryId && !active.categoryId)) return
-    const subCatBookmarks = bookmarks.filter((b) => b.subCategoryId === subCategoryId)
+    if (!active) return
+    const subCatBookmarks = bookmarks
+      .filter((b) => b.subCategoryId === subCategoryId)
+      .sort((a, b) => a.order - b.order)
+
+    if (active.subCategoryId === subCategoryId && !active.categoryId) {
+      if (subCatBookmarks.length <= 1) return
+      const last = subCatBookmarks[subCatBookmarks.length - 1]
+      if (last.id === bookmarkId) return
+      const otherIds = subCatBookmarks.filter((b) => b.id !== bookmarkId).map((b) => b.id)
+      const orderedIds = [...otherIds, bookmarkId]
+      const nextBookmarks = bookmarks.map((b) => {
+        const order = orderedIds.indexOf(b.id)
+        if (b.id === bookmarkId) {
+          return { ...b, order: order >= 0 ? order : b.order, updatedAt: Date.now() }
+        }
+        return order >= 0 ? { ...b, order, updatedAt: Date.now() } : b
+      })
+      await db.bookmarks.bulkPut(nextBookmarks.filter((b) => orderedIds.includes(b.id)))
+      set({ bookmarks: nextBookmarks })
+      scheduleSyncPush()
+      return
+    }
+
     const updated: Bookmark = {
       ...active,
       categoryId: undefined,

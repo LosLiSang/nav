@@ -6,6 +6,21 @@
   color-scheme: light dark;
 }
 
+/*
+ * 对话框 / 弹出菜单跟随「界面设置 → 对话框圆角」（与页面卡片圆角分开）。
+ * data-radius 由 App 写在 <html> 上；各弹窗容器带 .nav-dialog 标记。
+ * 方正直角：容器和内部控件都去掉圆角（保留 rounded-full 的圆点/开关/头像）。
+ * 微润圆角：容器收窄到 xl。柔和大圆角：保持组件原样。
+ */
+html[data-radius='none'] .nav-dialog,
+html[data-radius='none'] .nav-dialog [class*='rounded']:not(.rounded-full) {
+  border-radius: 0 !important;
+}
+
+html[data-radius='md'] .nav-dialog {
+  border-radius: var(--radius-xl) !important;
+}
+
 /* Sleek custom scrollbars */
 ::-webkit-scrollbar {
   width: 6px;

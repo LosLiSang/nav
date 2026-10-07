@@ -9,6 +9,9 @@ import {
   CloudSun,
   Download,
   ExternalLink,
+  Eye,
+  EyeOff,
+  HelpCircle,
   Image as ImageIcon,
   Loader2,
   Palette,
@@ -24,6 +27,7 @@ import type { SyncStatus } from '../store/useNavStore'
 import type { CornerRadius, FallbackIconMode, Settings, WeatherProvider } from '../types'
 import { testWeatherConfig, type WeatherInfo } from '../lib/weather'
 import { IconPickerModal } from './IconPickerModal'
+import { SyncHelp } from './SyncHelp'
 
 type SyncProps = {
   config: SyncConfig | null
@@ -74,6 +78,8 @@ export function SettingsPanel({ settings, initialTab, onClose, onChange, sync, o
   const [customUrl, setCustomUrl] = useState(settings.wallpaperUrl)
   const [syncUrl, setSyncUrl] = useState(sync.config?.url ?? DEFAULT_SYNC_URL)
   const [syncToken, setSyncToken] = useState(sync.config?.token ?? '')
+  const [showSyncToken, setShowSyncToken] = useState(false)
+  const [showSyncHelp, setShowSyncHelp] = useState(false)
   const [cacheCleared, setCacheCleared] = useState(false)
   const [testCity, setTestCity] = useState(settings.weatherCity || '广州')
   const [testingWeather, setTestingWeather] = useState(false)
@@ -86,7 +92,7 @@ export function SettingsPanel({ settings, initialTab, onClose, onChange, sync, o
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-      <div className="flex flex-col w-full max-w-lg rounded-2xl bg-white dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200 shadow-2xl max-h-[85vh] overflow-hidden animate-in fade-in zoom-in-95 duration-150 border border-neutral-200/80 dark:border-neutral-800">
+      <div className="nav-dialog flex flex-col w-full max-w-lg rounded-2xl bg-white dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200 shadow-2xl max-h-[85vh] overflow-hidden animate-in fade-in zoom-in-95 duration-150 border border-neutral-200/80 dark:border-neutral-800">
         
         {/* Fixed Header */}
         <div className="p-6 pb-3 border-b border-neutral-100 dark:border-neutral-800">
@@ -292,35 +298,53 @@ export function SettingsPanel({ settings, initialTab, onClose, onChange, sync, o
                 ))}
               </div>
 
-              {/* 3. Corner Radius */}
-              <div className="border-t border-neutral-100 dark:border-neutral-800 pt-3.5">
-                <label className="block font-medium text-neutral-800 dark:text-neutral-200 mb-2">
-                  搜索框与卡片圆角风格
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { id: 'none', label: '方正直角', desc: '极简硬朗' },
-                    { id: 'md', label: '微润圆角', desc: '舒适现代' },
-                    { id: 'xl', label: '柔和大圆角', desc: '轻快圆润' },
-                  ].map((opt) => {
-                    const isSelected = settings.cornerRadius === opt.id
-                    return (
-                      <button
-                        key={opt.id}
-                        type="button"
-                        onClick={() => onChange({ cornerRadius: opt.id as CornerRadius })}
-                        className={`flex flex-col items-center justify-center rounded-xl border py-2.5 text-xs transition ${
-                          isSelected
-                            ? 'border-orange-500 bg-orange-50/60 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400 ring-1 ring-orange-500 font-semibold'
-                            : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800'
-                        }`}
-                      >
-                        <span>{opt.label}</span>
-                        <span className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5">{opt.desc}</span>
-                      </button>
-                    )
-                  })}
-                </div>
+              {/* 3. Corner Radius：页面卡片与对话框分别配置 */}
+              <div className="border-t border-neutral-100 dark:border-neutral-800 pt-3.5 space-y-3">
+                {[
+                  {
+                    key: 'cornerRadius' as const,
+                    label: '页面卡片圆角',
+                    hint: '搜索框、书签卡片、侧边栏',
+                    value: settings.cornerRadius,
+                  },
+                  {
+                    key: 'dialogCornerRadius' as const,
+                    label: '对话框圆角',
+                    hint: '设置面板、编辑弹窗、右键菜单',
+                    value: settings.dialogCornerRadius ?? settings.cornerRadius,
+                  },
+                ].map((group) => (
+                  <div key={group.key}>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block font-medium text-neutral-800 dark:text-neutral-200">{group.label}</label>
+                      <span className="text-[10px] text-neutral-400 dark:text-neutral-500">{group.hint}</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { id: 'none', label: '方正直角', desc: '极简硬朗' },
+                        { id: 'md', label: '微润圆角', desc: '舒适现代' },
+                        { id: 'xl', label: '柔和大圆角', desc: '轻快圆润' },
+                      ].map((opt) => {
+                        const isSelected = group.value === opt.id
+                        return (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() => onChange({ [group.key]: opt.id as CornerRadius })}
+                            className={`flex flex-col items-center justify-center rounded-xl border py-2.5 text-xs transition ${
+                              isSelected
+                                ? 'border-orange-500 bg-orange-50/60 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400 ring-1 ring-orange-500 font-semibold'
+                                : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800'
+                            }`}
+                          >
+                            <span>{opt.label}</span>
+                            <span className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5">{opt.desc}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
 
               {/* 3.5. Card Container Width */}
@@ -822,6 +846,20 @@ export function SettingsPanel({ settings, initialTab, onClose, onChange, sync, o
                       <CloudOff className="h-4 w-4 text-neutral-400 dark:text-neutral-500" />
                     )}
                     <label className="font-semibold text-neutral-900 dark:text-neutral-100">云同步服务（Cloudflare D1）</label>
+                    <button
+                      type="button"
+                      onClick={() => setShowSyncHelp((v) => !v)}
+                      title="同步配置教程"
+                      aria-label="同步配置教程"
+                      aria-expanded={showSyncHelp}
+                      className={`rounded-full p-0.5 transition ${
+                        showSyncHelp
+                          ? 'text-orange-600 dark:text-orange-400'
+                          : 'text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200'
+                      }`}
+                    >
+                      <HelpCircle className="h-4 w-4" />
+                    </button>
                   </div>
                   <span
                     className={`rounded-full px-2.5 py-0.5 text-[10px] font-medium ${statusStyle.className}`}
@@ -829,6 +867,8 @@ export function SettingsPanel({ settings, initialTab, onClose, onChange, sync, o
                     {statusStyle.label}
                   </span>
                 </div>
+
+                {showSyncHelp && <SyncHelp />}
 
                 <div className="rounded-xl bg-neutral-50 dark:bg-neutral-800/60 p-3.5 border border-neutral-200/80 dark:border-neutral-700/80">
                   <p className="leading-relaxed text-neutral-500 dark:text-neutral-400 text-[11px]">
@@ -850,17 +890,35 @@ export function SettingsPanel({ settings, initialTab, onClose, onChange, sync, o
                   <div>
                     <label className="block text-[11px] font-medium text-neutral-600 dark:text-neutral-400 mb-1">同步密钥 (SYNC_TOKEN)</label>
                     <div className="flex gap-2">
-                      <input
-                        value={syncToken}
-                        type="password"
-                        onChange={(e) => setSyncToken(e.target.value)}
-                        placeholder="填入在 Worker 环境变量中设置的密钥"
-                        className="min-w-0 flex-1 rounded-xl border border-neutral-200 dark:border-neutral-700 px-3 py-2 text-xs outline-none focus:border-orange-500 bg-transparent"
-                      />
+                      <div className="relative min-w-0 flex-1">
+                        <input
+                          value={syncToken}
+                          type={showSyncToken ? 'text' : 'password'}
+                          onChange={(e) => setSyncToken(e.target.value)}
+                          placeholder="填入在 Worker 环境变量中设置的密钥"
+                          autoComplete="off"
+                          spellCheck={false}
+                          className={`w-full rounded-xl border border-neutral-200 dark:border-neutral-700 py-2 pl-3 pr-9 text-xs outline-none focus:border-orange-500 bg-transparent ${
+                            showSyncToken ? 'font-mono' : ''
+                          }`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowSyncToken((v) => !v)}
+                          title={showSyncToken ? '隐藏密钥' : '显示密钥'}
+                          aria-label={showSyncToken ? '隐藏密钥' : '显示密钥'}
+                          className="absolute inset-y-0 right-1.5 my-auto flex h-6 w-6 items-center justify-center rounded-md text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition"
+                        >
+                          {showSyncToken ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                        </button>
+                      </div>
                       <button
                         type="button"
                         title="生成随机 token，复制到 wrangler secret put SYNC_TOKEN"
-                        onClick={() => setSyncToken(generateSyncToken())}
+                        onClick={() => {
+                          setSyncToken(generateSyncToken())
+                          setShowSyncToken(true)
+                        }}
                         className="rounded-xl border border-neutral-200 dark:border-neutral-700 px-3 text-xs font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition"
                       >
                         生成密钥

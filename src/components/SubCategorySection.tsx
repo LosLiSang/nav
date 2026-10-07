@@ -375,6 +375,7 @@ function SubBookmarkItem({
           <img
             src={effectiveIconUrl}
             alt=""
+            draggable={false}
             referrerPolicy="no-referrer"
             onError={() => {
               if (cachedIcon && onSaveCachedIcon && domain) {
@@ -383,11 +384,11 @@ function SubBookmarkItem({
               setFetchFailed(true)
               onSaveFailedIcon?.(domain)
             }}
-            className={`h-4.5 w-4.5 flex-shrink-0 object-contain ${shapeClass}`}
+            className={`h-4.5 w-4.5 flex-shrink-0 object-contain pointer-events-none select-none ${shapeClass}`}
             loading="lazy"
           />
         ) : (
-          brandIcon
+          <div className="pointer-events-none select-none flex-shrink-0 flex items-center justify-center">{brandIcon}</div>
         )
       )}
 
@@ -399,7 +400,7 @@ function SubBookmarkItem({
           fontStyle: settings.isItalic ? 'italic' : undefined,
           color: effectiveTextColor,
         }}
-        className="min-w-0 flex-1 truncate text-[13px] font-normal tracking-tight group-hover:text-blue-500 dark:group-hover:text-white transition-colors"
+        className="min-w-0 flex-1 truncate text-[13px] font-normal tracking-tight group-hover:text-blue-500 dark:group-hover:text-white transition-colors pointer-events-none select-none"
       >
         {bookmark.title}
       </span>
@@ -531,7 +532,7 @@ export function SubCategorySection({
   const effectiveSubCatId = effectiveSubCat?.id || ''
 
   const currentSubBookmarks = useMemo(
-    () => bookmarks.filter((b) => b.subCategoryId === effectiveSubCatId),
+    () => bookmarks.filter((b) => b.subCategoryId === effectiveSubCatId).sort((a, b) => a.order - b.order),
     [bookmarks, effectiveSubCatId],
   )
 
@@ -728,7 +729,7 @@ export function SubCategorySection({
             left: `${Math.min(subContextMenu.x, window.innerWidth - 150)}px`,
             top: `${Math.min(subContextMenu.y, window.innerHeight - 130)}px`,
           }}
-          className="fixed z-[9999] flex w-36 flex-col overflow-hidden rounded-2xl border border-neutral-100 dark:border-neutral-800 bg-white/95 dark:bg-[#18181b]/95 p-1 text-xs shadow-2xl backdrop-blur-md text-neutral-700 dark:text-neutral-200 animate-in fade-in zoom-in-95 duration-100"
+          className="nav-dialog fixed z-[9999] flex w-36 flex-col overflow-hidden rounded-2xl border border-neutral-100 dark:border-neutral-800 bg-white/95 dark:bg-[#18181b]/95 p-1 text-xs shadow-2xl backdrop-blur-md text-neutral-700 dark:text-neutral-200 animate-in fade-in zoom-in-95 duration-100"
           onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
         >
@@ -770,7 +771,7 @@ export function SubCategorySection({
       {/* Rename Modal */}
       {renamingItem && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-xs rounded-2xl bg-white dark:bg-[#18181b] p-5 shadow-2xl border border-neutral-100 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200">
+          <div className="nav-dialog w-full max-w-xs rounded-2xl bg-white dark:bg-[#18181b] p-5 shadow-2xl border border-neutral-100 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200">
             <h3 className="font-semibold text-sm mb-3">
               重命名{renamingItem.type === 'section' ? '版块' : '子分类'}
             </h3>

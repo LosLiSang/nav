@@ -9,6 +9,7 @@ type Props = {
   query: string
   onChangeQuery: (value: string) => void
   onSelectEngine: (engineId: string) => void
+  onChangeSettings: (values: Partial<AppSettings>) => void
 }
 
 export type SearchBarHandle = {
@@ -16,7 +17,7 @@ export type SearchBarHandle = {
 }
 
 export const SearchBar = forwardRef<SearchBarHandle, Props>(function SearchBar(
-  { engines, settings, query, onChangeQuery, onSelectEngine },
+  { engines, settings, query, onChangeQuery, onSelectEngine, onChangeSettings },
   ref,
 ) {
   const inputRef = useRef<HTMLInputElement>(null)
@@ -233,7 +234,7 @@ export const SearchBar = forwardRef<SearchBarHandle, Props>(function SearchBar(
             <div className="flex items-center gap-2 pr-3 text-neutral-400">
               <button
                 type="button"
-                title="搜索设置 (是否保留搜索记录)"
+                title="搜索设置（书签过滤、搜索记录）"
                 onClick={(e) => {
                   e.stopPropagation()
                   setShowSettings((prev) => !prev)
@@ -259,9 +260,9 @@ export const SearchBar = forwardRef<SearchBarHandle, Props>(function SearchBar(
 
         {/* Settings Popover for controlling search history */}
         {showSettings && (
-          <div className="absolute right-24 top-12 z-50 w-56 rounded-xl border border-neutral-100 dark:border-neutral-800 bg-white dark:bg-[#18181b] p-3 text-xs shadow-xl backdrop-blur-md">
+          <div className="nav-dialog absolute right-24 top-12 z-50 w-56 rounded-xl border border-neutral-100 dark:border-neutral-800 bg-white dark:bg-[#18181b] p-3 text-xs shadow-xl backdrop-blur-md">
             <div className="flex items-center justify-between pb-2 border-b border-neutral-100 dark:border-neutral-800 font-medium text-neutral-800 dark:text-neutral-200">
-              <span>搜索记录设置</span>
+              <span>搜索设置</span>
               <button
                 type="button"
                 onClick={() => setShowSettings(false)}
@@ -271,6 +272,18 @@ export const SearchBar = forwardRef<SearchBarHandle, Props>(function SearchBar(
               </button>
             </div>
             <div className="mt-2.5 space-y-2">
+              <label
+                className="flex cursor-pointer items-center justify-between gap-2 text-neutral-700 dark:text-neutral-300"
+                title="开启后，输入关键词会实时筛选下方书签；关闭后搜索框只用于网络搜索"
+              >
+                <span>输入时过滤书签</span>
+                <input
+                  type="checkbox"
+                  checked={settings.searchFilterBookmarks !== false}
+                  onChange={(e) => onChangeSettings({ searchFilterBookmarks: e.target.checked })}
+                  className="h-4 w-4 rounded text-orange-500 accent-orange-500"
+                />
+              </label>
               <label className="flex cursor-pointer items-center justify-between gap-2 text-neutral-700 dark:text-neutral-300">
                 <span>保留搜索记录</span>
                 <input
@@ -303,7 +316,7 @@ export const SearchBar = forwardRef<SearchBarHandle, Props>(function SearchBar(
 
         {/* Search History Dropdown */}
         {showHistoryDropdown && saveHistory && historyList.length > 0 && !showSettings && (
-          <div className="absolute left-0 right-24 top-12 z-40 max-h-56 overflow-y-auto rounded-xl border border-neutral-100 dark:border-neutral-800 bg-white/95 dark:bg-[#18181b]/95 p-2 shadow-xl backdrop-blur-md">
+          <div className="nav-dialog absolute left-0 right-24 top-12 z-40 max-h-56 overflow-y-auto rounded-xl border border-neutral-100 dark:border-neutral-800 bg-white/95 dark:bg-[#18181b]/95 p-2 shadow-xl backdrop-blur-md">
             <div className="flex items-center justify-between px-2 py-1 text-[11px] font-medium text-neutral-400 border-b border-neutral-100 dark:border-neutral-800">
               <span className="flex items-center gap-1">
                 <Clock className="h-3 w-3" />

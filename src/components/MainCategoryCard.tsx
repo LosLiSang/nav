@@ -291,6 +291,7 @@ function BookmarkCardItem({
           <img
             src={effectiveIconUrl}
             alt=""
+            draggable={false}
             referrerPolicy="no-referrer"
             onError={() => {
               if (cachedIcon && onSaveCachedIcon && domain) {
@@ -299,11 +300,11 @@ function BookmarkCardItem({
               setFetchFailed(true)
               onSaveFailedIcon?.(domain)
             }}
-            className={`h-4.5 w-4.5 flex-shrink-0 object-contain ${shapeClass}`}
+            className={`h-4.5 w-4.5 flex-shrink-0 object-contain pointer-events-none select-none ${shapeClass}`}
             loading="lazy"
           />
         ) : (
-          brandIcon
+          <div className="pointer-events-none select-none flex-shrink-0 flex items-center justify-center">{brandIcon}</div>
         )
       )}
 
@@ -315,7 +316,7 @@ function BookmarkCardItem({
           fontStyle: settings.isItalic ? 'italic' : undefined,
           color: effectiveTextColor,
         }}
-        className="min-w-0 flex-1 truncate text-[13px] font-normal tracking-tight group-hover:text-blue-500 dark:group-hover:text-white transition-colors"
+        className="min-w-0 flex-1 truncate text-[13px] font-normal tracking-tight group-hover:text-blue-500 dark:group-hover:text-white transition-colors pointer-events-none select-none"
       >
         {bookmark.title}
       </span>
@@ -846,7 +847,7 @@ export function MainCategoryCard({
       {/* Help Detail Modal */}
       {selectedHelp && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-[#18181b] border border-neutral-100 dark:border-neutral-800 p-5 shadow-2xl text-neutral-800 dark:text-neutral-200 animate-in fade-in zoom-in-95 duration-150">
+          <div className="nav-dialog w-full max-w-sm rounded-2xl bg-white dark:bg-[#18181b] border border-neutral-100 dark:border-neutral-800 p-5 shadow-2xl text-neutral-800 dark:text-neutral-200 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 pb-3">
               <div className="flex items-center gap-2 font-semibold text-neutral-800 dark:text-neutral-100 text-sm">
                 <Info className="h-4 w-4 text-orange-500" />
@@ -879,7 +880,7 @@ export function MainCategoryCard({
       {/* Edit Category Modal */}
       {editingCategory && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-xs rounded-2xl bg-white dark:bg-[#18181b] p-5 shadow-2xl border border-neutral-100 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200 animate-in fade-in zoom-in-95 duration-150">
+          <div className="nav-dialog w-full max-w-xs rounded-2xl bg-white dark:bg-[#18181b] p-5 shadow-2xl border border-neutral-100 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 pb-3">
               <h3 className="font-semibold text-neutral-800 dark:text-neutral-100 text-sm">编辑分类</h3>
               <button
@@ -986,7 +987,7 @@ export function MainCategoryCard({
             left: `${Math.min(categoryContextMenu.x, window.innerWidth - 150)}px`,
             top: `${Math.min(categoryContextMenu.y, window.innerHeight - 130)}px`,
           }}
-          className="fixed z-[9999] flex w-36 flex-col overflow-hidden rounded-2xl border border-neutral-100 dark:border-neutral-800 bg-white/95 dark:bg-[#18181b]/95 p-1 text-xs shadow-2xl backdrop-blur-md text-neutral-700 dark:text-neutral-200 animate-in fade-in zoom-in-95 duration-100"
+          className="nav-dialog fixed z-[9999] flex w-36 flex-col overflow-hidden rounded-2xl border border-neutral-100 dark:border-neutral-800 bg-white/95 dark:bg-[#18181b]/95 p-1 text-xs shadow-2xl backdrop-blur-md text-neutral-700 dark:text-neutral-200 animate-in fade-in zoom-in-95 duration-100"
           onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
         >
