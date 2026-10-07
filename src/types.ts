@@ -115,6 +115,8 @@ export type Settings = {
   showNotice: boolean
   // Global typography & styling
   cornerRadius: CornerRadius
+  /** 对话框/弹出菜单的圆角；未设置时沿用 cornerRadius（兼容老数据） */
+  dialogCornerRadius?: CornerRadius
   iconShape: IconShape
   fontSize: number
   isBold: boolean

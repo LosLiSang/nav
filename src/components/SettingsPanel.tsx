@@ -298,35 +298,53 @@ export function SettingsPanel({ settings, initialTab, onClose, onChange, sync, o
                 ))}
               </div>
 
-              {/* 3. Corner Radius */}
-              <div className="border-t border-neutral-100 dark:border-neutral-800 pt-3.5">
-                <label className="block font-medium text-neutral-800 dark:text-neutral-200 mb-2">
-                  搜索框、卡片与对话框圆角风格
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { id: 'none', label: '方正直角', desc: '极简硬朗' },
-                    { id: 'md', label: '微润圆角', desc: '舒适现代' },
-                    { id: 'xl', label: '柔和大圆角', desc: '轻快圆润' },
-                  ].map((opt) => {
-                    const isSelected = settings.cornerRadius === opt.id
-                    return (
-                      <button
-                        key={opt.id}
-                        type="button"
-                        onClick={() => onChange({ cornerRadius: opt.id as CornerRadius })}
-                        className={`flex flex-col items-center justify-center rounded-xl border py-2.5 text-xs transition ${
-                          isSelected
-                            ? 'border-orange-500 bg-orange-50/60 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400 ring-1 ring-orange-500 font-semibold'
-                            : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800'
-                        }`}
-                      >
-                        <span>{opt.label}</span>
-                        <span className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5">{opt.desc}</span>
-                      </button>
-                    )
-                  })}
-                </div>
+              {/* 3. Corner Radius：页面卡片与对话框分别配置 */}
+              <div className="border-t border-neutral-100 dark:border-neutral-800 pt-3.5 space-y-3">
+                {[
+                  {
+                    key: 'cornerRadius' as const,
+                    label: '页面卡片圆角',
+                    hint: '搜索框、书签卡片、侧边栏',
+                    value: settings.cornerRadius,
+                  },
+                  {
+                    key: 'dialogCornerRadius' as const,
+                    label: '对话框圆角',
+                    hint: '设置面板、编辑弹窗、右键菜单',
+                    value: settings.dialogCornerRadius ?? settings.cornerRadius,
+                  },
+                ].map((group) => (
+                  <div key={group.key}>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block font-medium text-neutral-800 dark:text-neutral-200">{group.label}</label>
+                      <span className="text-[10px] text-neutral-400 dark:text-neutral-500">{group.hint}</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { id: 'none', label: '方正直角', desc: '极简硬朗' },
+                        { id: 'md', label: '微润圆角', desc: '舒适现代' },
+                        { id: 'xl', label: '柔和大圆角', desc: '轻快圆润' },
+                      ].map((opt) => {
+                        const isSelected = group.value === opt.id
+                        return (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() => onChange({ [group.key]: opt.id as CornerRadius })}
+                            className={`flex flex-col items-center justify-center rounded-xl border py-2.5 text-xs transition ${
+                              isSelected
+                                ? 'border-orange-500 bg-orange-50/60 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400 ring-1 ring-orange-500 font-semibold'
+                                : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800'
+                            }`}
+                          >
+                            <span>{opt.label}</span>
+                            <span className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5">{opt.desc}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
 
               {/* 3.5. Card Container Width */}

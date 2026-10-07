@@ -219,10 +219,11 @@ export default function App() {
     document.documentElement.classList.toggle('dark', isDark)
   }, [isDark])
 
-  // 对话框通过 portal 挂在 body 下，用 <html data-radius> 让它们跟随全局圆角风格
+  // 对话框通过 portal 挂在 body 下，用 <html data-radius> 控制它们的圆角（与页面卡片分开配置）
+  const dialogRadius = settings.dialogCornerRadius ?? settings.cornerRadius
   useEffect(() => {
-    document.documentElement.dataset.radius = settings.cornerRadius
-  }, [settings.cornerRadius])
+    document.documentElement.dataset.radius = dialogRadius
+  }, [dialogRadius])
 
   // Bookmarks for active main category (filtered by query if any)
   const activeMainBookmarks = useMemo(() => {
