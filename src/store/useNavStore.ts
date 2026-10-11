@@ -1,7 +1,9 @@
 import { create } from 'zustand'
 import { arrayMove } from '@dnd-kit/sortable'
 import { db } from '../lib/db'
-import { fetchFaviconBlob, getFaviconCandidates, normalizeIconUrl } from '../lib/utils'
+import { fetchFaviconBlob, getFaviconCandidates, hostnameOf, normalizeIconUrl } from '../lib/utils'
+import { IconRequestPool } from '../lib/iconRequestPool'
+import { planIconCleanup, type IconFilter, type IconReloadResult } from '../lib/iconCache'
 import {
   DEFAULT_SETTINGS,
   SEARCH_ENGINES,
@@ -59,6 +61,8 @@ type NavState = {
   searchQuery: string
   cachedIcons: Record<string, string>
   failedDomains: Record<string, boolean>
+  loadingIconDomains: Record<string, boolean>
+  iconCleanupRunning: boolean
 
   // 云同步（Cloudflare Worker + D1）
   syncConfig: SyncConfig | null
@@ -121,10 +125,10 @@ type NavState = {
   reorderBookmark: (bookmarkId: string, overBookmarkId: string) => Promise<void>
   moveBookmarkToCategory: (bookmarkId: string, categoryId: string) => Promise<void>
   moveBookmarkToSubCategory: (bookmarkId: string, subCategoryId: string) => Promise<void>
-  saveCachedIcon: (domain: string, dataOrBlob: string | Blob, objectUrl?: string) => Promise<void>
-  saveFailedIcon: (domain: string) => Promise<void>
+  ensureIcon: (url: string) => Promise<IconReloadResult>
+  markIconFailed: (domain: string, expectedIcon: string) => Promise<void>
+  clearAndReloadIcons: (bookmarkIds: string[], filter: IconFilter) => Promise<IconReloadResult[]>
   refreshIcon: (domain: string, bookmarkUrl?: string) => Promise<void>
-  refreshAllIcons: () => Promise<void>
 
   // Memos
   addMemo: (text: string) => Promise<void>
@@ -152,45 +156,65 @@ type NavState = {
 
 const SETTINGS_KEY = 'app'
 let initializationPromise: Promise<void> | null = null
-type PendingIconItem = {
-  dataUrl?: string
-  blob?: Blob
-  objectUrl: string
-  notFound?: boolean
+const iconRequests = new IconRequestPool<IconReloadResult>()
+
+function withoutKeys<T>(record: Record<string, T>, keys: string[]): Record<string, T> {
+  const next = { ...record }
+  for (const key of keys) delete next[key]
+  return next
 }
-let pendingIconBatch: Record<string, PendingIconItem> = {}
-let iconBatchTimer: ReturnType<typeof setTimeout> | null = null
 
-function flushIconBatch(set: any) {
-  const batch = { ...pendingIconBatch }
-  pendingIconBatch = {}
-  iconBatchTimer = null
-  const entries = Object.entries(batch)
-  if (entries.length === 0) return
+function revokeIcon(url: string | undefined): void {
+  if (url?.startsWith('blob:')) URL.revokeObjectURL(url)
+}
 
-  const rows = entries.map(([domain, item]) => ({
-    domain,
-    dataUrl: item.dataUrl,
-    blob: item.blob,
-    notFound: item.notFound,
-    updatedAt: Date.now(),
-  }))
-  void db.iconCache.bulkPut(rows)
-
-  const newCachedIcons: Record<string, string> = {}
-  const newFailedDomains: Record<string, boolean> = {}
-  for (const [domain, item] of entries) {
-    if (item.notFound) {
-      newFailedDomains[domain] = true
-    } else {
-      newCachedIcons[domain] = item.objectUrl || item.dataUrl || ''
+function loadAutoIcon(domain: string, url: string, force = false): Promise<IconReloadResult> {
+  return iconRequests.run(domain, async (isCurrent, signal) => {
+    if (!isCurrent()) return { domain, status: 'superseded' }
+    useNavStore.setState(state => ({ loadingIconDomains: { ...state.loadingIconDomains, [domain]: true } }))
+    let result: Awaited<ReturnType<typeof fetchFaviconBlob>> = null
+    let published = false
+    try {
+      result = await fetchFaviconBlob(getFaviconCandidates(url, undefined, force), force, signal)
+      if (!isCurrent()) return { domain, status: 'superseded' }
+      // Check ownership inside the transaction too: an older put is either skipped,
+      // or commits before the newer delete, never after it.
+      await db.transaction('rw', db.iconCache, async () => {
+        if (!isCurrent()) return
+        await db.iconCache.put({
+          domain,
+          blob: result?.blob,
+          notFound: !result,
+          updatedAt: Date.now(),
+        })
+      })
+      if (!isCurrent()) return { domain, status: 'superseded' }
+      const previous = useNavStore.getState().cachedIcons[domain]
+      useNavStore.setState(state => ({
+        cachedIcons: result
+          ? { ...state.cachedIcons, [domain]: result.objectUrl }
+          : withoutKeys(state.cachedIcons, [domain]),
+        failedDomains: result
+          ? withoutKeys(state.failedDomains, [domain])
+          : { ...state.failedDomains, [domain]: true },
+      }))
+      published = Boolean(result)
+      revokeIcon(previous)
+      return result
+        ? { domain, status: 'success' }
+        : { domain, status: 'failed', message: '未能获取有效图标，可重试' }
+    } catch (error) {
+      if (!isCurrent()) return { domain, status: 'superseded' }
+      // Stop automatic retry loops on storage/network errors; explicit retry remains available.
+      useNavStore.setState(state => ({ failedDomains: { ...state.failedDomains, [domain]: true } }))
+      return { domain, status: 'failed', message: error instanceof Error ? error.message : '图标更新失败' }
+    } finally {
+      if (result && !published) revokeIcon(result.objectUrl)
+      if (isCurrent()) {
+        useNavStore.setState(state => ({ loadingIconDomains: withoutKeys(state.loadingIconDomains, [domain]) }))
+      }
     }
-  }
-
-  set((state: any) => ({
-    cachedIcons: { ...state.cachedIcons, ...newCachedIcons },
-    failedDomains: { ...state.failedDomains, ...newFailedDomains },
-  }))
+  })
 }
 
 async function saveSettings(value: Settings): Promise<void> {
@@ -383,6 +407,8 @@ export const useNavStore = create<NavState>((set, get) => ({
   searchQuery: '',
   cachedIcons: {},
   failedDomains: {},
+  loadingIconDomains: {},
+  iconCleanupRunning: false,
   syncConfig: null,
   autoSync: true,
   syncStatus: 'off',
@@ -1000,55 +1026,76 @@ export const useNavStore = create<NavState>((set, get) => ({
     }))
   },
 
-  saveCachedIcon(domain, dataOrBlob, customObjectUrl) {
-    if (!domain || !dataOrBlob) return Promise.resolve()
-    if (dataOrBlob instanceof Blob) {
-      const objUrl = customObjectUrl || URL.createObjectURL(dataOrBlob)
-      pendingIconBatch[domain] = { blob: dataOrBlob, objectUrl: objUrl }
-    } else {
-      pendingIconBatch[domain] = { dataUrl: dataOrBlob, objectUrl: dataOrBlob }
+  ensureIcon(url) {
+    const domain = hostnameOf(url)
+    if (!domain) return Promise.resolve({ domain, status: 'failed', message: '网址无效' })
+    const pending = iconRequests.get(domain)
+    if (pending) return pending
+    const state = get()
+    if (state.cachedIcons[domain] && !state.failedDomains[domain]) {
+      return Promise.resolve({ domain, status: 'success' })
     }
-    if (!iconBatchTimer) {
-      iconBatchTimer = setTimeout(() => flushIconBatch(set), 200)
+    if (state.failedDomains[domain] || state.loadingIconDomains[domain]) {
+      return Promise.resolve({ domain, status: 'superseded' })
     }
-    return Promise.resolve()
+    return loadAutoIcon(domain, url)
   },
 
-  saveFailedIcon(domain) {
-    if (!domain) return Promise.resolve()
-    pendingIconBatch[domain] = { notFound: true, objectUrl: '' }
-    if (!iconBatchTimer) {
-      iconBatchTimer = setTimeout(() => flushIconBatch(set), 200)
+  async markIconFailed(domain, expectedIcon) {
+    if (get().cachedIcons[domain] !== expectedIcon || get().loadingIconDomains[domain]) return
+    iconRequests.invalidate([domain])
+    await iconRequests.run(domain, async isCurrent => {
+      try {
+        await db.transaction('rw', db.iconCache, async () => {
+          if (isCurrent()) await db.iconCache.put({ domain, notFound: true, updatedAt: Date.now() })
+        })
+      } catch {
+        // Still suppress rendering of a broken image in this session.
+      }
+      if (!isCurrent()) return { domain, status: 'superseded' }
+      set(state => ({
+        cachedIcons: withoutKeys(state.cachedIcons, [domain]),
+        failedDomains: { ...state.failedDomains, [domain]: true },
+      }))
+      revokeIcon(expectedIcon)
+      return { domain, status: 'failed' }
+    })
+  },
+
+  async clearAndReloadIcons(bookmarkIds, filter) {
+    if (get().iconCleanupRunning) throw new Error('正在清理图标，请等待本次操作完成')
+    const state = get()
+    const plan = planIconCleanup(state.bookmarks, bookmarkIds, filter, state.cachedIcons, state.failedDomains)
+    const domains = plan.targets.map(target => target.domain)
+    if (domains.length === 0) return []
+    set({
+      iconCleanupRunning: true,
+      loadingIconDomains: { ...state.loadingIconDomains, ...Object.fromEntries(domains.map(domain => [domain, true])) },
+    })
+    iconRequests.invalidate(domains)
+    try {
+      // Only this cache table and selected keys are touched, never business data.
+      await db.transaction('rw', db.iconCache, () => db.iconCache.bulkDelete(domains))
+      const oldIcons = domains.map(domain => get().cachedIcons[domain])
+      set(current => ({
+        cachedIcons: withoutKeys(current.cachedIcons, domains),
+        failedDomains: withoutKeys(current.failedDomains, domains),
+      }))
+      for (const icon of oldIcons) revokeIcon(icon)
+      return await Promise.all(plan.targets.map(target => loadAutoIcon(target.domain, target.url)))
+    } finally {
+      set(current => ({
+        iconCleanupRunning: false,
+        loadingIconDomains: withoutKeys(current.loadingIconDomains, domains),
+      }))
     }
-    return Promise.resolve()
   },
 
   async refreshIcon(domain, bookmarkUrl) {
-    if (!domain) return
-    await db.iconCache.delete(domain)
-    set((state) => {
-      const nextIcons = { ...state.cachedIcons }
-      const nextFailed = { ...state.failedDomains }
-      delete nextIcons[domain]
-      delete nextFailed[domain]
-      return { cachedIcons: nextIcons, failedDomains: nextFailed }
-    })
-
-    const targetUrl = bookmarkUrl || `https://${domain}`
-    const candidates = getFaviconCandidates(targetUrl, undefined, true)
-    if (candidates.length > 0) {
-      const result = await fetchFaviconBlob(candidates, true)
-      if (result) {
-        await get().saveCachedIcon(domain, result.blob, result.objectUrl)
-      } else {
-        await get().saveFailedIcon(domain)
-      }
-    }
-  },
-
-  async refreshAllIcons() {
-    await db.iconCache.clear()
-    set({ cachedIcons: {}, failedDomains: {} })
+    if (!domain || get().iconCleanupRunning) return
+    iconRequests.invalidate([domain])
+    // Existing explicit force-refresh action is separate from normal local cleanup.
+    await loadAutoIcon(domain, bookmarkUrl || `https://${domain}`, true)
   },
 
   async addMemo(text) {

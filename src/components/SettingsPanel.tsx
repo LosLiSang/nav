@@ -51,7 +51,7 @@ type Props = {
   onClose: () => void
   onChange: (values: Partial<Settings>) => void
   sync: SyncProps
-  onClearIconCache?: () => Promise<void>
+  onOpenIconCache?: () => void
 }
 
 export type TabType = 'appearance' | 'weather' | 'sync'
@@ -72,7 +72,7 @@ function formatTime(ts: number): string {
   return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
 }
 
-export function SettingsPanel({ settings, initialTab, onClose, onChange, sync, onClearIconCache }: Props) {
+export function SettingsPanel({ settings, initialTab, onClose, onChange, sync, onOpenIconCache }: Props) {
   const [activeTab, setActiveTab] = useState<TabType>(initialTab || 'appearance')
   const [showFallbackIconPicker, setShowFallbackIconPicker] = useState(false)
   const [customUrl, setCustomUrl] = useState(settings.wallpaperUrl)
@@ -80,7 +80,6 @@ export function SettingsPanel({ settings, initialTab, onClose, onChange, sync, o
   const [syncToken, setSyncToken] = useState(sync.config?.token ?? '')
   const [showSyncToken, setShowSyncToken] = useState(false)
   const [showSyncHelp, setShowSyncHelp] = useState(false)
-  const [cacheCleared, setCacheCleared] = useState(false)
   const [testCity, setTestCity] = useState(settings.weatherCity || '广州')
   const [testingWeather, setTestingWeather] = useState(false)
   const [testResult, setTestResult] = useState<{ success: boolean; data?: WeatherInfo; error?: string } | null>(null)
@@ -474,22 +473,15 @@ export function SettingsPanel({ settings, initialTab, onClose, onChange, sync, o
                   </div>
                 )}
 
-                {onClearIconCache && (
-                  <div className="mt-2 flex items-center justify-between text-[11px] text-neutral-400 dark:text-neutral-500">
-                    <span>清理已缓存的地球或旧图标：</span>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        await onClearIconCache()
-                        setCacheCleared(true)
-                        setTimeout(() => setCacheCleared(false), 2000)
-                      }}
-                      className="rounded-lg border border-neutral-200 dark:border-neutral-700 px-2 py-1 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
-                    >
-                      {cacheCleared ? '✓ 已清空缓存' : '清空图标缓存'}
-                    </button>
-                  </div>
-                )}
+                {onOpenIconCache && (
+                <div className="mt-2 space-y-2 text-[11px] text-neutral-500 dark:text-neutral-400">
+                  <p>按书签组或单个书签清理本地图标缓存，不影响书签与手动图标。</p>
+                  <button type="button" onClick={onOpenIconCache}
+                    className="rounded-lg border border-neutral-200 dark:border-neutral-700 px-3 py-1.5 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition">
+                    清理本地图标缓存
+                  </button>
+                </div>
+              )}
               </div>
             </>
           ) : activeTab === 'weather' ? (
