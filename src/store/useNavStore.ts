@@ -1,7 +1,24 @@
 import { create } from 'zustand'
+import Dexie from 'dexie'
 import { arrayMove } from '@dnd-kit/sortable'
-import { db } from '../lib/db'
-import { fetchFaviconBlob, getFaviconCandidates, normalizeIconUrl } from '../lib/utils'
+import { db, openAnonymousDatabase } from '../lib/db'
+import {
+  claimLegacy,
+  clearSession,
+  fetchMe,
+  loadSession,
+  logoutRemote,
+  saveSession,
+  startLogin,
+  takeLoginNotice,
+  ApiError,
+  type AccountUser,
+  type LegacyState,
+  type Session,
+} from '../lib/auth'
+import { fetchFaviconBlob, getFaviconCandidates, hostnameOf, normalizeIconUrl } from '../lib/utils'
+import { IconRequestPool } from '../lib/iconRequestPool'
+import { planIconCleanup, type IconFilter, type IconReloadResult } from '../lib/iconCache'
 import {
   DEFAULT_SETTINGS,
   SEARCH_ENGINES,
@@ -27,22 +44,46 @@ import type {
 } from '../types'
 import {
   buildSyncDoc,
-  clearSyncConfig,
   describeSyncError,
   loadAutoSync,
   loadLocalTimestamp,
-  loadSyncConfig,
-  normalizeSyncUrl,
   remoteGet,
   remotePut,
   saveAutoSync,
   saveLocalTimestamp,
-  saveSyncConfig,
   syncDocSignature,
   type SyncConfig,
 } from '../lib/sync'
 
 export type SyncStatus = 'off' | 'idle' | 'syncing' | 'synced' | 'error' | 'conflict'
+
+/** 首次进入一个空账号时可选的数据来源 */
+export type ImportOffer = {
+  /** 未登录时本机库里的书签数量 */
+  anonymousBookmarks: number
+  /** 管理员可以认领单用户时代的云端数据 */
+  legacyClaimable: boolean
+}
+export type ImportChoice = 'local' | 'legacy' | 'skip'
+
+const IMPORT_DECIDED_KEY = 'nav_import_decided'
+
+// 按本地库名记录（库名已包含账号与 /dev/ 环境），每个账号库只问一次
+function importDecided(): boolean {
+  return localStorage.getItem(`${IMPORT_DECIDED_KEY}:${db.name}`) === '1'
+}
+
+function markImportDecided(): void {
+  localStorage.setItem(`${IMPORT_DECIDED_KEY}:${db.name}`, '1')
+}
+
+function markImportDecidedUndo(): void {
+  localStorage.removeItem(`${IMPORT_DECIDED_KEY}:${db.name}`)
+}
+
+function syncConfigFor(session: Session | null): SyncConfig | null {
+  return session && session.user.status === 'active' ? { url: session.url, token: session.token } : null
+}
 
 type NavState = {
   ready: boolean
@@ -59,8 +100,19 @@ type NavState = {
   searchQuery: string
   cachedIcons: Record<string, string>
   failedDomains: Record<string, boolean>
+  loadingIconDomains: Record<string, boolean>
+  iconCleanupRunning: boolean
 
-  // 云同步（Cloudflare Worker + D1）
+  // 账号（GitHub 登录）
+  session: Session | null
+  account: AccountUser | null
+  /** 仅管理员可见：旧单用户云端数据是否存在 / 已认领 */
+  legacy: LegacyState | null
+  /** 首次进入账号时的数据来源选择；null 表示不需要选择 */
+  importOffer: ImportOffer | null
+  accountMessage: string
+
+  // 云同步（Cloudflare Worker + D1）；只有已审批（active）的账号才有 syncConfig
   syncConfig: SyncConfig | null
   autoSync: boolean
   syncStatus: SyncStatus
@@ -81,10 +133,15 @@ type NavState = {
   dismissNotice: () => void
   toggleFavorite: (bookmarkId: string) => Promise<void>
 
+  // Account
+  login: () => void
+  logout: () => Promise<void>
+  refreshAccount: () => Promise<void>
+  resolveImport: (choice: ImportChoice) => Promise<void>
+  hasUnsyncedChanges: () => boolean
+
   // Cloud sync
-  configureSync: (url: string, token: string) => Promise<void>
   setAutoSync: (enabled: boolean) => void
-  disconnectSync: () => void
   syncNow: () => Promise<void>
   pushToCloud: (force?: boolean) => Promise<void>
   pullFromCloud: () => Promise<void>
@@ -121,10 +178,10 @@ type NavState = {
   reorderBookmark: (bookmarkId: string, overBookmarkId: string) => Promise<void>
   moveBookmarkToCategory: (bookmarkId: string, categoryId: string) => Promise<void>
   moveBookmarkToSubCategory: (bookmarkId: string, subCategoryId: string) => Promise<void>
-  saveCachedIcon: (domain: string, dataOrBlob: string | Blob, objectUrl?: string) => Promise<void>
-  saveFailedIcon: (domain: string) => Promise<void>
+  ensureIcon: (url: string) => Promise<IconReloadResult>
+  markIconFailed: (domain: string, expectedIcon: string) => Promise<void>
+  clearAndReloadIcons: (bookmarkIds: string[], filter: IconFilter) => Promise<IconReloadResult[]>
   refreshIcon: (domain: string, bookmarkUrl?: string) => Promise<void>
-  refreshAllIcons: () => Promise<void>
 
   // Memos
   addMemo: (text: string) => Promise<void>
@@ -152,45 +209,65 @@ type NavState = {
 
 const SETTINGS_KEY = 'app'
 let initializationPromise: Promise<void> | null = null
-type PendingIconItem = {
-  dataUrl?: string
-  blob?: Blob
-  objectUrl: string
-  notFound?: boolean
+const iconRequests = new IconRequestPool<IconReloadResult>()
+
+function withoutKeys<T>(record: Record<string, T>, keys: string[]): Record<string, T> {
+  const next = { ...record }
+  for (const key of keys) delete next[key]
+  return next
 }
-let pendingIconBatch: Record<string, PendingIconItem> = {}
-let iconBatchTimer: ReturnType<typeof setTimeout> | null = null
 
-function flushIconBatch(set: any) {
-  const batch = { ...pendingIconBatch }
-  pendingIconBatch = {}
-  iconBatchTimer = null
-  const entries = Object.entries(batch)
-  if (entries.length === 0) return
+function revokeIcon(url: string | undefined): void {
+  if (url?.startsWith('blob:')) URL.revokeObjectURL(url)
+}
 
-  const rows = entries.map(([domain, item]) => ({
-    domain,
-    dataUrl: item.dataUrl,
-    blob: item.blob,
-    notFound: item.notFound,
-    updatedAt: Date.now(),
-  }))
-  void db.iconCache.bulkPut(rows)
-
-  const newCachedIcons: Record<string, string> = {}
-  const newFailedDomains: Record<string, boolean> = {}
-  for (const [domain, item] of entries) {
-    if (item.notFound) {
-      newFailedDomains[domain] = true
-    } else {
-      newCachedIcons[domain] = item.objectUrl || item.dataUrl || ''
+function loadAutoIcon(domain: string, url: string, force = false): Promise<IconReloadResult> {
+  return iconRequests.run(domain, async (isCurrent, signal) => {
+    if (!isCurrent()) return { domain, status: 'superseded' }
+    useNavStore.setState(state => ({ loadingIconDomains: { ...state.loadingIconDomains, [domain]: true } }))
+    let result: Awaited<ReturnType<typeof fetchFaviconBlob>> = null
+    let published = false
+    try {
+      result = await fetchFaviconBlob(getFaviconCandidates(url, undefined, force), force, signal)
+      if (!isCurrent()) return { domain, status: 'superseded' }
+      // Check ownership inside the transaction too: an older put is either skipped,
+      // or commits before the newer delete, never after it.
+      await db.transaction('rw', db.iconCache, async () => {
+        if (!isCurrent()) return
+        await db.iconCache.put({
+          domain,
+          blob: result?.blob,
+          notFound: !result,
+          updatedAt: Date.now(),
+        })
+      })
+      if (!isCurrent()) return { domain, status: 'superseded' }
+      const previous = useNavStore.getState().cachedIcons[domain]
+      useNavStore.setState(state => ({
+        cachedIcons: result
+          ? { ...state.cachedIcons, [domain]: result.objectUrl }
+          : withoutKeys(state.cachedIcons, [domain]),
+        failedDomains: result
+          ? withoutKeys(state.failedDomains, [domain])
+          : { ...state.failedDomains, [domain]: true },
+      }))
+      published = Boolean(result)
+      revokeIcon(previous)
+      return result
+        ? { domain, status: 'success' }
+        : { domain, status: 'failed', message: '未能获取有效图标，可重试' }
+    } catch (error) {
+      if (!isCurrent()) return { domain, status: 'superseded' }
+      // Stop automatic retry loops on storage/network errors; explicit retry remains available.
+      useNavStore.setState(state => ({ failedDomains: { ...state.failedDomains, [domain]: true } }))
+      return { domain, status: 'failed', message: error instanceof Error ? error.message : '图标更新失败' }
+    } finally {
+      if (result && !published) revokeIcon(result.objectUrl)
+      if (isCurrent()) {
+        useNavStore.setState(state => ({ loadingIconDomains: withoutKeys(state.loadingIconDomains, [domain]) }))
+      }
     }
-  }
-
-  set((state: any) => ({
-    cachedIcons: { ...state.cachedIcons, ...newCachedIcons },
-    failedDomains: { ...state.failedDomains, ...newFailedDomains },
-  }))
+  })
 }
 
 async function saveSettings(value: Settings): Promise<void> {
@@ -355,6 +432,67 @@ async function bootstrapSync(hadLocalData: boolean): Promise<void> {
   }
 }
 
+function accountStatusText(user: AccountUser): string {
+  if (user.status === 'pending') return '账号等待管理员审批，通过后即可云同步（数据暂存本机）'
+  if (user.status === 'disabled') return '账号已被禁用，云同步不可用'
+  return ''
+}
+
+async function countAnonymousBookmarks(): Promise<number> {
+  const anonymous = openAnonymousDatabase()
+  try {
+    if (anonymous.name === db.name) return 0
+    if (!(await Dexie.exists(anonymous.name))) return 0
+    return await anonymous.bookmarks.count()
+  } catch {
+    return 0
+  } finally {
+    anonymous.close()
+  }
+}
+
+/**
+ * 登录状态下的启动流程：刷新账号 → 首次进入空账号时询问数据来源 → 正常启动同步。
+ * 「不确定就不覆盖」：账号云端已有数据时以云端为准，不会把本机数据混进去。
+ */
+async function accountBootstrap(hadLocalData: boolean): Promise<void> {
+  await useNavStore.getState().refreshAccount()
+  const { session, syncConfig, legacy, autoSync } = useNavStore.getState()
+  if (!session) return
+
+  if (!hadLocalData && !importDecided()) {
+    let remoteEmpty = true
+    if (syncConfig) {
+      try {
+        const remote = await remoteGet(syncConfig)
+        remoteConfirmed = true
+        useNavStore.setState({ remoteUpdatedAt: remote.updatedAt })
+        remoteEmpty = !remote.doc
+      } catch (error) {
+        useNavStore.setState({ syncStatus: 'error', syncMessage: describeSyncError(error) })
+        return
+      }
+    }
+    if (remoteEmpty) {
+      const anonymousBookmarks = await countAnonymousBookmarks()
+      const legacyClaimable = Boolean(legacy?.exists && !legacy.claimed)
+      if (anonymousBookmarks > 0 || legacyClaimable) {
+        useNavStore.setState({
+          importOffer: { anonymousBookmarks, legacyClaimable },
+          syncMessage: '请选择这个账号的初始数据',
+        })
+        return
+      }
+    }
+    markImportDecided()
+  }
+
+  if (syncConfig && autoSync) {
+    lastPushedSignature = currentSignature()
+    await bootstrapSync(hadLocalData)
+  }
+}
+
 function scheduleSyncPush(): void {
   if (pushTimer) clearTimeout(pushTimer)
   pushTimer = setTimeout(() => {
@@ -383,6 +521,13 @@ export const useNavStore = create<NavState>((set, get) => ({
   searchQuery: '',
   cachedIcons: {},
   failedDomains: {},
+  loadingIconDomains: {},
+  iconCleanupRunning: false,
+  session: null,
+  account: null,
+  legacy: null,
+  importOffer: null,
+  accountMessage: '',
   syncConfig: null,
   autoSync: true,
   syncStatus: 'off',
@@ -396,7 +541,8 @@ export const useNavStore = create<NavState>((set, get) => ({
 
     if (!initializationPromise) {
       initializationPromise = (async () => {
-        const syncConfig = loadSyncConfig()
+        const session = loadSession()
+        const syncConfig = syncConfigFor(session)
         const autoSync = loadAutoSync()
         const localUpdatedAt = loadLocalTimestamp()
 
@@ -530,18 +676,20 @@ export const useNavStore = create<NavState>((set, get) => ({
           settings: nextSettings,
           cachedIcons: nextCachedIcons,
           failedDomains: nextFailedDomains,
+          session,
+          account: session?.user ?? null,
           syncConfig,
           autoSync,
           localUpdatedAt,
           remoteUpdatedAt: 0,
           syncStatus: syncConfig ? 'idle' : 'off',
-          syncMessage: syncConfig ? '' : '未开启云同步',
+          syncMessage: syncConfig ? '' : session ? accountStatusText(session.user) : '登录后即可云同步',
+          accountMessage: takeLoginNotice(),
         })
 
-        // 首次同步放到后台跑，不阻塞首屏渲染
-        if (syncConfig && autoSync) {
-          lastPushedSignature = currentSignature()
-          bootstrapPromise = bootstrapSync(hadLocalData).catch(() => {})
+        // 账号状态刷新与首次同步放到后台跑，不阻塞首屏渲染
+        if (session) {
+          bootstrapPromise = accountBootstrap(hadLocalData).catch(() => {})
         }
       })().catch((error) => {
         initializationPromise = null
@@ -1000,55 +1148,76 @@ export const useNavStore = create<NavState>((set, get) => ({
     }))
   },
 
-  saveCachedIcon(domain, dataOrBlob, customObjectUrl) {
-    if (!domain || !dataOrBlob) return Promise.resolve()
-    if (dataOrBlob instanceof Blob) {
-      const objUrl = customObjectUrl || URL.createObjectURL(dataOrBlob)
-      pendingIconBatch[domain] = { blob: dataOrBlob, objectUrl: objUrl }
-    } else {
-      pendingIconBatch[domain] = { dataUrl: dataOrBlob, objectUrl: dataOrBlob }
+  ensureIcon(url) {
+    const domain = hostnameOf(url)
+    if (!domain) return Promise.resolve({ domain, status: 'failed', message: '网址无效' })
+    const pending = iconRequests.get(domain)
+    if (pending) return pending
+    const state = get()
+    if (state.cachedIcons[domain] && !state.failedDomains[domain]) {
+      return Promise.resolve({ domain, status: 'success' })
     }
-    if (!iconBatchTimer) {
-      iconBatchTimer = setTimeout(() => flushIconBatch(set), 200)
+    if (state.failedDomains[domain] || state.loadingIconDomains[domain]) {
+      return Promise.resolve({ domain, status: 'superseded' })
     }
-    return Promise.resolve()
+    return loadAutoIcon(domain, url)
   },
 
-  saveFailedIcon(domain) {
-    if (!domain) return Promise.resolve()
-    pendingIconBatch[domain] = { notFound: true, objectUrl: '' }
-    if (!iconBatchTimer) {
-      iconBatchTimer = setTimeout(() => flushIconBatch(set), 200)
+  async markIconFailed(domain, expectedIcon) {
+    if (get().cachedIcons[domain] !== expectedIcon || get().loadingIconDomains[domain]) return
+    iconRequests.invalidate([domain])
+    await iconRequests.run(domain, async isCurrent => {
+      try {
+        await db.transaction('rw', db.iconCache, async () => {
+          if (isCurrent()) await db.iconCache.put({ domain, notFound: true, updatedAt: Date.now() })
+        })
+      } catch {
+        // Still suppress rendering of a broken image in this session.
+      }
+      if (!isCurrent()) return { domain, status: 'superseded' }
+      set(state => ({
+        cachedIcons: withoutKeys(state.cachedIcons, [domain]),
+        failedDomains: { ...state.failedDomains, [domain]: true },
+      }))
+      revokeIcon(expectedIcon)
+      return { domain, status: 'failed' }
+    })
+  },
+
+  async clearAndReloadIcons(bookmarkIds, filter) {
+    if (get().iconCleanupRunning) throw new Error('正在清理图标，请等待本次操作完成')
+    const state = get()
+    const plan = planIconCleanup(state.bookmarks, bookmarkIds, filter, state.cachedIcons, state.failedDomains)
+    const domains = plan.targets.map(target => target.domain)
+    if (domains.length === 0) return []
+    set({
+      iconCleanupRunning: true,
+      loadingIconDomains: { ...state.loadingIconDomains, ...Object.fromEntries(domains.map(domain => [domain, true])) },
+    })
+    iconRequests.invalidate(domains)
+    try {
+      // Only this cache table and selected keys are touched, never business data.
+      await db.transaction('rw', db.iconCache, () => db.iconCache.bulkDelete(domains))
+      const oldIcons = domains.map(domain => get().cachedIcons[domain])
+      set(current => ({
+        cachedIcons: withoutKeys(current.cachedIcons, domains),
+        failedDomains: withoutKeys(current.failedDomains, domains),
+      }))
+      for (const icon of oldIcons) revokeIcon(icon)
+      return await Promise.all(plan.targets.map(target => loadAutoIcon(target.domain, target.url)))
+    } finally {
+      set(current => ({
+        iconCleanupRunning: false,
+        loadingIconDomains: withoutKeys(current.loadingIconDomains, domains),
+      }))
     }
-    return Promise.resolve()
   },
 
   async refreshIcon(domain, bookmarkUrl) {
-    if (!domain) return
-    await db.iconCache.delete(domain)
-    set((state) => {
-      const nextIcons = { ...state.cachedIcons }
-      const nextFailed = { ...state.failedDomains }
-      delete nextIcons[domain]
-      delete nextFailed[domain]
-      return { cachedIcons: nextIcons, failedDomains: nextFailed }
-    })
-
-    const targetUrl = bookmarkUrl || `https://${domain}`
-    const candidates = getFaviconCandidates(targetUrl, undefined, true)
-    if (candidates.length > 0) {
-      const result = await fetchFaviconBlob(candidates, true)
-      if (result) {
-        await get().saveCachedIcon(domain, result.blob, result.objectUrl)
-      } else {
-        await get().saveFailedIcon(domain)
-      }
-    }
-  },
-
-  async refreshAllIcons() {
-    await db.iconCache.clear()
-    set({ cachedIcons: {}, failedDomains: {} })
+    if (!domain || get().iconCleanupRunning) return
+    iconRequests.invalidate([domain])
+    // Existing explicit force-refresh action is separate from normal local cleanup.
+    await loadAutoIcon(domain, bookmarkUrl || `https://${domain}`, true)
   },
 
   async addMemo(text) {
@@ -1100,22 +1269,6 @@ export const useNavStore = create<NavState>((set, get) => ({
   // 云同步
   // -------------------------------------------------------------------------
 
-  async configureSync(url, token) {
-    const normalized = normalizeSyncUrl(url)
-    const trimmedToken = token.trim()
-    if (!normalized || !trimmedToken) {
-      set({ syncStatus: 'error', syncMessage: '同步地址和 token 都要填' })
-      return
-    }
-
-    const config: SyncConfig = { url: normalized, token: trimmedToken }
-    saveSyncConfig(config)
-    remoteConfirmed = false
-    lastPushedSignature = ''
-    set({ syncConfig: config, syncStatus: 'idle', syncMessage: '已保存，正在首次连接…' })
-    await get().syncNow()
-  },
-
   setAutoSync(enabled) {
     saveAutoSync(enabled)
     set({
@@ -1124,20 +1277,137 @@ export const useNavStore = create<NavState>((set, get) => ({
     })
   },
 
-  disconnectSync() {
-    clearSyncConfig()
-    remoteConfirmed = false
-    lastPushedSignature = ''
-    set({
-      syncConfig: null,
-      remoteUpdatedAt: 0,
-      syncStatus: 'off',
-      syncMessage: '已关闭云同步，云端数据仍保留',
-    })
+  login() {
+    startLogin()
+  },
+
+  /**
+   * 退出登录：撤销服务端会话后重新加载页面，回到未登录时的本地库。
+   * 账号库保留在本机，未同步的改动下次登录后会继续同步（调用方负责提前确认）。
+   */
+  async logout() {
+    const session = get().session
+    if (pushTimer) clearTimeout(pushTimer)
+    pushTimer = null
+    if (session) await logoutRemote(session)
+    clearSession()
+    window.location.reload()
+  },
+
+  /** 重新读取账号状态（审批结果、角色、旧数据认领情况） */
+  async refreshAccount() {
+    const session = get().session
+    if (!session) return
+    const wasActive = Boolean(get().syncConfig)
+    try {
+      const me = await fetchMe(session)
+      const next: Session = { ...session, user: me.user }
+      saveSession(next)
+      const syncConfig = syncConfigFor(next)
+      set({
+        session: next,
+        account: me.user,
+        legacy: me.legacy,
+        syncConfig,
+        accountMessage: '',
+        ...(syncConfig
+          ? wasActive
+            ? {}
+            : { syncStatus: 'idle' as const, syncMessage: '账号已通过审批' }
+          : { syncStatus: 'off' as const, syncMessage: accountStatusText(me.user) }),
+      })
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        // 保留会话里的账号 id（决定本地库），只停掉同步，提示重新登录
+        set({
+          syncConfig: null,
+          syncStatus: 'off',
+          syncMessage: '登录已过期，请重新登录',
+          accountMessage: '登录已过期，请重新登录',
+        })
+        return
+      }
+      set({ accountMessage: describeSyncError(error) })
+    }
+  },
+
+  hasUnsyncedChanges() {
+    const state = get()
+    if (!state.syncConfig) return false
+    return (
+      Boolean(pushTimer) ||
+      state.syncStatus === 'conflict' ||
+      state.syncStatus === 'error' ||
+      currentSignature() !== lastPushedSignature
+    )
+  },
+
+  /**
+   * 首次进入空账号时的数据来源：
+   * - local：导入未登录时本机的数据，随后上传到账号
+   * - legacy：（管理员）认领单用户时代的云端数据并拉取
+   * - skip：从默认数据开始
+   */
+  async resolveImport(choice) {
+    const offer = get().importOffer
+    const session = get().session
+    if (!offer || !session) return
+    set({ accountMessage: '' })
+    try {
+      if (choice === 'legacy') {
+        await claimLegacy(session)
+        markImportDecided()
+        set({ importOffer: null })
+        await get().refreshAccount()
+        if (get().syncConfig) await get().pullFromCloud()
+        return
+      }
+      markImportDecided()
+      set({ importOffer: null })
+      if (choice === 'local') {
+        const anonymous = openAnonymousDatabase()
+        try {
+          const [categories, subSections, subCategories, bookmarks, memos, totpAccounts, settingRecord] =
+            await Promise.all([
+              anonymous.categories.toArray(),
+              anonymous.subSections.toArray(),
+              anonymous.subCategories.toArray(),
+              anonymous.bookmarks.toArray(),
+              anonymous.memos.toArray(),
+              anonymous.totpAccounts.toArray(),
+              anonymous.settings.get(SETTINGS_KEY),
+            ])
+          // importBackup 会重新初始化，本机版本更新，随后自动上传到账号云端
+          await get().importBackup({
+            categories,
+            subSections,
+            subCategories,
+            bookmarks,
+            memos,
+            totpAccounts,
+            ...(settingRecord ? { settings: settingRecord.value } : {}),
+          })
+        } finally {
+          anonymous.close()
+        }
+        return
+      }
+      if (get().syncConfig && get().autoSync) {
+        lastPushedSignature = currentSignature()
+        bootstrapPromise = bootstrapSync(false).catch(() => {})
+      }
+    } catch (error) {
+      markImportDecidedUndo()
+      set({ importOffer: offer, accountMessage: describeSyncError(error) })
+    }
   },
 
   /** 手动「立即同步」：先读云端，再按时间戳决定谁覆盖谁（不确定时以云端为准） */
   async syncNow() {
+    if (get().importOffer) {
+      set({ syncMessage: '请先选择这个账号的初始数据' })
+      return
+    }
     const config = get().syncConfig
     if (!config) {
       set({ syncStatus: 'off', syncMessage: '还没配置同步地址' })
@@ -1185,7 +1455,7 @@ export const useNavStore = create<NavState>((set, get) => ({
    */
   async pushToCloud(force = false) {
     const config = get().syncConfig
-    if (!config) return
+    if (!config || get().importOffer) return
 
     set({ syncStatus: 'syncing', syncMessage: force ? '正在强制上传本地…' : '正在上传…' })
     try {
@@ -1488,7 +1758,7 @@ useNavStore.subscribe((state, prev) => {
     state.settings !== prev.settings
   if (!dataChanged) return
 
-  if (!state.syncConfig || !state.autoSync) return
+  if (!state.syncConfig || !state.autoSync || state.importOffer) return
   if (state.syncStatus === 'syncing') return
   if (syncDocSignature(buildSyncDoc(state)) === lastPushedSignature) return
 

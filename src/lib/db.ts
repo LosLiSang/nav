@@ -1,4 +1,5 @@
 import Dexie, { type Table } from 'dexie'
+import { currentAccountId } from './auth'
 import type {
   Bookmark,
   CachedIcon,
@@ -17,15 +18,26 @@ type SettingRecord = {
   value: Settings
 }
 
-function resolveDatabaseName(): string {
-  // 当运行在 GitHub Pages 的 /dev/ 预览子路径下时，使用独立数据库隔离生产数据，避免版本升级冲突
-  if (typeof window !== 'undefined' && window.location.pathname.includes('/dev')) {
-    return 'nav-workspace-dev'
-  }
-  return 'nav-workspace-v2'
+/**
+ * 本地数据库按「运行环境 + 账号」隔离：
+ * - /dev/ 预览使用独立前缀，避免与生产数据互相升级冲突
+ * - 未登录沿用原来的库名（老数据原地保留）；登录后每个账号一个独立的库
+ * 库名在页面加载时确定，切换账号通过重新加载页面完成，内存里不会残留上一个账号的数据。
+ */
+export function databaseNameFor(accountId: string | null, isDev: boolean): string {
+  const base = isDev ? 'nav-workspace-dev' : 'nav-workspace-v2'
+  return accountId ? `${base}-u-${accountId}` : base
 }
 
-class NavDatabase extends Dexie {
+function isDevPreview(): boolean {
+  return typeof window !== 'undefined' && window.location.pathname.includes('/dev')
+}
+
+function resolveDatabaseName(): string {
+  return databaseNameFor(currentAccountId(), isDevPreview())
+}
+
+export class NavDatabase extends Dexie {
   categories!: Table<Category, string>
   subSections!: Table<SubSection, string>
   subCategories!: Table<SubCategory, string>
@@ -38,8 +50,8 @@ class NavDatabase extends Dexie {
   superPinnedLinks!: Table<SuperPinnedLink, string>
   scratchpad!: Table<{ id: string; content: string; updatedAt: number }, string>
 
-  constructor() {
-    super(resolveDatabaseName())
+  constructor(name = resolveDatabaseName()) {
+    super(name)
     this.version(2).stores({
       categories: 'id, order',
       subSections: 'id, order',
@@ -76,3 +88,8 @@ class NavDatabase extends Dexie {
 }
 
 export const db = new NavDatabase()
+
+/** 未登录时使用的本地库（登录后首次进入账号时，可从这里导入数据） */
+export function openAnonymousDatabase(): NavDatabase {
+  return new NavDatabase(databaseNameFor(null, isDevPreview()))
+}

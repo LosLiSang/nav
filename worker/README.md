@@ -17,7 +17,7 @@ npx wrangler login                # 打开浏览器完成 Cloudflare 授权
 
 npx wrangler d1 create nav-sync   # 建库，把返回的 database_id 填进 wrangler.toml
 
-npx wrangler d1 execute nav-sync --remote --file=./schema.sql   # 建表
+npx wrangler d1 migrations apply nav-sync --remote   # 建表（migrations/）
 
 npx wrangler secret put SYNC_TOKEN   # 粘贴一个长随机串（可在导航页设置面板点「生成」）
 

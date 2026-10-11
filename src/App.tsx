@@ -23,6 +23,7 @@ import { BottomSection } from './components/BottomSection'
 import { ConfirmModal } from './components/ConfirmModal'
 import { FloatingDock } from './components/FloatingDock'
 import { IconPickerModal } from './components/IconPickerModal'
+import { IconCacheModal } from './components/IconCacheModal'
 import { MainCategoryCard } from './components/MainCategoryCard'
 import { ProfileModal } from './components/ProfileModal'
 import { RightSidebar } from './components/RightSidebar'
@@ -144,31 +145,16 @@ export default function App() {
     addTotpAccount,
     deleteTotpAccount,
     saveScratchpad,
-    saveCachedIcon,
-    saveFailedIcon,
     refreshIcon,
-    refreshAllIcons,
     exportBackup,
     importBackup,
     resetToDefaults,
-    syncConfig,
-    autoSync,
-    syncStatus,
-    syncMessage,
-    lastSyncedAt,
-    localUpdatedAt,
-    remoteUpdatedAt,
-    configureSync,
-    setAutoSync,
-    disconnectSync,
-    syncNow,
-    pushToCloud,
-    pullFromCloud,
   } = useNavStore()
 
   const searchBarRef = useRef<SearchBarHandle>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [iconCacheOpen, setIconCacheOpen] = useState(false)
   const [settingsTab, setSettingsTab] = useState<TabType>('appearance')
   const [profileOpen, setProfileOpen] = useState(false)
   const [bookmarkStyleOpen, setBookmarkStyleOpen] = useState(false)
@@ -426,8 +412,6 @@ export default function App() {
             settings={settings}
             cachedIcons={cachedIcons}
             failedDomains={failedDomains}
-            onSaveCachedIcon={(domain, dataOrBlob, objectUrl) => void saveCachedIcon(domain, dataOrBlob, objectUrl)}
-            onSaveFailedIcon={(domain) => void saveFailedIcon(domain)}
             onSelectCategory={setActiveCategory}
             onAddCategory={(name) => void addCategory(name)}
             onDeleteCategory={(id) => void deleteCategory(id)}
@@ -454,8 +438,6 @@ export default function App() {
             settings={settings}
             isSortMode={settings.isSortMode}
             draggingId={draggingId}
-            onSaveCachedIcon={(domain, dataOrBlob, objectUrl) => void saveCachedIcon(domain, dataOrBlob, objectUrl)}
-            onSaveFailedIcon={(domain) => void saveFailedIcon(domain)}
               onSelectSubSection={setActiveSubSection}
               onSelectSubCategory={setActiveSubCategory}
               onAddSubSection={(name, icon) => void addSubSection(name, icon)}
@@ -643,22 +625,7 @@ export default function App() {
                 setSettingsTab('appearance')
               }}
             onChange={updateSettings}
-            onClearIconCache={refreshAllIcons}
-            sync={{
-              config: syncConfig,
-              autoSync,
-              status: syncStatus,
-              message: syncMessage,
-              lastSyncedAt,
-              localUpdatedAt,
-              remoteUpdatedAt,
-              onConfigure: configureSync,
-              onToggleAuto: setAutoSync,
-              onDisconnect: disconnectSync,
-              onSyncNow: syncNow,
-              onPush: pushToCloud,
-              onPull: pullFromCloud,
-            }}
+            onOpenIconCache={() => setIconCacheOpen(true)}
           />
         )}
 
@@ -684,11 +651,15 @@ export default function App() {
             onChangeSettings={updateSettings}
             onRenameCategory={(id, name) => void renameCategory(id, name)}
             onDeleteCategory={(id) => void deleteCategory(id)}
-            onRefreshAllIcons={() => void refreshAllIcons()}
+            onOpenIconCache={() => setIconCacheOpen(true)}
           />
         )}
 
-        {/* Delete Bookmark Confirm Modal */}
+        {iconCacheOpen && (
+        <IconCacheModal currentPageBookmarks={activeMainBookmarks} onClose={() => setIconCacheOpen(false)} />
+      )}
+
+      {/* Delete Bookmark Confirm Modal */}
         <ConfirmModal
           open={Boolean(deletingBookmark)}
           isDanger

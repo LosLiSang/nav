@@ -1,4 +1,5 @@
 import type { NavData, Settings } from '../types'
+import { ApiError, apiRequest, currentAccountId, describeApiError } from './auth'
 
 /**
  * 与 Cloudflare Worker（worker/ 目录）通信的同步层。
@@ -7,9 +8,10 @@ import type { NavData, Settings } from '../types'
  * - 浏览器 IndexedDB 仍然是「读取最快的那一层」，离线可用、不做改动。
  * - Worker + D1 是「不会因为清 cookie / 换设备而丢」的那一层。
  *
- * token 只存在用户自己浏览器的 localStorage 里，永远不进仓库、不进构建产物。
+ * 鉴权使用 GitHub 登录换来的会话令牌（见 auth.ts），服务端按账号隔离数据。
  */
 
+/** 一次同步请求需要的服务地址与会话令牌 */
 export type SyncConfig = {
   url: string
   token: string
@@ -25,7 +27,6 @@ export type PushResult =
   | { status: 'ok'; updatedAt: number; rev: number }
   | { status: 'conflict'; doc: NavData | null; updatedAt: number; rev: number }
 
-const CONFIG_KEY = 'nav_sync_config'
 const AUTO_KEY = 'nav_sync_auto'
 const LOCAL_TS_KEY = 'nav_sync_local_ts'
 
@@ -42,47 +43,7 @@ const DEVICE_LOCAL_SETTINGS: (keyof Settings)[] = [
   'showNotice',
 ]
 
-const REQUEST_TIMEOUT_MS = 15000
-
-export const DEFAULT_SYNC_URL: string =
-  (import.meta.env.VITE_SYNC_URL as string | undefined)?.trim() || 'https://nav.lisang.workers.dev'
-
-/** 允许用户只填 `xxx.workers.dev`，自动补协议、去掉结尾斜杠 */
-export function normalizeSyncUrl(value: string): string {
-  const trimmed = value.trim().replace(/\/+$/, '')
-  if (!trimmed) return ''
-  if (/^https?:\/\//i.test(trimmed)) return trimmed
-  return `https://${trimmed}`
-}
-
-export function loadSyncConfig(): SyncConfig | null {
-  try {
-    const raw = localStorage.getItem(CONFIG_KEY)
-    if (!raw) return null
-    const parsed = JSON.parse(raw) as Partial<SyncConfig>
-    // Worker 由 nav-sync 更名为 nav，旧设备保存的地址自动迁移到新地址
-    const url = normalizeSyncUrl(parsed.url || '').replace(
-      /^https:\/\/nav-sync\.lisang\.workers\.dev$/i,
-      'https://nav.lisang.workers.dev',
-    )
-    const token = (parsed.token || '').trim()
-    if (!url || !token) return null
-    return { url, token }
-  } catch {
-    return null
-  }
-}
-
-export function saveSyncConfig(config: SyncConfig): void {
-  localStorage.setItem(
-    CONFIG_KEY,
-    JSON.stringify({ url: normalizeSyncUrl(config.url), token: config.token.trim() }),
-  )
-}
-
-export function clearSyncConfig(): void {
-  localStorage.removeItem(CONFIG_KEY)
-}
+export { DEFAULT_SYNC_URL, normalizeSyncUrl } from './sync-url'
 
 export function loadAutoSync(): boolean {
   return localStorage.getItem(AUTO_KEY) !== '0'
@@ -92,13 +53,19 @@ export function saveAutoSync(enabled: boolean): void {
   localStorage.setItem(AUTO_KEY, enabled ? '1' : '0')
 }
 
+/** 本机数据对应的云端版本号按账号分开记录，账号之间互不影响 */
+function localTimestampKey(): string {
+  const account = currentAccountId()
+  return account ? `${LOCAL_TS_KEY}:${account}` : LOCAL_TS_KEY
+}
+
 export function loadLocalTimestamp(): number {
-  const raw = Number(localStorage.getItem(LOCAL_TS_KEY) || 0)
+  const raw = Number(localStorage.getItem(localTimestampKey()) || 0)
   return Number.isFinite(raw) ? raw : 0
 }
 
 export function saveLocalTimestamp(ts: number): void {
-  localStorage.setItem(LOCAL_TS_KEY, String(ts))
+  localStorage.setItem(localTimestampKey(), String(ts))
 }
 
 /** 剔除本机 UI 状态，得到真正需要跨设备一致的那份数据 */
@@ -138,38 +105,12 @@ export function syncDocSignature(doc: NavData): string {
   return JSON.stringify(doc)
 }
 
-function authHeaders(config: SyncConfig): HeadersInit {
-  return {
-    Authorization: `Bearer ${config.token}`,
-    'Content-Type': 'application/json',
-  }
-}
-
 export function describeSyncError(error: unknown): string {
-  if (error instanceof DOMException && error.name === 'TimeoutError') {
-    return '请求超时，检查 Worker 地址能不能访问'
-  }
-  if (error instanceof TypeError) {
-    return '连不上同步服务，检查 Worker 地址 / 网络 / CORS'
-  }
-  return error instanceof Error ? error.message : String(error)
+  return describeApiError(error)
 }
 
 export async function remoteGet(config: SyncConfig): Promise<RemoteSnapshot> {
-  const res = await fetch(`${config.url}/api/data`, {
-    method: 'GET',
-    headers: authHeaders(config),
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-  })
-
-  if (res.status === 401) {
-    throw new Error('token 不对（服务端拒绝了这个 SYNC_TOKEN）')
-  }
-  if (!res.ok) {
-    throw new Error(`云端返回 HTTP ${res.status}`)
-  }
-
-  const body = (await res.json()) as Partial<RemoteSnapshot> & { ok?: boolean }
+  const body = await apiRequest<Partial<RemoteSnapshot>>(config.url, '/api/data', { token: config.token })
   return {
     doc: (body.doc as NavData | null) ?? null,
     updatedAt: Number(body.updatedAt) || 0,
@@ -182,47 +123,28 @@ export async function remotePut(
   doc: NavData,
   options: { updatedAt: number; expectedUpdatedAt: number; force?: boolean },
 ): Promise<PushResult> {
-  const res = await fetch(`${config.url}/api/data`, {
-    method: 'PUT',
-    headers: authHeaders(config),
-    body: JSON.stringify({
-      doc,
-      updatedAt: options.updatedAt,
-      expectedUpdatedAt: options.expectedUpdatedAt,
-      force: options.force === true,
-    }),
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-  })
-
-  if (res.status === 401) {
-    throw new Error('token 不对（服务端拒绝了这个 SYNC_TOKEN）')
-  }
-
-  if (res.status === 409) {
-    const body = (await res.json()) as { doc?: NavData; updatedAt?: number; rev?: number }
-    return {
-      status: 'conflict',
-      doc: body.doc ?? null,
-      updatedAt: Number(body.updatedAt) || 0,
-      rev: Number(body.rev) || 0,
+  try {
+    const body = await apiRequest<{ updatedAt?: number; rev?: number }>(config.url, '/api/data', {
+      method: 'PUT',
+      token: config.token,
+      body: {
+        doc,
+        updatedAt: options.updatedAt,
+        expectedUpdatedAt: options.expectedUpdatedAt,
+        force: options.force === true,
+      },
+    })
+    return { status: 'ok', updatedAt: Number(body.updatedAt) || options.updatedAt, rev: Number(body.rev) || 0 }
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 409) {
+      const body = error.body as { doc?: NavData; updatedAt?: number; rev?: number }
+      return {
+        status: 'conflict',
+        doc: body.doc ?? null,
+        updatedAt: Number(body.updatedAt) || 0,
+        rev: Number(body.rev) || 0,
+      }
     }
+    throw error
   }
-
-  if (!res.ok) {
-    throw new Error(`云端返回 HTTP ${res.status}`)
-  }
-
-  const body = (await res.json()) as { updatedAt?: number; rev?: number }
-  return {
-    status: 'ok',
-    updatedAt: Number(body.updatedAt) || options.updatedAt,
-    rev: Number(body.rev) || 0,
-  }
-}
-
-/** 生成一个足够长的随机 token，方便用户直接拿去 Worker 端设置 */
-export function generateSyncToken(): string {
-  const bytes = new Uint8Array(32)
-  crypto.getRandomValues(bytes)
-  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
 }

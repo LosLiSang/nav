@@ -17,8 +17,6 @@ type Props = {
   bookmarks: Bookmark[]
   cachedIcons?: Record<string, string>
   failedDomains?: Record<string, boolean>
-  onSaveCachedIcon?: (domain: string, dataOrBlob: string | Blob, objectUrl?: string) => void
-  onSaveFailedIcon?: (domain: string) => void
   onSelectSubSection: (id: string) => void
   onSelectSubCategory: (id: string) => void
   onAddSubSection: (name: string, icon?: string) => void
@@ -57,8 +55,6 @@ export function BottomSection(props: Props) {
         settings={props.settings}
         isSortMode={props.isSortMode}
         draggingId={props.draggingId}
-        onSaveCachedIcon={props.onSaveCachedIcon}
-        onSaveFailedIcon={props.onSaveFailedIcon}
         onSelectSubSection={props.onSelectSubSection}
           onSelectSubCategory={props.onSelectSubCategory}
           onAddSubSection={props.onAddSubSection}

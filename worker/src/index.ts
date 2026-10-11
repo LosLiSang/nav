@@ -1,99 +1,396 @@
 /**
- * nav-sync —— 个人导航页的远程数据服务（Cloudflare Worker + D1 / 托管 SQLite）
+ * nav —— 导航页的云端服务（Cloudflare Worker + D1，路由用 Hono）
  *
- * 设计要点：
- * 1. 单行文档模型。整个导航页快照（分类/书签/备忘录/TOTP/外观设置）序列化成
- *    一个 JSON 存在 nav_docs 里，写入是原子的，不需要增量 diff。
- * 2. 冲突策略是 last-write-wins，但拒绝静默覆盖：客户端的 updatedAt 不比服务端
- *    新时返回 409 并把服务端当前版本一起带回去，由前端决定用哪边。
- * 3. 鉴权用 Authorization: Bearer <SYNC_TOKEN>。token 只存在于 Worker secret 和
- *    用户自己浏览器的 localStorage 里，从不写进仓库。
- * 4. 没配 SYNC_TOKEN 时直接 500 拒绝服务（fail closed），不会变成公开数据库。
+ * 1. 用户体系（#9）：GitHub OAuth 登录；新账号待管理员审批；
+ *    会话令牌走 Authorization: Bearer（前端在 GitHub Pages，跨站 Cookie 不可靠），
+ *    D1 只存令牌的 SHA-256。
+ * 2. 数据：每个用户一行整页快照（user_docs），乐观并发 + 409 冲突，拒绝静默覆盖。
+ *    服务端只认会话解析出来的 user_id，从不信任客户端自报身份。
+ * 3. 旧单用户数据（nav_docs.default）由管理员一次性认领，认领前原样备份。
+ *    旧的 SYNC_TOKEN 默认降级为只读，供老客户端在迁移期拉取数据。
+ * 4. /api/icon、/api/title 为公开抓取接口（逻辑见 fetchers.ts）。
  */
 
-type D1PreparedLike = {
-  bind(...values: unknown[]): D1PreparedLike
-  first<T = Record<string, unknown>>(): Promise<T | null>
-  run(): Promise<{ success: boolean; meta?: { changes?: number } }>
-  all<T = Record<string, unknown>>(): Promise<{ results: T[] }>
-}
+import { Hono, type Context, type MiddlewareHandler } from 'hono'
+import { cors } from 'hono/cors'
+import { randomToken, safeEqual, sha256Hex } from './crypto'
+import { iconResponse, titleResponse } from './fetchers'
+import {
+  LOGIN_CODE_TTL_MS,
+  OAUTH_STATE_TTL_MS,
+  SESSION_TTL_MS,
+  accountOnLogin,
+  canSync,
+  checkUserUpdate,
+  finiteNumber,
+  isActiveAdmin,
+  isExpired,
+  normalizeReturnTo,
+  parseList,
+  planWrite,
+  renewedExpiry,
+  withFragment,
+  type Role,
+  type Status,
+} from './policy'
 
-type D1Like = {
-  prepare(query: string): D1PreparedLike
-}
-
-type Env = {
-  DB: D1Like
-  SYNC_TOKEN?: string
+export type Env = {
+  DB: D1Database
+  /** 前端站点的 origin 列表（逗号分隔），用于 CORS 与登录回跳校验 */
   ALLOWED_ORIGIN?: string
+  /** 名单内的 GitHub 登录名自动成为管理员 */
+  ADMIN_GITHUB_LOGINS?: string
+  GITHUB_CLIENT_ID?: string
+  GITHUB_CLIENT_SECRET?: string
+  /** 旧单用户 token：迁移期只读；LEGACY_SYNC=off 时完全停用 */
+  SYNC_TOKEN?: string
+  LEGACY_SYNC?: string
 }
 
-const DOC_ID = 'default'
+type UserRow = {
+  id: string
+  github_id: number
+  login: string
+  name: string | null
+  avatar_url: string | null
+  role: Role
+  status: Status
+  created_at: number
+  last_login_at: number
+}
+
+type Principal = { kind: 'user'; user: UserRow } | { kind: 'legacy' }
+
+type App = { Bindings: Env; Variables: { principal: Principal } }
+type Ctx = Context<App>
+
+const LEGACY_DOC_ID = 'default'
 const MAX_BODY_BYTES = 4 * 1024 * 1024
+const GITHUB_UA = 'nav-worker'
 
-type DocRow = {
-  doc: string
-  updated_at: number
-  rev: number
+const app = new Hono<App>()
+
+// ---------------------------------------------------------------------------
+// CORS：公开抓取接口任意来源可用；账号与数据接口只对白名单前端开放
+// ---------------------------------------------------------------------------
+
+function allowedOrigins(env: Env): string[] {
+  return parseList(env.ALLOWED_ORIGIN).filter((item) => item !== '*')
 }
 
-function corsHeaders(request: Request, env: Env): Record<string, string> {
-  const allowed = env.ALLOWED_ORIGIN || '*'
-  const origin = request.headers.get('Origin')
-  const allowOrigin = allowed === '*' ? '*' : origin === allowed ? allowed : allowed
+app.use('/api/icon', cors({ origin: '*' }))
+app.use('/api/title', cors({ origin: '*' }))
+app.use('/api/fetch-title', cors({ origin: '*' }))
+app.use('*', async (c, next) => {
+  const p = c.req.path
+  if (p === '/api/icon' || p === '/api/title' || p === '/api/fetch-title') return next()
+  const list = allowedOrigins(c.env)
+  const wildcard = parseList(c.env.ALLOWED_ORIGIN).includes('*')
+  return cors({
+    origin: (origin) => (wildcard ? origin || '*' : list.includes(origin) ? origin : null),
+    allowMethods: ['GET', 'PUT', 'POST', 'PATCH', 'OPTIONS'],
+    allowHeaders: ['Authorization', 'Content-Type'],
+    maxAge: 86400,
+  })(c, next)
+})
 
-  return {
-    'Access-Control-Allow-Origin': allowOrigin,
-    'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS',
-    'Access-Control-Allow-Headers': 'Authorization, Content-Type',
-    'Access-Control-Max-Age': '86400',
-    Vary: 'Origin',
+app.use('/api/*', async (c, next) => {
+  await next()
+  if (!c.res.headers.has('Cache-Control')) c.res.headers.set('Cache-Control', 'no-store')
+})
+
+const fail = (c: Ctx, status: 400 | 401 | 403 | 404 | 409 | 413 | 500 | 502, error: string, extra = {}) =>
+  c.json({ ok: false, error, ...extra }, status)
+
+// ---------------------------------------------------------------------------
+// 公开接口
+// ---------------------------------------------------------------------------
+
+app.get('/', (c) =>
+  c.json({
+    ok: true,
+    service: 'nav',
+    auth: Boolean(c.env.GITHUB_CLIENT_ID && c.env.GITHUB_CLIENT_SECRET),
+    endpoints: [
+      'GET /auth/github/start?return_to=',
+      'POST /auth/exchange',
+      'POST /auth/logout',
+      'GET /api/me',
+      'GET|PUT /api/data',
+      'GET /api/icon?domain=',
+      'GET /api/title?url=',
+    ],
+  }),
+)
+
+app.get('/api/icon', (c) => iconResponse(new URL(c.req.url)))
+app.get('/api/title', (c) => titleResponse(new URL(c.req.url)))
+app.get('/api/fetch-title', (c) => titleResponse(new URL(c.req.url)))
+
+// ---------------------------------------------------------------------------
+// GitHub OAuth
+// ---------------------------------------------------------------------------
+
+function callbackUrl(c: Ctx): string {
+  return `${new URL(c.req.url).origin}/auth/github/callback`
+}
+
+async function purgeExpired(db: D1Database, now: number): Promise<void> {
+  await db.batch([
+    db.prepare('DELETE FROM oauth_states WHERE expires_at <= ?').bind(now),
+    db.prepare('DELETE FROM login_codes WHERE expires_at <= ?').bind(now),
+    db.prepare('DELETE FROM sessions WHERE expires_at <= ?').bind(now),
+  ])
+}
+
+app.get('/auth/github/start', async (c) => {
+  if (!c.env.GITHUB_CLIENT_ID || !c.env.GITHUB_CLIENT_SECRET) {
+    return c.text('GitHub 登录尚未配置（GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET）', 500)
   }
-}
+  const returnTo = normalizeReturnTo(c.req.query('return_to') || '', allowedOrigins(c.env))
+  if (!returnTo) return c.text('return_to 不在允许的前端地址列表中', 400)
 
-function json(
-  body: unknown,
-  status: number,
-  request: Request,
-  env: Env,
-): Response {
-  return new Response(JSON.stringify(body), {
-    status,
+  const now = Date.now()
+  const state = randomToken()
+  await purgeExpired(c.env.DB, now)
+  await c.env.DB.prepare('INSERT INTO oauth_states (state_hash, return_to, expires_at) VALUES (?, ?, ?)')
+    .bind(await sha256Hex(state), returnTo, now + OAUTH_STATE_TTL_MS)
+    .run()
+
+  const authorize = new URL('https://github.com/login/oauth/authorize')
+  authorize.searchParams.set('client_id', c.env.GITHUB_CLIENT_ID)
+  authorize.searchParams.set('redirect_uri', callbackUrl(c))
+  authorize.searchParams.set('state', state)
+  authorize.searchParams.set('allow_signup', 'true')
+  return c.redirect(authorize.toString(), 302)
+})
+
+type GithubUser = { id: number; login: string; name: string | null; avatar_url: string | null }
+
+async function fetchGithubUser(c: Ctx, code: string): Promise<GithubUser | null> {
+  const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'User-Agent': GITHUB_UA },
+    body: JSON.stringify({
+      client_id: c.env.GITHUB_CLIENT_ID,
+      client_secret: c.env.GITHUB_CLIENT_SECRET,
+      code,
+      redirect_uri: callbackUrl(c),
+    }),
+  })
+  const tokenBody = (await tokenRes.json().catch(() => ({}))) as { access_token?: string }
+  if (!tokenRes.ok || !tokenBody.access_token) return null
+
+  const userRes = await fetch('https://api.github.com/user', {
     headers: {
-      'Content-Type': 'application/json; charset=utf-8',
-      'Cache-Control': 'no-store',
-      ...corsHeaders(request, env),
+      Authorization: `Bearer ${tokenBody.access_token}`,
+      Accept: 'application/vnd.github+json',
+      'User-Agent': GITHUB_UA,
     },
   })
+  if (!userRes.ok) return null
+  const user = (await userRes.json()) as Partial<GithubUser>
+  if (typeof user.id !== 'number' || typeof user.login !== 'string') return null
+  return { id: user.id, login: user.login, name: user.name ?? null, avatar_url: user.avatar_url ?? null }
 }
 
-/** 定长比较，避免 token 校验提前 return 泄露前缀长度信息 */
-function safeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false
-  let diff = 0
-  for (let i = 0; i < a.length; i += 1) {
-    diff |= a.charCodeAt(i) ^ b.charCodeAt(i)
+async function upsertUser(env: Env, gh: GithubUser, now: number): Promise<UserRow> {
+  const existing = await env.DB.prepare('SELECT * FROM users WHERE github_id = ?').bind(gh.id).first<UserRow>()
+  const account = accountOnLogin(gh.login, parseList(env.ADMIN_GITHUB_LOGINS), existing)
+  if (existing) {
+    await env.DB.prepare(
+      'UPDATE users SET login = ?, name = ?, avatar_url = ?, role = ?, status = ?, last_login_at = ? WHERE id = ?',
+    )
+      .bind(gh.login, gh.name, gh.avatar_url, account.role, account.status, now, existing.id)
+      .run()
+    return { ...existing, login: gh.login, name: gh.name, avatar_url: gh.avatar_url, ...account, last_login_at: now }
   }
-  return diff === 0
-}
-
-function authorized(request: Request, env: Env): boolean {
-  const expected = (env.SYNC_TOKEN || '').trim()
-  if (!expected) return false
-
-  const header = request.headers.get('Authorization') || ''
-  const match = /^Bearer\s+(.+)$/i.exec(header.trim())
-  if (!match) return false
-  return safeEqual(match[1].trim(), expected)
-}
-
-async function readRow(env: Env): Promise<DocRow | null> {
-  return env.DB.prepare(
-    'SELECT doc, updated_at, rev FROM nav_docs WHERE id = ?',
+  const user: UserRow = {
+    id: crypto.randomUUID(),
+    github_id: gh.id,
+    login: gh.login,
+    name: gh.name,
+    avatar_url: gh.avatar_url,
+    role: account.role,
+    status: account.status,
+    created_at: now,
+    last_login_at: now,
+  }
+  await env.DB.prepare(
+    `INSERT INTO users (id, github_id, login, name, avatar_url, role, status, created_at, last_login_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
-    .bind(DOC_ID)
-    .first<DocRow>()
+    .bind(user.id, user.github_id, user.login, user.name, user.avatar_url, user.role, user.status, now, now)
+    .run()
+  return user
 }
+
+app.get('/auth/github/callback', async (c) => {
+  const state = c.req.query('state') || ''
+  const code = c.req.query('code') || ''
+  if (!state) return c.text('缺少 state', 400)
+
+  // state 单次使用：取出即删除
+  const row = await c.env.DB.prepare('DELETE FROM oauth_states WHERE state_hash = ? RETURNING return_to, expires_at')
+    .bind(await sha256Hex(state))
+    .first<{ return_to: string; expires_at: number }>()
+  const now = Date.now()
+  if (!row || isExpired(row.expires_at, now)) return c.text('登录请求已过期，请回到导航页重新登录', 400)
+
+  const back = (params: Record<string, string>) => c.redirect(withFragment(row.return_to, params), 302)
+  if (!code) return back({ login_error: c.req.query('error') || 'denied' })
+
+  const gh = await fetchGithubUser(c, code).catch(() => null)
+  if (!gh) return back({ login_error: 'github_failed' })
+
+  const user = await upsertUser(c.env, gh, now)
+  if (user.status === 'disabled') return back({ login_error: 'account_disabled' })
+  const loginCode = randomToken()
+  await c.env.DB.prepare('INSERT INTO login_codes (code_hash, user_id, expires_at) VALUES (?, ?, ?)')
+    .bind(await sha256Hex(loginCode), user.id, now + LOGIN_CODE_TTL_MS)
+    .run()
+  // 放在 fragment：不进服务端日志，也不会随 Referer 泄露
+  return back({ login_code: loginCode })
+})
+
+function publicUser(user: UserRow) {
+  return {
+    id: user.id,
+    login: user.login,
+    name: user.name,
+    avatarUrl: user.avatar_url,
+    role: user.role,
+    status: user.status,
+    createdAt: user.created_at,
+    lastLoginAt: user.last_login_at,
+  }
+}
+
+app.post('/auth/exchange', async (c) => {
+  const body = (await c.req.json().catch(() => ({}))) as { code?: unknown }
+  if (typeof body.code !== 'string' || !body.code) return fail(c, 400, 'missing_code')
+
+  const now = Date.now()
+  const row = await c.env.DB.prepare('DELETE FROM login_codes WHERE code_hash = ? RETURNING user_id, expires_at')
+    .bind(await sha256Hex(body.code))
+    .first<{ user_id: string; expires_at: number }>()
+  if (!row || isExpired(row.expires_at, now)) return fail(c, 401, 'invalid_code')
+
+  const user = await c.env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(row.user_id).first<UserRow>()
+  if (!user) return fail(c, 401, 'invalid_code')
+  if (user.status === 'disabled') return fail(c, 403, 'account_disabled')
+
+  const token = randomToken()
+  const expiresAt = now + SESSION_TTL_MS
+  await c.env.DB.prepare(
+    'INSERT INTO sessions (token_hash, user_id, created_at, expires_at, user_agent) VALUES (?, ?, ?, ?, ?)',
+  )
+    .bind(await sha256Hex(token), user.id, now, expiresAt, (c.req.header('User-Agent') || '').slice(0, 300))
+    .run()
+  return c.json({ ok: true, token, expiresAt, user: publicUser(user) })
+})
+
+// ---------------------------------------------------------------------------
+// 鉴权中间件
+// ---------------------------------------------------------------------------
+
+function bearer(c: Ctx): string {
+  const match = /^Bearer\s+(.+)$/i.exec((c.req.header('Authorization') || '').trim())
+  return match ? match[1].trim() : ''
+}
+
+function legacyEnabled(env: Env): boolean {
+  return Boolean((env.SYNC_TOKEN || '').trim()) && (env.LEGACY_SYNC || '').toLowerCase() !== 'off'
+}
+
+/** 解析会话；legacy=true 时额外接受旧 SYNC_TOKEN（只读） */
+function authenticate(options: { legacy?: boolean } = {}): MiddlewareHandler<App> {
+  return async (c, next) => {
+    const token = bearer(c)
+    if (!token) return fail(c, 401, 'unauthorized')
+
+    if (options.legacy && legacyEnabled(c.env) && safeEqual(token, (c.env.SYNC_TOKEN || '').trim())) {
+      c.set('principal', { kind: 'legacy' })
+      return next()
+    }
+
+    const now = Date.now()
+    const hash = await sha256Hex(token)
+    const row = await c.env.DB.prepare(
+      `SELECT s.expires_at AS session_expires_at, u.*
+         FROM sessions s JOIN users u ON u.id = s.user_id
+        WHERE s.token_hash = ?`,
+    )
+      .bind(hash)
+      .first<UserRow & { session_expires_at: number }>()
+    if (!row || isExpired(row.session_expires_at, now)) {
+      if (row) await c.env.DB.prepare('DELETE FROM sessions WHERE token_hash = ?').bind(hash).run()
+      return fail(c, 401, 'unauthorized')
+    }
+    const renewed = renewedExpiry(row.session_expires_at, now)
+    if (renewed) {
+      await c.env.DB.prepare('UPDATE sessions SET expires_at = ? WHERE token_hash = ?').bind(renewed, hash).run()
+    }
+    const { session_expires_at: _ignored, ...user } = row
+    c.set('principal', { kind: 'user', user })
+    return next()
+  }
+}
+
+const requireActive: MiddlewareHandler<App> = async (c, next) => {
+  const p = c.get('principal')
+  if (p.kind === 'user' && !canSync(p.user)) {
+    return fail(c, 403, p.user.status === 'pending' ? 'pending_approval' : 'account_disabled')
+  }
+  return next()
+}
+
+const requireAdmin: MiddlewareHandler<App> = async (c, next) => {
+  const p = c.get('principal')
+  if (p.kind !== 'user' || !isActiveAdmin(p.user)) return fail(c, 403, 'forbidden')
+  return next()
+}
+
+function currentUser(c: Ctx): UserRow {
+  const p = c.get('principal')
+  if (p.kind !== 'user') throw new Error('expected user principal')
+  return p.user
+}
+
+// ---------------------------------------------------------------------------
+// 会话与当前用户
+// ---------------------------------------------------------------------------
+
+app.post('/auth/logout', async (c) => {
+  const token = bearer(c)
+  if (token) await c.env.DB.prepare('DELETE FROM sessions WHERE token_hash = ?').bind(await sha256Hex(token)).run()
+  return c.json({ ok: true })
+})
+
+async function legacyState(env: Env) {
+  const [doc, claim] = await Promise.all([
+    env.DB.prepare('SELECT updated_at FROM nav_docs WHERE id = ?').bind(LEGACY_DOC_ID).first<{ updated_at: number }>(),
+    env.DB.prepare('SELECT user_id, claimed_at FROM legacy_claims WHERE id = ?')
+      .bind(LEGACY_DOC_ID)
+      .first<{ user_id: string; claimed_at: number }>(),
+  ])
+  return { exists: Boolean(doc), claimed: Boolean(claim), claimedAt: claim?.claimed_at ?? null }
+}
+
+app.get('/api/me', authenticate(), async (c) => {
+  const user = currentUser(c)
+  return c.json({
+    ok: true,
+    user: publicUser(user),
+    legacy: isActiveAdmin(user) ? await legacyState(c.env) : null,
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 快照读写（按用户隔离）
+// ---------------------------------------------------------------------------
+
+type DocRow = { doc: string; updated_at: number; rev: number }
 
 function parseDoc(row: DocRow | null): unknown {
   if (!row) return null
@@ -104,655 +401,144 @@ function parseDoc(row: DocRow | null): unknown {
   }
 }
 
-const MULTI_PART_TLDS = new Set([
-  'com.cn', 'net.cn', 'org.cn', 'gov.cn', 'edu.cn',
-  'co.uk', 'org.uk', 'com.hk', 'co.jp', 'com.tw', 'com.au',
-])
+function readDoc(c: Ctx): Promise<DocRow | null> {
+  const p = c.get('principal')
+  return p.kind === 'legacy'
+    ? c.env.DB.prepare('SELECT doc, updated_at, rev FROM nav_docs WHERE id = ?').bind(LEGACY_DOC_ID).first<DocRow>()
+    : c.env.DB.prepare('SELECT doc, updated_at, rev FROM user_docs WHERE user_id = ?').bind(p.user.id).first<DocRow>()
+}
 
-function getDomainCandidates(rawDomain: string): string[] {
-  const clean = rawDomain.trim().toLowerCase().replace(/^https?:\/\//i, '').split('/')[0].split(':')[0]
-  if (!clean) return []
-  const parts = clean.split('.')
-  if (parts.length <= 2) return [clean]
+app.get('/api/data', authenticate({ legacy: true }), requireActive, async (c) => {
+  const row = await readDoc(c)
+  return c.json({ ok: true, doc: parseDoc(row), updatedAt: row?.updated_at ?? 0, rev: row?.rev ?? 0 })
+})
 
-  const candidates = [clean]
-  for (let i = 1; i < parts.length - 1; i++) {
-    const candidate = parts.slice(i).join('.')
-    const remaining = parts.slice(i)
-    const suffix2 = remaining.slice(-2).join('.')
-    if (MULTI_PART_TLDS.has(suffix2)) {
-      if (remaining.length <= 2) break
-    } else {
-      if (remaining.length <= 1) break
-    }
-    candidates.push(candidate)
+app.put('/api/data', authenticate({ legacy: true }), requireActive, async (c) => {
+  if (c.get('principal').kind === 'legacy') {
+    return fail(c, 403, 'legacy_read_only', { hint: '旧同步密钥已改为只读，请使用 GitHub 登录' })
   }
-  return [...new Set(candidates)]
-}
+  const user = currentUser(c)
+  const raw = await c.req.text()
+  if (raw.length > MAX_BODY_BYTES) return fail(c, 413, 'payload_too_large')
 
-function decodeHtmlEntities(str: string): string {
-  if (!str) return ''
-  return str
-    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => {
-      try {
-        return String.fromCodePoint(parseInt(hex, 16))
-      } catch {
-        return ''
-      }
-    })
-    .replace(/&#(\d+);/g, (_, dec) => {
-      try {
-        return String.fromCodePoint(parseInt(dec, 10))
-      } catch {
-        return ''
-      }
-    })
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&#39;/g, "'")
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&amp;/g, '&')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&copy;/g, '©')
-    .replace(/&reg;/g, '®')
-    .replace(/&mdash;/g, '—')
-    .replace(/&ndash;/g, '–')
-    .replace(/&bull;/g, '•')
-    .replace(/&middot;/g, '·')
-    .replace(/&hellip;/g, '…')
-}
-
-
-async function fetchWithTimeout(url: string, init: RequestInit = {}, timeoutMs = 4000): Promise<Response> {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  let payload: { doc?: unknown; updatedAt?: unknown; expectedUpdatedAt?: unknown; force?: unknown }
   try {
-    const res = await fetch(url, {
-      ...init,
-      signal: controller.signal,
-    })
-    return res
-  } finally {
-    clearTimeout(timer)
+    payload = JSON.parse(raw)
+  } catch {
+    return fail(c, 400, 'invalid_json')
   }
-}
+  if (!payload.doc || typeof payload.doc !== 'object') return fail(c, 400, 'missing_doc')
 
-function isBlockerTitle(title: string): boolean {
-  if (!title) return true
-  const lower = title.toLowerCase().trim()
-  const blockers = [
-    'just a moment...',
-    'attention required! | cloudflare',
-    'attention required',
-    'checking your browser...',
-    'please wait... | cloudflare',
-    'please wait',
-    'access denied',
-    '403 forbidden',
-    '404 not found',
-    '500 internal server error',
-    '502 bad gateway',
-    '503 service temporarily unavailable',
-    '504 gateway timeout',
-    'ddos-guard',
-    'security check',
-    'shieldsquare captcha',
-    'cloudflare',
-    'challenge validation',
-    'blocked',
-    'waf',
-    'robot check',
-    'security challenge',
-    'one moment, please',
+  const current = await readDoc(c)
+  const plan = planWrite({
+    currentUpdatedAt: current?.updated_at ?? null,
+    expected: finiteNumber(payload.expectedUpdatedAt),
+    incoming: finiteNumber(payload.updatedAt),
+    force: payload.force === true,
+    now: Date.now(),
+  })
+  if (plan.conflict) {
+    return fail(c, 409, 'conflict', { doc: parseDoc(current), updatedAt: current!.updated_at, rev: current!.rev })
+  }
+
+  const saved = await c.env.DB.prepare(
+    `INSERT INTO user_docs (user_id, doc, updated_at, rev, updated_by)
+     VALUES (?, ?, ?, 1, ?)
+     ON CONFLICT(user_id) DO UPDATE SET
+       doc = excluded.doc,
+       updated_at = excluded.updated_at,
+       rev = user_docs.rev + 1,
+       updated_by = excluded.updated_by
+     RETURNING updated_at, rev`,
+  )
+    .bind(user.id, JSON.stringify(payload.doc), plan.nextUpdatedAt, (c.req.header('User-Agent') || '').slice(0, 300))
+    .first<{ updated_at: number; rev: number }>()
+  return c.json({ ok: true, updatedAt: saved?.updated_at ?? plan.nextUpdatedAt, rev: saved?.rev ?? 1 })
+})
+
+// ---------------------------------------------------------------------------
+// 管理员
+// ---------------------------------------------------------------------------
+
+app.use('/api/admin/*', authenticate(), requireAdmin)
+
+app.get('/api/admin/users', async (c) => {
+  const { results } = await c.env.DB.prepare(
+    'SELECT * FROM users ORDER BY CASE status WHEN \'pending\' THEN 0 ELSE 1 END, created_at DESC',
+  ).all<UserRow>()
+  return c.json({ ok: true, users: results.map(publicUser) })
+})
+
+app.patch('/api/admin/users/:id', async (c) => {
+  const target = await c.env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(c.req.param('id')).first<UserRow>()
+  if (!target) return fail(c, 404, 'user_not_found')
+  const patch = (await c.req.json().catch(() => ({}))) as { role?: unknown; status?: unknown }
+  const count = await c.env.DB.prepare(
+    "SELECT COUNT(*) AS n FROM users WHERE role = 'admin' AND status = 'active'",
+  ).first<{ n: number }>()
+  const result = checkUserUpdate(target, patch, count?.n ?? 0)
+  if (!result.ok) return fail(c, result.error === 'last_admin' ? 409 : 400, result.error)
+
+  const stmts = [
+    c.env.DB.prepare('UPDATE users SET role = ?, status = ? WHERE id = ?').bind(
+      result.next.role,
+      result.next.status,
+      target.id,
+    ),
   ]
-  return blockers.some((b) => lower === b || lower.startsWith(`${b} -`) || lower.startsWith(`${b}:`) || lower.endsWith(`| ${b}`))
-}
-
-function extractEmbeddedLogoTitle(html: string): string {
-  if (!html) return ''
-  const b64Matches = html.matchAll(/data:image\/svg\+xml;base64,([a-zA-Z0-9+/=]+)/g)
-  for (const m of b64Matches) {
-    try {
-      const decoded = atob(m[1])
-      const svgTitleMatch = decoded.match(/<title[^>]*>([\s\S]*?)<\/title>/i)
-      if (svgTitleMatch && svgTitleMatch[1].trim()) {
-        const clean = svgTitleMatch[1].replace(/\s*logo$/i, '').trim()
-        if (clean && !isBlockerTitle(clean)) {
-          return decodeHtmlEntities(clean)
-        }
-      }
-    } catch {}
+  // 禁用即踢下线
+  if (result.next.status === 'disabled') {
+    stmts.push(c.env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(target.id))
   }
-  return ''
-}
+  await c.env.DB.batch(stmts)
+  return c.json({ ok: true, user: publicUser({ ...target, ...result.next }) })
+})
 
-function extractTitleFromHtml(html: string): string {
-  if (!html) return ''
-  // 1. <title> 标签
-  const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)
-  let raw = titleMatch ? titleMatch[1] : ''
-
-  // 2. OpenGraph og:title 回退
-  if (!raw.trim() || isBlockerTitle(raw)) {
-    const ogMatch =
-      html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']*)["']/i) ||
-      html.match(/<meta[^>]+content=["']([^"']*)["'][^>]+property=["']og:title["']/i)
-    if (ogMatch && !isBlockerTitle(ogMatch[1])) raw = ogMatch[1]
+/**
+ * 认领旧单用户快照：原样备份到 legacy_claims，再写入当前管理员的 user_docs。
+ * 只能成功一次；管理员云端已有数据时必须显式 replace，被替换的数据同样保留在备份里。
+ */
+app.post('/api/admin/claim-legacy', async (c) => {
+  const user = currentUser(c)
+  const body = (await c.req.json().catch(() => ({}))) as { replace?: unknown }
+  const [legacy, claimed, mine] = await Promise.all([
+    c.env.DB.prepare('SELECT doc, updated_at, rev FROM nav_docs WHERE id = ?').bind(LEGACY_DOC_ID).first<DocRow>(),
+    c.env.DB.prepare('SELECT user_id FROM legacy_claims WHERE id = ?').bind(LEGACY_DOC_ID).first(),
+    c.env.DB.prepare('SELECT doc, updated_at, rev FROM user_docs WHERE user_id = ?').bind(user.id).first<DocRow>(),
+  ])
+  if (claimed) return fail(c, 409, 'already_claimed')
+  if (!legacy) return fail(c, 404, 'no_legacy_data')
+  if (mine && body.replace !== true) {
+    return fail(c, 409, 'user_doc_exists', { updatedAt: mine.updated_at, rev: mine.rev })
   }
 
-  // 3. Twitter Card title 回退
-  if (!raw.trim() || isBlockerTitle(raw)) {
-    const twMatch =
-      html.match(/<meta[^>]+name=["']twitter:title["'][^>]+content=["']([^"']*)["']/i) ||
-      html.match(/<meta[^>]+content=["']([^"']*)["'][^>]+name=["']twitter:title["']/i)
-    if (twMatch && !isBlockerTitle(twMatch[1])) raw = twMatch[1]
+  const now = Date.now()
+  const updatedAt = Math.max(legacy.updated_at, (mine?.updated_at ?? 0) + 1)
+  try {
+    await c.env.DB.batch([
+      c.env.DB.prepare(
+        `INSERT INTO legacy_claims (id, user_id, claimed_at, backup_doc, backup_updated_at, backup_rev, replaced_doc)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(LEGACY_DOC_ID, user.id, now, legacy.doc, legacy.updated_at, legacy.rev, mine?.doc ?? null),
+      c.env.DB.prepare(
+        `INSERT INTO user_docs (user_id, doc, updated_at, rev, updated_by)
+         VALUES (?, ?, ?, 1, 'legacy-claim')
+         ON CONFLICT(user_id) DO UPDATE SET
+           doc = excluded.doc, updated_at = excluded.updated_at,
+           rev = user_docs.rev + 1, updated_by = excluded.updated_by`,
+      ).bind(user.id, legacy.doc, updatedAt),
+    ])
+  } catch {
+    // 主键冲突 = 并发的另一次认领已经成功
+    return fail(c, 409, 'already_claimed')
   }
+  return c.json({ ok: true, updatedAt })
+})
 
-  // 4. 标准 meta[name="title"] 回退
-  if (!raw.trim() || isBlockerTitle(raw)) {
-    const metaTitleMatch =
-      html.match(/<meta[^>]+name=["']title["'][^>]+content=["']([^"']*)["']/i) ||
-      html.match(/<meta[^>]+content=["']([^"']*)["'][^>]+name=["']title["']/i)
-    if (metaTitleMatch && !isBlockerTitle(metaTitleMatch[1])) raw = metaTitleMatch[1]
-  }
+app.notFound((c) => fail(c, 404, 'not_found'))
+app.onError((error, c) => {
+  console.error(error)
+  return fail(c, 500, 'internal_error')
+})
 
-  // 5. 检查嵌入的 SVG Logo（如 Cloudflare 盾页面嵌入的官方网站品牌名）
-  if (!raw.trim() || isBlockerTitle(raw)) {
-    const logoTitle = extractEmbeddedLogoTitle(html)
-    if (logoTitle) raw = logoTitle
-  }
-
-  const cleaned = decodeHtmlEntities(raw.replace(/\s+/g, ' ').trim())
-  return isBlockerTitle(cleaned) ? '' : cleaned
-}
-
-async function fetchSearchIndexTitle(hostname: string): Promise<string> {
-  if (!hostname) return ''
-  const searchUrls = [
-    `https://html.duckduckgo.com/html/?q=site%3A${encodeURIComponent(hostname)}`,
-    `https://html.duckduckgo.com/html/?q=${encodeURIComponent(hostname)}`,
-  ]
-  for (const sUrl of searchUrls) {
-    try {
-      const res = await fetch(sUrl, {
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-        },
-        cf: { cacheTtl: 2592000, cacheEverything: true },
-        signal: AbortSignal.timeout(5000),
-      })
-      if (res.ok) {
-        const text = await res.text()
-        const match = text.match(/<a[^>]+class=["']result__a["'][^>]*>([\s\S]*?)<\/a>/i)
-        if (match && match[1]) {
-          const raw = match[1].replace(/<[^>]+>/g, '').trim()
-          const decoded = decodeHtmlEntities(raw)
-          if (decoded && !isBlockerTitle(decoded)) {
-            return decoded
-          }
-        }
-      }
-    } catch {}
-  }
-  return ''
-}
-
-function formatDomainTitle(hostname: string): string {
-  if (!hostname) return ''
-  const clean = hostname.replace(/^www\./i, '').toLowerCase()
-  const map: Record<string, string> = {
-    'linux.do': 'LINUX DO',
-    'github.com': 'GitHub',
-    'gitlab.com': 'GitLab',
-    'v2ex.com': 'V2EX',
-    'zhihu.com': '知乎',
-    'bilibili.com': '哔哩哔哩',
-    'youtube.com': 'YouTube',
-    'google.com': 'Google',
-    'baidu.com': '百度',
-    'juejin.cn': '稀土掘金',
-    'csdn.net': 'CSDN',
-    'weibo.com': '微博',
-    'x.com': 'X (Twitter)',
-    'twitter.com': 'Twitter',
-  }
-  if (map[clean]) return map[clean]
-  const parts = clean.split('.')
-  if (parts.length >= 2) {
-    const main = parts[0]
-    return main.split(/[-_]/).map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
-  }
-  return clean
-}
-
-export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
-    const url = new URL(request.url)
-
-    if (request.method === 'OPTIONS') {
-      return new Response(null, { status: 204, headers: corsHeaders(request, env) })
-    }
-
-    // 健康检查：不鉴权，但也不泄露任何数据
-    if (url.pathname === '/' && request.method === 'GET') {
-      return json(
-        {
-          ok: true,
-          service: 'nav',
-          configured: Boolean((env.SYNC_TOKEN || '').trim()),
-          endpoints: [
-            'GET /api/data',
-            'PUT /api/data',
-            'GET /api/icon?domain=',
-            'GET /api/title?url=',
-          ],
-        },
-        200,
-        request,
-        env,
-      )
-    }
-
-   // 图标代理：利用 Cloudflare 边缘节点代理抓取并免费缓存 30 天，无并发与速率限制
-   if (url.pathname === '/api/icon' && request.method === 'GET') {
-      const rawDomain = url.searchParams.get('domain')
-      if (!rawDomain) {
-        return new Response('Missing domain', { status: 400, headers: corsHeaders(request, env) })
-      }
-      const force = url.searchParams.get('force') === '1' || url.searchParams.get('force') === 'true'
-      const candidates = getDomainCandidates(rawDomain)
-      const cfOptions = force
-        ? { cacheTtl: 0 }
-        : { cacheTtl: 2592000, cacheEverything: true }
-      const fetchHeaders: HeadersInit = {
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        ...(force ? { 'Cache-Control': 'no-cache', Pragma: 'no-cache' } : {}),
-      }
-
-      for (const domain of candidates) {
-        // 1. 直连目标站点根目录 (HTTPS / HTTP)
-        for (const proto of ['https', 'http']) {
-          try {
-            const targetUrl = `${proto}://${domain}/favicon.ico`
-            const res = await fetchWithTimeout(targetUrl, {
-              headers: fetchHeaders,
-              cf: cfOptions,
-            }, 3000)
-            const ct = (res.headers.get('content-type') || '').toLowerCase()
-            if (res.ok && !ct.includes('text/html')) {
-              const buf = await res.arrayBuffer()
-              if (buf.byteLength > 50) {
-                const contentType = res.headers.get('content-type') || 'image/x-icon'
-                return new Response(buf, {
-                  status: 200,
-                  headers: {
-                    'Content-Type': contentType,
-                    'Cache-Control': force ? 'no-cache, no-store, must-revalidate' : 'public, max-age=2592000',
-                    ...corsHeaders(request, env),
-                  },
-                })
-              }
-            }
-          } catch {}
-        }
-
-        // 2. DuckDuckGo (高可用全球图标源，带占位图过滤)
-        try {
-          const ddgRes = await fetchWithTimeout(`https://icons.duckduckgo.com/ip3/${domain}.ico`, {
-            headers: fetchHeaders,
-            cf: cfOptions,
-          }, 3000)
-          const ddgCt = (ddgRes.headers.get('content-type') || '').toLowerCase()
-          if (ddgRes.ok && !ddgCt.includes('text/html')) {
-            const buf = await ddgRes.arrayBuffer()
-            const isPlaceholder =
-              buf.byteLength === 1478 ||
-              buf.byteLength === 1444 ||
-              buf.byteLength === 726 ||
-              buf.byteLength === 519 ||
-              buf.byteLength < 50
-            if (!isPlaceholder) {
-              const contentType = ddgRes.headers.get('content-type') || 'image/png'
-              return new Response(buf, {
-                status: 200,
-                headers: {
-                  'Content-Type': contentType,
-                  'Cache-Control': force ? 'no-cache, no-store, must-revalidate' : 'public, max-age=2592000',
-                  ...corsHeaders(request, env),
-                },
-              })
-            }
-          }
-        } catch {}
-
-        // 3. Google Favicon S2 (标准 64px 源)
-        try {
-          const gRes = await fetchWithTimeout(
-            `https://www.google.com/s2/favicons?domain=${domain}&sz=64`,
-            {
-              headers: fetchHeaders,
-              cf: cfOptions,
-            },
-            3000
-          )
-          const gCt = (gRes.headers.get('content-type') || '').toLowerCase()
-          if (gRes.ok && !gCt.includes('text/html')) {
-            const buf = await gRes.arrayBuffer()
-            const isPlaceholder =
-              buf.byteLength === 726 ||
-              buf.byteLength === 519 ||
-              buf.byteLength === 1150 ||
-              buf.byteLength === 1478 ||
-              buf.byteLength === 1444 ||
-              buf.byteLength < 50
-            if (!isPlaceholder) {
-              const contentType = gRes.headers.get('content-type') || 'image/png'
-              return new Response(buf, {
-                status: 200,
-                headers: {
-                  'Content-Type': contentType,
-                  'Cache-Control': force ? 'no-cache, no-store, must-revalidate' : 'public, max-age=2592000',
-                  ...corsHeaders(request, env),
-                },
-              })
-            }
-          }
-        } catch {}
-
-        // 4. Unavatar 高清源
-        try {
-          const uRes = await fetchWithTimeout(`https://unavatar.io/${domain}?fallback=false`, {
-            headers: fetchHeaders,
-            cf: cfOptions,
-          }, 3000)
-          const uCt = (uRes.headers.get('content-type') || '').toLowerCase()
-          if (uRes.ok && !uCt.includes('text/html')) {
-            const buf = await uRes.arrayBuffer()
-            if (buf.byteLength > 50) {
-              const contentType = uRes.headers.get('content-type') || 'image/png'
-              return new Response(buf, {
-                status: 200,
-                headers: {
-                  'Content-Type': contentType,
-                  'Cache-Control': force ? 'no-cache, no-store, must-revalidate' : 'public, max-age=2592000',
-                  ...corsHeaders(request, env),
-                },
-              })
-            }
-          }
-        } catch {}
-
-        // 5. Favicon.im
-        try {
-          const fimRes = await fetchWithTimeout(`https://favicon.im/${domain}`, {
-            headers: fetchHeaders,
-            cf: cfOptions,
-          }, 3000)
-          const fimCt = (fimRes.headers.get('content-type') || '').toLowerCase()
-          if (fimRes.ok && !fimCt.includes('text/html')) {
-            const buf = await fimRes.arrayBuffer()
-            if (buf.byteLength > 300) {
-              return new Response(buf, {
-                status: 200,
-                headers: {
-                  'Content-Type': 'image/png',
-                  'Cache-Control': force ? 'no-cache, no-store, must-revalidate' : 'public, max-age=2592000',
-                  ...corsHeaders(request, env),
-                },
-              })
-            }
-          }
-        } catch {}
-      }
-
-      return new Response('Not found', {
-        status: 404,
-        headers: {
-          'Content-Type': 'text/plain;charset=UTF-8',
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          ...corsHeaders(request, env),
-        },
-      })
-    }
-
-    // 网页标题抓取：利用 Cloudflare 边缘节点代理抓取并免费缓存 30 天，无并发与速率限制
-    if ((url.pathname === '/api/title' || url.pathname === '/api/fetch-title') && request.method === 'GET') {
-      const rawTargetUrl = url.searchParams.get('url')
-      if (!rawTargetUrl) {
-        return json({ ok: false, error: 'missing_url' }, 400, request, env)
-      }
-
-      const force = url.searchParams.get('force') === '1' || url.searchParams.get('force') === 'true'
-      let targetUrl = rawTargetUrl.trim()
-      if (!/^https?:\/\//i.test(targetUrl)) {
-        targetUrl = `https://${targetUrl}`
-      }
-
-      let hostname = ''
-      try {
-        hostname = new URL(targetUrl).hostname
-      } catch {
-        return json({ ok: false, error: 'invalid_url' }, 400, request, env)
-      }
-
-      const cfOptions = force
-        ? { cacheTtl: 0 }
-        : { cacheTtl: 2592000, cacheEverything: true }
-
-      const fetchHeaders: HeadersInit = {
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-        ...(force ? { 'Cache-Control': 'no-cache', Pragma: 'no-cache' } : {}),
-      }
-
-      let title = ''
-
-      try {
-        const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 8000)
-
-        const res = await fetch(targetUrl, {
-          headers: fetchHeaders,
-          cf: cfOptions,
-          redirect: 'follow',
-          signal: controller.signal,
-        })
-        clearTimeout(timeoutId)
-
-        let buffer: Uint8Array = new Uint8Array(0)
-        if (res.body) {
-          const reader = res.body.getReader()
-          const chunks: Uint8Array[] = []
-          let totalBytes = 0
-          const MAX_BYTES = 128 * 1024
-
-          while (totalBytes < MAX_BYTES) {
-            const { done, value } = await reader.read()
-            if (done || !value) break
-            chunks.push(value)
-            totalBytes += value.byteLength
-            const quickText = new TextDecoder('ascii').decode(value)
-            if (/<\/head>/i.test(quickText)) {
-              break
-            }
-          }
-          try { await reader.cancel() } catch {}
-
-          buffer = new Uint8Array(totalBytes)
-          let offset = 0
-          for (const chunk of chunks) {
-            buffer.set(chunk, offset)
-            offset += chunk.byteLength
-          }
-        } else {
-          buffer = new Uint8Array(await res.arrayBuffer())
-        }
-
-        const contentType = (res.headers.get('content-type') || '').toLowerCase()
-        let charset = 'utf-8'
-        const headerCharsetMatch = contentType.match(/charset=([a-zA-Z0-9_-]+)/i)
-        if (headerCharsetMatch) {
-          charset = headerCharsetMatch[1].toLowerCase()
-        } else {
-          const asciiPreview = new TextDecoder('ascii').decode(buffer.slice(0, 2048))
-          const metaCharsetMatch =
-            asciiPreview.match(/<meta[^>]+charset=["']?([a-zA-Z0-9_-]+)/i) ||
-            asciiPreview.match(/<meta[^>]+http-equiv=["']?Content-Type["'][^>]+content=["'][^"']*charset=([a-zA-Z0-9_-]+)/i)
-          if (metaCharsetMatch) {
-            charset = metaCharsetMatch[1].toLowerCase()
-          }
-        }
-
-        if (charset === 'gb2312') charset = 'gbk'
-
-        let htmlText = ''
-        try {
-          htmlText = new TextDecoder(charset).decode(buffer)
-        } catch {
-          htmlText = new TextDecoder('utf-8').decode(buffer)
-        }
-
-        title = extractTitleFromHtml(htmlText)
-      } catch {}
-
-      // 若直接抓取返回空白或反爬盾且未提取到 Logo，调用搜索引擎收录回退
-      if (!title && hostname) {
-        title = await fetchSearchIndexTitle(hostname)
-      }
-
-      // 终极保底：规范化域名提取
-      if (!title && hostname) {
-        title = formatDomainTitle(hostname)
-      }
-
-      return new Response(JSON.stringify({ title }), {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/json; charset=utf-8',
-          'Cache-Control': force ? 'no-cache, no-store, must-revalidate' : 'public, max-age=2592000',
-          ...corsHeaders(request, env),
-        },
-      })
-    }
-
-    if (url.pathname !== '/api/data') {
-      return json({ ok: false, error: 'not_found' }, 404, request, env)
-    }
-
-    if (!(env.SYNC_TOKEN || '').trim()) {
-      return json(
-        { ok: false, error: 'server_not_configured', hint: 'run: npx wrangler secret put SYNC_TOKEN' },
-        500,
-        request,
-        env,
-      )
-    }
-
-    if (!authorized(request, env)) {
-      return json({ ok: false, error: 'unauthorized' }, 401, request, env)
-    }
-
-    if (request.method === 'GET') {
-      const row = await readRow(env)
-      return json(
-        {
-          ok: true,
-          doc: parseDoc(row),
-          updatedAt: row?.updated_at ?? 0,
-          rev: row?.rev ?? 0,
-        },
-        200,
-        request,
-        env,
-      )
-    }
-
-    if (request.method === 'PUT') {
-      const raw = await request.text()
-      if (raw.length > MAX_BODY_BYTES) {
-        return json({ ok: false, error: 'payload_too_large' }, 413, request, env)
-      }
-
-      let payload: {
-        doc?: unknown
-        updatedAt?: unknown
-        expectedUpdatedAt?: unknown
-        force?: unknown
-      }
-      try {
-        payload = JSON.parse(raw)
-      } catch {
-        return json({ ok: false, error: 'invalid_json' }, 400, request, env)
-      }
-
-      if (!payload.doc || typeof payload.doc !== 'object') {
-        return json({ ok: false, error: 'missing_doc' }, 400, request, env)
-      }
-
-      const current = await readRow(env)
-      const now = Date.now()
-      const incoming =
-        typeof payload.updatedAt === 'number' && Number.isFinite(payload.updatedAt)
-          ? payload.updatedAt
-          : now
-      const force = payload.force === true
-      const expected =
-        typeof payload.expectedUpdatedAt === 'number' &&
-        Number.isFinite(payload.expectedUpdatedAt)
-          ? payload.expectedUpdatedAt
-          : null
-
-      /**
-       * 乐观并发：客户端必须声明它是在哪个云端版本的基础上写的。
-       * 只要云端已经不是那个版本，说明别的设备推进过数据，就拒绝这次写入并
-       * 把当前版本原样返回 —— 由人决定用哪边，而不是让同步逻辑猜。
-       * 这一步是「清 cookie 不丢数据」的前提：宁可报冲突，也不能静默覆盖。
-       */
-      if (current && !force && expected !== null && expected !== current.updated_at) {
-        return json(
-          {
-            ok: false,
-            error: 'conflict',
-            doc: parseDoc(current),
-            updatedAt: current.updated_at,
-            rev: current.rev,
-          },
-          409,
-          request,
-          env,
-        )
-      }
-
-      const nextUpdatedAt = current ? Math.max(incoming, current.updated_at + 1) : incoming
-
-      await env.DB.prepare(
-        `INSERT INTO nav_docs (id, doc, updated_at, rev, updated_by)
-         VALUES (?, ?, ?, 1, ?)
-         ON CONFLICT(id) DO UPDATE SET
-           doc = excluded.doc,
-           updated_at = excluded.updated_at,
-           rev = nav_docs.rev + 1,
-           updated_by = excluded.updated_by`,
-      )
-        .bind(DOC_ID, JSON.stringify(payload.doc), nextUpdatedAt, request.headers.get('User-Agent') || '')
-        .run()
-
-      const saved = await readRow(env)
-      return json(
-        { ok: true, updatedAt: saved?.updated_at ?? nextUpdatedAt, rev: saved?.rev ?? 1 },
-        200,
-        request,
-        env,
-      )
-    }
-
-    return json({ ok: false, error: 'method_not_allowed' }, 405, request, env)
-  },
-}
+export default app

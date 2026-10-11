@@ -1,5 +1,7 @@
 import type { Settings } from '../types'
-import { DEFAULT_SYNC_URL, loadSyncConfig } from './sync'
+import { hostnameOf, normalizeUrl } from './url'
+export { hostnameOf, normalizeUrl } from './url'
+import { loadServerUrl } from './auth'
 
 /**
  * 书签文字在暗色模式下的实际渲染颜色。
@@ -51,13 +53,6 @@ export function formatDomainTitle(hostname: string): string {
     return main.split(/[-_]/).map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
   }
   return clean
-}
-
-export function normalizeUrl(value: string): string {
-  const trimmed = value.trim()
-  if (!trimmed) return ''
-  if (/^https?:\/\//i.test(trimmed)) return trimmed
-  return `https://${trimmed}`
 }
 
 /**
@@ -138,19 +133,9 @@ export function isUrlLike(value: string): boolean {
   }
 }
 
-export function hostnameOf(value: string): string {
-  try {
-    const url = new URL(normalizeUrl(value))
-    return url.hostname
-  } catch {
-    return ''
-  }
-}
-
 
 export function getWorkerUrl(): string {
-  const syncConfig = typeof window !== 'undefined' ? loadSyncConfig() : null
-  const explicit = (syncConfig?.url || DEFAULT_SYNC_URL || '').trim().replace(/\/+$/, '')
+  const explicit = typeof window !== 'undefined' ? loadServerUrl() : ''
   if (explicit) return explicit
 
   // 本地开发环境若未配置线上 Worker，默认走本地 Wrangler Worker (8787)
@@ -284,38 +269,62 @@ function enqueueFetchTask<T>(fn: () => Promise<T>): Promise<T> {
 export function fetchFaviconBlob(
   candidates: string[],
   force = false,
+  signal?: AbortSignal,
 ): Promise<{ blob: Blob; objectUrl: string } | null> {
   return enqueueFetchTask(async () => {
     for (const url of candidates) {
+      if (signal?.aborted) return null
       if (!url) continue
-      if (url.startsWith('data:') || url.startsWith('blob:')) {
-        return { blob: new Blob([]), objectUrl: url }
-      }
+      const controller = new AbortController()
+      const abort = () => controller.abort()
+      signal?.addEventListener('abort', abort, { once: true })
+      const timer = setTimeout(abort, 6000)
+      let objectUrl: string | undefined
       try {
-        const controller = new AbortController()
-        const timer = setTimeout(() => controller.abort(), 6000)
         const res = await fetch(url, {
           signal: controller.signal,
           cache: force ? 'reload' : 'default',
         })
-        clearTimeout(timer)
-
-        // 遇到 429 限流时短暂让步重试下一源
         if (res.status === 429) {
-          await new Promise((r) => setTimeout(r, 300))
+          await new Promise((resolve) => setTimeout(resolve, 300))
           continue
         }
-
         if (!res.ok) continue
         const blob = await res.blob()
-        if (!blob || blob.size < 40) continue
-
-        const objectUrl = URL.createObjectURL(blob)
-        return { blob, objectUrl }
+        if (signal?.aborted || blob.size < 40) continue
+        objectUrl = URL.createObjectURL(blob)
+        // Do not cache HTML/error bodies or images the renderer cannot decode.
+        if (!(await canRenderIcon(objectUrl, controller.signal))) continue
+        const result = { blob, objectUrl }
+        objectUrl = undefined // ownership passes to the cache
+        return result
       } catch {
-        continue
+        // Try the next ordinary source; cancellation exits on the next iteration.
+      } finally {
+        clearTimeout(timer)
+        signal?.removeEventListener('abort', abort)
+        if (objectUrl) URL.revokeObjectURL(objectUrl)
       }
     }
     return null
+  })
+}
+
+function canRenderIcon(url: string, signal: AbortSignal): Promise<boolean> {
+  return new Promise((resolve) => {
+    const img = new Image()
+    const finish = (valid: boolean) => {
+      img.onload = null
+      img.onerror = null
+      signal.removeEventListener('abort', abort)
+      img.src = ''
+      resolve(valid)
+    }
+    const abort = () => finish(false)
+    img.onload = () => finish(img.naturalWidth > 0)
+    img.onerror = () => finish(false)
+    signal.addEventListener('abort', abort, { once: true })
+    if (signal.aborted) finish(false)
+    else img.src = url
   })
 }
