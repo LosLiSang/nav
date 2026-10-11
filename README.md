@@ -14,6 +14,12 @@
 
 本地优先（Local-First）、现代化个人专属浏览器起始页与生产力工作台。
 
+同步端到端验证只运行在本地隔离数据库。启动 Worker 时使用
+`--persist-to <独立测试目录>`，运行 `npm run smoke:sync` 时设置同一绝对路径的
+`D1_STATE`，并通过 `APP_URL` / `WORKER_URL` 指定本地服务；Worker 的
+`ALLOWED_ORIGIN` 必须包含测试页面 origin。脚本拒绝远程地址和未指定隔离目录的运行，
+输出 `artifacts/sync-e2e/report.json`，不会重置现有开发或生产数据库。
+
 <p align="center">
   <img src="docs/preview.png" alt="nav preview" width="100%" />
 </p>
