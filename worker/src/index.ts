@@ -342,7 +342,7 @@ export default {
       return json(
         {
           ok: true,
-          service: 'nav-sync',
+          service: 'nav',
           configured: Boolean((env.SYNC_TOKEN || '').trim()),
           endpoints: [
             'GET /api/data',

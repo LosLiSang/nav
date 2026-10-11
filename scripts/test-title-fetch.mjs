@@ -9,7 +9,7 @@ import { join } from 'node:path'
 
 const APP_PORT = 5199
 const APP_URL = `http://127.0.0.1:${APP_PORT}`
-const WORKER_URL = process.env.VITE_SYNC_URL || 'https://nav-sync.lisang.workers.dev'
+const WORKER_URL = process.env.VITE_SYNC_URL || 'https://nav.lisang.workers.dev'
 const OUT_DIR = join(tmpdir(), 'nav-title-test', 'shots')
 const EDGE =
   process.env.EDGE_PATH ||

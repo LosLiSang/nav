@@ -14,7 +14,7 @@
  * 那份跑在本地 worker + 本地 D1 上，不会碰生产数据。
  */
 
-const DEFAULT_URL = 'https://nav-sync.lisang.workers.dev'
+const DEFAULT_URL = 'https://nav.lisang.workers.dev'
 
 const baseUrl = (process.argv[2] || process.env.SYNC_URL || DEFAULT_URL).replace(/\/+$/, '')
 const token = (process.env.SYNC_TOKEN || '').trim()
