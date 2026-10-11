@@ -15,6 +15,7 @@ import {
   X,
 } from 'lucide-react'
 import { WALLPAPER_PRESETS } from '../lib/defaults'
+import { ContentWidthControl } from './ContentWidthControl'
 import { useNavStore } from '../store/useNavStore'
 import type { CornerRadius, FallbackIconMode, Settings, WeatherProvider } from '../types'
 import { testWeatherConfig, type WeatherInfo } from '../lib/weather'
@@ -286,68 +287,9 @@ export function SettingsPanel({ settings, initialTab, onClose, onChange, onOpenI
                 ))}
               </div>
 
-              {/* 3.5. Card Container Width */}
-              <div className="border-t border-neutral-100 dark:border-neutral-800 pt-3.5 space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <label className="block font-medium text-neutral-800 dark:text-neutral-200">
-                      卡片区域最大宽度
-                    </label>
-                    <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
-                      调整搜索框、网址导航卡片和下方工具卡片的居中展示宽度
-                    </span>
-                  </div>
-                  <span className="font-mono text-xs font-bold text-orange-600 dark:text-orange-400">
-                    {settings.cardWidth === 0 ? '100% 铺满全屏' : `${settings.cardWidth ?? 1380}px`}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-5 gap-1.5">
-                  {[
-                    { label: '紧凑', desc: '1100px', value: 1100 },
-                    { label: '标准', desc: '1380px', value: 1380 },
-                    { label: '宽屏', desc: '1600px', value: 1600 },
-                    { label: '极宽', desc: '1920px', value: 1920 },
-                    { label: '铺满', desc: '100%', value: 0 },
-                  ].map((preset) => {
-                    const isSelected =
-                      preset.value === 0
-                        ? settings.cardWidth === 0
-                        : (settings.cardWidth ?? 1380) === preset.value
-                    return (
-                      <button
-                        key={preset.label}
-                        type="button"
-                        onClick={() => onChange({ cardWidth: preset.value })}
-                        className={`flex flex-col items-center justify-center rounded-xl border py-2 text-xs transition ${
-                          isSelected
-                            ? 'border-orange-500 bg-orange-50/60 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400 ring-1 ring-orange-500 font-semibold'
-                            : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800'
-                        }`}
-                      >
-                        <span>{preset.label}</span>
-                        <span className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5">{preset.desc}</span>
-                      </button>
-                    )
-                  })}
-                </div>
-
-                <div>
-                  <input
-                    type="range"
-                    min={800}
-                    max={2400}
-                    step={20}
-                    value={settings.cardWidth === 0 ? 2400 : (settings.cardWidth ?? 1380)}
-                    onChange={(e) => onChange({ cardWidth: Number(e.target.value) })}
-                    className="w-full accent-orange-500 cursor-pointer"
-                  />
-                  <div className="flex justify-between text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5">
-                    <span>800px (窄屏)</span>
-                    <span>1380px (默认)</span>
-                    <span>2400px (宽屏)</span>
-                  </div>
-                </div>
+              {/* 3.5. 内容区宽度（窗口百分比） */}
+              <div className="border-t border-neutral-100 dark:border-neutral-800 pt-3.5">
+                <ContentWidthControl settings={settings} onChange={onChange} />
               </div>
 
               {/* 4. Fallback Placeholder Icon Mode */}

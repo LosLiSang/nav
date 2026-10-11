@@ -34,6 +34,7 @@ import {
   resolveTextColor,
 } from '../lib/utils'
 import { useBookmarkIcon } from '../lib/useBookmarkIcon'
+import { bookmarkGridTemplate } from '../lib/bookmarkGrid'
 import { getBrandIcon } from '../lib/brandIcons'
 import { ConfirmModal } from './ConfirmModal'
 import type {
@@ -630,7 +631,7 @@ export function SubCategorySection({
           )}
         </div>
 
-       {/* Right Bookmarks 4-Column Grid Area */}
+       {/* Right Bookmarks Grid Area（始终按内容自适应列数） */}
         <SubCategoryDropZone subCategoryId={effectiveSubCatId}>
           {currentSubBookmarks.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center text-xs text-neutral-400">
@@ -642,7 +643,20 @@ export function SubCategorySection({
               items={currentSubBookmarks.map((b) => b.id)}
               strategy={rectSortingStrategy}
             >
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-2 gap-y-2.5">
+              <div
+                className="grid gap-x-2 gap-y-2.5"
+                style={{
+                  gridTemplateColumns: bookmarkGridTemplate(
+                    currentSubBookmarks.map((b) => b.title),
+                    {
+                      columnMode: 'auto',
+                      fontSize: settings.fontSize,
+                      isBold: settings.isBold,
+                      showIcon: settings.showBookmarkIcon !== false,
+                    },
+                  ),
+                }}
+              >
                 {currentSubBookmarks.map((bookmark) => (
                   <SubBookmarkItem
                     key={bookmark.id}

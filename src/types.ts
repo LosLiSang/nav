@@ -127,7 +127,10 @@ export type Settings = {
   showBookmarkIcon?: boolean
   columnMode?: 'auto' | 'manual'
   manualColumns?: number
+  /** @deprecated 旧版像素上限（0=铺满），仅用于迁移到 contentWidth */
   cardWidth?: number
+  /** 内容区占窗口宽度的百分比（50–100）；未设置时从 cardWidth 换算 */
+  contentWidth?: number
   avatarUrl?: string
   userName?: string
   highlightColor?: string
