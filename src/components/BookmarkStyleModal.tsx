@@ -6,6 +6,7 @@ import { ConfirmModal } from './ConfirmModal'
 
 type TabType = 'typography' | 'layout' | 'manage'
 import { resolveTextColor } from '../lib/utils'
+import { ContentWidthControl } from './ContentWidthControl'
 import type { Bookmark, Category, FallbackIconMode, IconShape, Settings } from '../types'
 
 type Props = {
@@ -586,58 +587,9 @@ export function BookmarkStyleModal({
             </div>
           </div>
 
-          {/* 4. Card Container Width */}
-          <div className="rounded-xl border border-neutral-200 dark:border-neutral-700 p-3 bg-neutral-50/50 dark:bg-neutral-800/40 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="font-medium text-neutral-800 dark:text-neutral-200">卡片区整体宽度</span>
-              <span className="font-mono text-neutral-600 dark:text-neutral-300 font-bold">
-                {settings.cardWidth === 0 ? '100% 铺满全屏' : `${settings.cardWidth ?? 1380}px`}
-              </span>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {[
-                { label: '紧凑 (1100px)', value: 1100 },
-                { label: '标准 (1380px)', value: 1380 },
-                { label: '宽屏 (1600px)', value: 1600 },
-                { label: '极宽 (1920px)', value: 1920 },
-                { label: '铺满全屏 (100%)', value: 0 },
-              ].map((preset) => {
-                const isSelected =
-                  preset.value === 0
-                    ? settings.cardWidth === 0
-                    : (settings.cardWidth ?? 1380) === preset.value
-                return (
-                  <button
-                    key={preset.label}
-                    type="button"
-                    onClick={() => onChangeSettings({ cardWidth: preset.value })}
-                    className={`rounded-lg px-2.5 py-1 text-xs font-medium transition ${
-                      isSelected
-                        ? 'bg-orange-500 text-white shadow-sm'
-                        : 'bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800'
-                    }`}
-                  >
-                    {preset.label}
-                  </button>
-                )
-              })}
-            </div>
-            <div className="pt-1">
-              <input
-                type="range"
-                min={800}
-                max={2400}
-                step={20}
-                value={settings.cardWidth === 0 ? 2400 : (settings.cardWidth ?? 1380)}
-                onChange={(e) => onChangeSettings({ cardWidth: Number(e.target.value) })}
-                className="w-full accent-orange-500 cursor-pointer"
-              />
-              <div className="flex justify-between text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5">
-                <span>800px (最窄)</span>
-                <span>1380px (默认)</span>
-                <span>2400px (最宽)</span>
-              </div>
-            </div>
+          {/* 4. 内容区宽度（窗口百分比） */}
+          <div className="rounded-xl border border-neutral-200 dark:border-neutral-700 p-3 bg-neutral-50/50 dark:bg-neutral-800/40">
+            <ContentWidthControl settings={settings} onChange={onChangeSettings} />
           </div>
 
             </>

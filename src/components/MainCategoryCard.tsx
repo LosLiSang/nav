@@ -22,8 +22,11 @@ import {
   X,
 } from 'lucide-react'
 import { hostnameOf, resolveTextColor } from '../lib/utils'
+import { bookmarkGridTemplate } from '../lib/bookmarkGrid'
 import { useBookmarkIcon } from '../lib/useBookmarkIcon'
 import { getBrandIcon } from '../lib/brandIcons'
+import { ContentWidthControl } from './ContentWidthControl'
+import { DEFAULT_CONTENT_WIDTH } from '../lib/contentWidth'
 import { ConfirmModal } from './ConfirmModal'
 import type { Bookmark, Category, Settings } from '../types'
 
@@ -649,55 +652,16 @@ export function MainCategoryCard({
                     </div>
                   )}
                 </div>
+                {settings.columnMode === 'auto' && (
+                  <p className="mt-1.5 text-[11px] leading-snug text-neutral-400 dark:text-neutral-500">
+                    按标题长度和卡片实际宽度自动排列，优先完整显示标题
+                  </p>
+                )}
               </div>
 
-              {/* Row 3: 卡片区宽度 */}
+              {/* Row 3: 内容区宽度（窗口百分比，作用于整个居中内容区） */}
               <div className="mt-3.5 border-t border-neutral-100 dark:border-neutral-800 pt-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1">
-                    <span className="font-medium text-neutral-800 dark:text-neutral-100 text-sm">卡片区宽度</span>
-                    <span className="h-1.5 w-1.5 rounded-full bg-orange-500" />
-                  </div>
-                  <span className="font-mono text-[11px] font-bold text-orange-600 dark:text-orange-400">
-                    {settings.cardWidth === 0 ? '100% 铺满' : `${settings.cardWidth ?? 1380}px`}
-                  </span>
-                </div>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {[
-                    { label: '紧凑', value: 1100 },
-                    { label: '标准', value: 1380 },
-                    { label: '宽屏', value: 1600 },
-                    { label: '铺满', value: 0 },
-                  ].map((preset) => {
-                    const isSelected =
-                      preset.value === 0
-                        ? settings.cardWidth === 0
-                        : (settings.cardWidth ?? 1380) === preset.value
-                    return (
-                      <button
-                        key={preset.label}
-                        type="button"
-                        onClick={() => onUpdateSettings?.({ cardWidth: preset.value })}
-                        className={`rounded-full px-2.5 py-0.5 text-xs transition ${
-                          isSelected
-                            ? 'bg-[#ff6900] text-white shadow-sm font-medium'
-                            : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700'
-                        }`}
-                      >
-                        {preset.label}
-                      </button>
-                    )
-                  })}
-                </div>
-                <input
-                  type="range"
-                  min={800}
-                  max={2200}
-                  step={20}
-                  value={settings.cardWidth === 0 ? 2200 : (settings.cardWidth ?? 1380)}
-                  onChange={(e) => onUpdateSettings?.({ cardWidth: Number(e.target.value) })}
-                  className="mt-2 w-full accent-orange-500 cursor-pointer"
-                />
+                <ContentWidthControl settings={settings} onChange={(u) => onUpdateSettings?.(u)} compact />
               </div>
 
               {/* Clear customization */}
@@ -707,9 +671,9 @@ export function MainCategoryCard({
                   onClick={() =>
                     onUpdateSettings?.({
                       showBookmarkIcon: true,
-                      columnMode: 'manual',
+                      columnMode: 'auto',
                       manualColumns: 7,
-                      cardWidth: 1380,
+                      contentWidth: DEFAULT_CONTENT_WIDTH,
                     })
                   }
                   className="text-[11px] text-neutral-400 dark:text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-200 inline-flex items-center gap-1"
@@ -738,7 +702,7 @@ export function MainCategoryCard({
         </div>
       )}
 
-      {/* 7 Columns Bookmarks Grid */}
+      {/* Bookmarks Grid：自适应按标题内容宽度 + 卡片真实宽度排列 */}
       <div className="pt-2">
         {bookmarks.length === 0 ? (
           <div className="py-12 text-center text-xs text-neutral-400">
@@ -752,19 +716,19 @@ export function MainCategoryCard({
             strategy={rectSortingStrategy}
           >
             <div
-              style={
-                settings.columnMode !== 'auto'
-                  ? {
-                      display: 'grid',
-                      gridTemplateColumns: `repeat(${settings.manualColumns || 7}, minmax(0, 1fr))`,
-                    }
-                  : undefined
-              }
-              className={
-                settings.columnMode === 'auto'
-                  ? 'grid grid-cols-2 gap-x-2 gap-y-2.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8'
-                  : 'gap-x-2 gap-y-2.5'
-              }
+              style={{
+                gridTemplateColumns: bookmarkGridTemplate(
+                  bookmarks.map((b) => b.title),
+                  {
+                    columnMode: settings.columnMode,
+                    manualColumns: settings.manualColumns,
+                    fontSize: settings.fontSize,
+                    isBold: settings.isBold,
+                    showIcon: settings.showBookmarkIcon !== false,
+                  },
+                ),
+              }}
+              className="grid gap-x-2 gap-y-2.5"
             >
               {bookmarks.map((bookmark) => (
                 <BookmarkCardItem
