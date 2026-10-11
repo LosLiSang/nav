@@ -874,7 +874,7 @@ export function SettingsPanel({ settings, initialTab, onClose, onChange, sync, o
                     <input
                       value={syncUrl}
                       onChange={(e) => setSyncUrl(e.target.value)}
-                      placeholder="https://nav-sync.你的账号.workers.dev"
+                      placeholder="https://nav.你的账号.workers.dev"
                       className="w-full rounded-xl border border-neutral-200 dark:border-neutral-700 px-3 py-2 text-xs outline-none focus:border-orange-500 bg-transparent"
                     />
                   </div>

@@ -11,7 +11,7 @@ import { join } from 'node:path'
 const APP_PORT = 5199
 const APP_URL = `http://127.0.0.1:${APP_PORT}`
 const LOCAL_FIXTURES = process.env.LOCAL_FIXTURES === '1' || process.argv.includes('--local-fixtures')
-const WORKER_URL = LOCAL_FIXTURES ? 'http://127.0.0.1:8799' : (process.env.VITE_SYNC_URL || 'https://nav-sync.lisang.workers.dev')
+const WORKER_URL = LOCAL_FIXTURES ? 'http://127.0.0.1:8799' : (process.env.VITE_SYNC_URL || 'https://nav.lisang.workers.dev')
 const SVG_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="#2563eb"/><circle cx="16" cy="16" r="8" fill="white"/></svg>'
 const OUT_DIR = join(tmpdir(), 'nav-title-test', 'shots')
 const EDGE =
