@@ -15,11 +15,11 @@ migrations_dir = "migrations"
 ALLOWED_ORIGIN = "https://loslisang.github.io"
 # 这些 GitHub 账号登录后自动成为管理员
 ADMIN_GITHUB_LOGINS = "LosLiSang"
-# 旧 SYNC_TOKEN 迁移期只读；所有设备改用 GitHub 登录后改成 "off"
-LEGACY_SYNC = "read"
+# 旧 SYNC_TOKEN：已全部迁移到 GitHub 登录，彻底停用（"read" 可临时恢复只读）
+LEGACY_SYNC = "off"
 
 # secrets（不入库）：
 #   npx wrangler secret put GITHUB_CLIENT_ID
 #   npx wrangler secret put GITHUB_CLIENT_SECRET
-#   npx wrangler secret put SYNC_TOKEN   # 旧 token，仅迁移期只读
+#   （SYNC_TOKEN 已停用，可执行 npx wrangler secret delete SYNC_TOKEN 删除）
 # 本地开发写在 worker/.dev.vars（同名键会覆盖上面的 vars）
