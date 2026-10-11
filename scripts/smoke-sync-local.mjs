@@ -17,7 +17,7 @@ import { execFileSync, spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 
 const APP_URL = process.env.APP_URL || 'http://127.0.0.1:5199'
 const WORKER_URL = process.env.WORKER_URL || 'http://127.0.0.1:8788'
@@ -25,6 +25,10 @@ const WORKER_DIR = join(import.meta.dirname, '..', 'worker')
 const OUT_DIR = process.env.OUT_DIR || join(import.meta.dirname, '..', 'artifacts', 'sync-e2e')
 const D1_STATE = process.env.D1_STATE
 if (!D1_STATE) throw new Error('必须指定独立测试 D1_STATE，禁止重置开发数据库')
+const artifactRoot = resolve(import.meta.dirname, '..', 'artifacts')
+if (!resolve(D1_STATE).startsWith(artifactRoot + '\\') && !resolve(D1_STATE).startsWith(artifactRoot + '/')) {
+  throw new Error('D1_STATE 必须位于本仓库 artifacts 下的独立测试目录')
+}
 for (const value of [APP_URL, WORKER_URL]) {
   if (!['127.0.0.1', 'localhost'].includes(new URL(value).hostname)) throw new Error('只允许本地测试服务')
 }
@@ -119,16 +123,23 @@ async function launchBrowser(port) {
   const cdp = new Cdp(ws)
   await cdp.send('Page.enable')
   await cdp.send('Runtime.enable')
+  await cdp.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false })
 
   return {
     cdp,
     async close() {
+      try {
+        await Promise.race([cdp.send('Browser.close'), sleep(1000)])
+      } catch {}
       try {
         ws.close()
       } catch {}
       proc.kill()
       await sleep(300)
       try {
+        if (dirname(resolve(profile)) !== resolve(tmpdir()) || !resolve(profile).startsWith(join(resolve(tmpdir()), 'nav-smoke-'))) {
+          throw new Error('拒绝清理未知浏览器 profile')
+        }
         rmSync(profile, { recursive: true, force: true })
       } catch {}
     },
@@ -217,7 +228,7 @@ const LEGACY_DOC = {
   subSections: [],
   subCategories: [],
   bookmarks: [{ id: 'bm-legacy', categoryId: 'cat-legacy', title: LEGACY_TITLE, url: 'https://example.com/legacy', order: 0, createdAt: 1, updatedAt: 1 }],
-  memos: [],
+  memos: [{ id: 'legacy-memo', text: '旧快照中的便签', done: true, createdAt: 1 }],
   totpAccounts: [],
   settings: {},
 }
@@ -296,6 +307,32 @@ async function main() {
     check('云端时间戳与本机对齐', cloud.updatedAt === local, `cloud=${cloud.updatedAt} local=${local}`)
     check('导入本机数据不会认领旧版数据', (await api('/api/me', ADMIN_API_TOKEN)).body.legacy?.claimed === false)
 
+    // #23：便签、剪贴板独立同步，不污染整页版本。
+    const revBefore = cloud.rev
+    await evaluate(`(async () => {
+      const m = ${STORE}; await m.useNavStore.getState().addMemo('独立同步便签');
+      await m.useNavStore.getState().saveScratchpad('跨设备剪贴板');
+      await m.useNavStore.getState().syncWorkbench(); return true;
+    })()`)
+    const workbench = await api('/api/memos', ADMIN_API_TOKEN)
+    check('便签新增通过独立接口持久化', workbench.status === 200 && workbench.body.memos?.some(m => m.text === '独立同步便签'))
+    check('草稿通过独立剪贴板接口持久化', (await api('/api/clipboard', ADMIN_API_TOKEN)).body.content === '跨设备剪贴板')
+    await sleep(1600)
+    check('便签和草稿改动不上传整页快照', (await api('/api/data', ADMIN_API_TOKEN)).body.rev === revBefore)
+    check('整页快照不再包含便签', !Object.hasOwn((await api('/api/data', ADMIN_API_TOKEN)).body.doc, 'memos'))
+    const memo = workbench.body.memos?.find(m => m.text === '独立同步便签')
+    if (memo) {
+      const updated = await api(`/api/memos/${memo.id}`, ADMIN_API_TOKEN, { method: 'PUT', body: JSON.stringify({ ...memo, text: '另一设备编辑', expectedUpdatedAt: memo.updatedAt }) })
+      check('便签支持按条并发保护', updated.status === 200 && (await api(`/api/memos/${memo.id}`, ADMIN_API_TOKEN, { method: 'PUT', body: JSON.stringify({ ...memo, text: '过期编辑', expectedUpdatedAt: memo.updatedAt }) })).status === 409)
+      const cursor = updated.body.memo.updatedAt
+      const deleted = await api(`/api/memos/${memo.id}`, ADMIN_API_TOKEN, { method: 'DELETE', body: JSON.stringify({ expectedUpdatedAt: cursor }) })
+      const delta = await api(`/api/memos?since=${cursor}`, ADMIN_API_TOKEN)
+      check('便签软删除可通过增量读取传播', deleted.status === 200 && delta.body.memos?.some(m => m.id === memo.id && m.deletedAt))
+    }
+    const clip = (await api('/api/clipboard', ADMIN_API_TOKEN)).body
+    check('剪贴板拒绝旧版本覆盖', (await api('/api/clipboard', ADMIN_API_TOKEN, { method: 'PUT', body: JSON.stringify({ content: '过期内容', expectedUpdatedAt: clip.updatedAt - 1 }) })).status === 409)
+    check('未登录用户不能读取工作台', (await api('/api/memos', '')).status === 401 && (await api('/api/clipboard', '')).status === 401)
+
     // ---------------------------------------------- 冲突保护：云端被别的设备推进
     const deviceC = {
       ...cloud.doc,
@@ -328,6 +365,62 @@ async function main() {
     )
     check('账号云端已有数据时不询问，直接恢复', settled === 'synced' && restored.offer === null, JSON.stringify(restored))
     check('恢复后包含之前的自定义书签和设备C的书签', restored.hasTest && restored.hasC, JSON.stringify(restored))
+    await evaluate(`(async () => { const m = ${STORE}; await m.useNavStore.getState().syncWorkbench(); return true })()`)
+    check('新设备读取同账号共享剪贴板', await evaluate(STATE(`s.scratchpadContent === '跨设备剪贴板'`)))
+    const tokenWorkbench = await evaluate(STATE('s.session.token'))
+    const clipboardBefore = (await api('/api/clipboard', tokenWorkbench)).body
+    await api('/api/clipboard', tokenWorkbench, { method: 'PUT', body: JSON.stringify({ content: '另一设备的新草稿', expectedUpdatedAt: clipboardBefore.updatedAt }) })
+    await evaluate('window.dispatchEvent(new Event("focus"))')
+    await poll(() => evaluate(STATE(`s.scratchpadContent === '另一设备的新草稿'`)), 15000, 'focus clipboard')
+    check('重新获得焦点拉取其他设备的剪贴板', true)
+    await evaluate(`(async () => {
+      const m = ${STORE}; m.useNavStore.getState().setAutoSync(false);
+      const clip = await fetch(${JSON.stringify(WORKER_URL + '/api/clipboard')}, {headers: {Authorization: 'Bearer ' + m.useNavStore.getState().session.token}}).then(r => r.json());
+      await fetch(${JSON.stringify(WORKER_URL + '/api/clipboard')}, {method:'PUT', headers:{Authorization:'Bearer ' + m.useNavStore.getState().session.token, 'Content-Type':'application/json'}, body:JSON.stringify({content:'云端竞争版本', expectedUpdatedAt:clip.updatedAt})});
+      await m.useNavStore.getState().saveScratchpad('本地未同步内容');
+      await m.useNavStore.getState().syncWorkbench(); return true;
+    })()`)
+    check('剪贴板冲突保留本地输入并提示选择', await evaluate(STATE(`s.workbenchStatus === 'conflict' && s.scratchpadContent === '本地未同步内容' && Boolean(document.querySelector('[data-testid="workbench-sync-status"]'))`)))
+    check('桌面工作台冲突提示与选择按钮可见且不溢出', await evaluate(`(() => {
+      const el = document.querySelector('[data-testid="workbench-sync-status"]');
+      const box = el.getBoundingClientRect();
+      return box.width > 0 && box.right <= innerWidth && box.bottom <= innerHeight && el.scrollWidth <= el.clientWidth &&
+        [...el.querySelectorAll('button')].every(b => b.getBoundingClientRect().width > 0);
+    })()`))
+    const shot = await b.cdp.send('Page.captureScreenshot', { format: 'png' })
+    writeFileSync(join(OUT_DIR, 'clipboard-conflict.png'), Buffer.from(shot.data, 'base64'))
+    await evaluate(`(async () => { const m = ${STORE}; m.useNavStore.getState().updateSettings({themeMode:'dark'}); return true })()`)
+    await sleep(100)
+    check('深色主题工作台冲突提示可读且没有横向溢出', await evaluate(`(() => {
+      const el = document.querySelector('[data-testid="workbench-sync-status"]');
+      const style = getComputedStyle(el);
+      const pixel = color => {
+        const canvas = document.createElement('canvas'); canvas.width = canvas.height = 1;
+        const ctx = canvas.getContext('2d'); ctx.fillStyle = color; ctx.fillRect(0,0,1,1);
+        return [...ctx.getImageData(0,0,1,1).data].slice(0,3);
+      };
+      const lum = color => pixel(color).map(c => c / 255).map(c => c <= .04045 ? c / 12.92 : ((c + .055) / 1.055) ** 2.4).reduce((sum,c,i) => sum + c * [.2126,.7152,.0722][i],0);
+      const fg = lum(style.color), bg = lum(style.backgroundColor);
+      return document.documentElement.classList.contains('dark') && (Math.max(fg,bg)+.05)/(Math.min(fg,bg)+.05) >= 4.5 && el.scrollWidth <= el.clientWidth;
+    })()`))
+    const darkShot = await b.cdp.send('Page.captureScreenshot', { format: 'png' })
+    writeFileSync(join(OUT_DIR, 'clipboard-conflict-dark.png'), Buffer.from(darkShot.data, 'base64'))
+    await evaluate(`(async () => { const m = ${STORE}; m.useNavStore.getState().updateSettings({themeMode:'light'}); return true })()`)
+    await evaluate(`(async () => { const m = ${STORE}; await m.useNavStore.getState().syncWorkbench('remote'); m.useNavStore.getState().setAutoSync(true); return true })()`)
+    check('用户明确采用云端后解决工作台冲突', await evaluate(STATE(`s.workbenchStatus === 'synced' && s.scratchpadContent === '云端竞争版本'`)))
+    await evaluate(`(async () => {
+      const m = ${STORE}; m.useNavStore.getState().setAutoSync(false);
+      window.__originalWorkbenchFetch = window.fetch;
+      window.fetch = (...args) => String(args[0]).includes('/api/clipboard') ? Promise.reject(new TypeError('offline fixture')) : window.__originalWorkbenchFetch(...args);
+      await m.useNavStore.getState().saveScratchpad('离线编辑仍保留');
+      await m.useNavStore.getState().syncWorkbench(); return true;
+    })()`)
+    check('离线失败保留 IndexedDB 草稿与 dirty 队列', await evaluate(STATE(`s.workbenchStatus === 'error' && (await (await import('/src/lib/db.ts')).db.scratchpad.get('default')).dirty && s.scratchpadContent === '离线编辑仍保留'`)))
+    await evaluate(`(async () => {
+      window.fetch = window.__originalWorkbenchFetch;
+      const m = ${STORE}; await m.useNavStore.getState().syncWorkbench(); m.useNavStore.getState().setAutoSync(true); return true;
+    })()`)
+    check('网络恢复可以重试并保存离线草稿', (await api('/api/clipboard', tokenWorkbench)).body.content === '离线编辑仍保留')
 
     await cdpReload(b.cdp, evaluate)
     const afterReload = await evaluate(STATE(`({ status: s.syncStatus, hasTest: s.bookmarks.some(b => b.title === ${JSON.stringify(MESSAGE_TITLE)}) })`))
@@ -354,6 +447,7 @@ async function main() {
     check('待审批账号可以登录，但不能云同步', pending.status === 'pending' && pending.sync === false, JSON.stringify({ ...pending, token: '<REDACTED>' }))
     check('待审批账号直接调用数据接口被拒绝', (await api('/api/data', pending.token)).status === 403)
     check('待审批账号不能访问管理接口', (await api('/api/admin/users', pending.token)).status === 403)
+    check('待审批账号不能读写工作台', (await api('/api/memos', pending.token)).status === 403 && (await api('/api/clipboard', pending.token, { method: 'PUT', body: JSON.stringify({ content: '禁止写入', expectedUpdatedAt: 0 }) })).status === 403)
     await evaluate(`(async () => { const m = ${STORE}; await m.useNavStore.getState().resolveImport('skip'); return true })()`)
 
     const approved = await api('/api/admin/users/u-pending', ADMIN_API_TOKEN, { method: 'PATCH', body: JSON.stringify({ status: 'active' }) })
@@ -363,6 +457,7 @@ async function main() {
     check('审批后刷新账号即可同步', active.sync && active.status === 'synced', JSON.stringify(active))
     const pendingDoc = (await api('/api/data', pending.token)).body
     check('该账号云端只有自己的数据', pendingDoc.doc && !pendingDoc.doc.bookmarks.some((b) => b.title === MESSAGE_TITLE))
+    check('便签和剪贴板按账号隔离', !(await api('/api/memos', pending.token)).body.memos?.some(m => m.text === '独立同步便签') && (await api('/api/clipboard', pending.token)).body.content === '')
 
     await c.cdp.send('Runtime.evaluate', { expression: `(async () => { const m = ${STORE}; await m.useNavStore.getState().logout() })()` })
     await poll(() => makeEval(c.cdp)(STATE('s.ready && !s.session')), 25000, 'logged out')
@@ -375,6 +470,10 @@ async function main() {
     check('认领后本机拿到旧版数据', heir.status === 'synced' && heir.hasLegacy, JSON.stringify(heir))
     const me = (await api('/api/me', ADMIN_API_TOKEN)).body
     check('旧版数据只能认领一次', me.legacy?.claimed === true)
+    const heirToken = await evaluate(STATE('s.session.token'))
+    const migrated = await api('/api/memos', heirToken)
+    const migratedAgain = await api('/api/memos', heirToken)
+    check('旧快照便签完整迁移且重复读取不重复导入', migrated.body.memos?.filter(m => m.id === 'legacy-memo' && m.done).length === 1 && migratedAgain.body.memos?.filter(m => m.id === 'legacy-memo').length === 1)
   } finally {
     await c.close()
   }

@@ -15,6 +15,7 @@ import { Hono, type Context, type MiddlewareHandler } from 'hono'
 import { cors } from 'hono/cors'
 import { randomToken, safeEqual, sha256Hex } from './crypto'
 import { iconResponse, titleResponse } from './fetchers'
+import { workbenchRoutes, migrateLegacy } from './workbench'
 import {
   LOGIN_CODE_TTL_MS,
   OAUTH_STATE_TTL_MS,
@@ -61,7 +62,7 @@ type UserRow = {
 
 type Principal = { kind: 'user'; user: UserRow } | { kind: 'legacy' }
 
-type App = { Bindings: Env; Variables: { principal: Principal } }
+type App = { Bindings: Env; Variables: { principal: Principal; workbenchUserId: string } }
 type Ctx = Context<App>
 
 const LEGACY_DOC_ID = 'default'
@@ -88,7 +89,7 @@ app.use('*', async (c, next) => {
   const wildcard = parseList(c.env.ALLOWED_ORIGIN).includes('*')
   return cors({
     origin: (origin) => (wildcard ? origin || '*' : list.includes(origin) ? origin : null),
-    allowMethods: ['GET', 'PUT', 'POST', 'PATCH', 'OPTIONS'],
+    allowMethods: ['GET', 'PUT', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
     allowHeaders: ['Authorization', 'Content-Type'],
     maxAge: 86400,
   })(c, next)
@@ -441,6 +442,10 @@ app.put('/api/data', authenticate({ legacy: true }), requireActive, async (c) =>
     return fail(c, 409, 'conflict', { doc: parseDoc(current), updatedAt: current!.updated_at, rev: current!.rev })
   }
 
+  // 新版快照不再接收便签；旧快照原样保留到工作台首次读取的迁移备份中。
+  const doc = { ...payload.doc } as Record<string, unknown>
+  if ('memos' in doc) return fail(c, 400, 'upgrade_required', { hint: '便签已改为独立接口，请刷新客户端' })
+  await migrateLegacy(c.env.DB, user.id)
   const saved = await c.env.DB.prepare(
     `INSERT INTO user_docs (user_id, doc, updated_at, rev, updated_by)
      VALUES (?, ?, ?, 1, ?)
@@ -451,10 +456,18 @@ app.put('/api/data', authenticate({ legacy: true }), requireActive, async (c) =>
        updated_by = excluded.updated_by
      RETURNING updated_at, rev`,
   )
-    .bind(user.id, JSON.stringify(payload.doc), plan.nextUpdatedAt, (c.req.header('User-Agent') || '').slice(0, 300))
+    .bind(user.id, JSON.stringify(doc), plan.nextUpdatedAt, (c.req.header('User-Agent') || '').slice(0, 300))
     .first<{ updated_at: number; rev: number }>()
   return c.json({ ok: true, updatedAt: saved?.updated_at ?? plan.nextUpdatedAt, rev: saved?.rev ?? 1 })
 })
+
+for (const path of ['/api/memos*', '/api/clipboard']) {
+  app.use(path, authenticate(), requireActive, async (c, next) => {
+    c.set('workbenchUserId', currentUser(c).id)
+    return next()
+  })
+}
+app.route('/', workbenchRoutes)
 
 // ---------------------------------------------------------------------------
 // 管理员

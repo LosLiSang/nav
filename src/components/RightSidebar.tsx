@@ -21,6 +21,7 @@ import type { CountdownTarget, MemoItem, Settings } from '../types'
 import { POMODORO_DURATIONS, usePomodoro } from '../lib/usePomodoro'
 import { PomodoroCompletion, PomodoroReminderSettings } from './PomodoroReminders'
 import { MemoRow } from './MemoRow'
+import { WorkbenchSyncStatus } from './WorkbenchSyncStatus'
  
  type Props = {
    scratchpadContent: string
@@ -129,6 +130,7 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
    function handleClear() {
      if (!text) return
      if (window.confirm('确认清空草稿板内容吗？此操作将立即生效。')) {
+       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
        setText('')
        void onSaveScratchpad('')
      }
@@ -283,6 +285,7 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
        style={{ backgroundColor: cardBg }}
      >
        {/* Top Header */}
+       <div className="px-3 pt-2 shrink-0"><WorkbenchSyncStatus /></div>
        <div className="flex h-11 shrink-0 items-center justify-between border-b border-black/5 dark:border-white/10 px-3.5">
          {/* Segmented Tabs */}
           <div className="flex items-center gap-1 rounded-xl bg-black/5 dark:bg-white/5 p-0.5 text-xs">

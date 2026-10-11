@@ -66,6 +66,9 @@ export type MemoItem = {
   text: string
   done: boolean
   createdAt: number
+  updatedAt?: number
+  dirty?: boolean
+  deletedAt?: number | null
 }
 
 export type TotpItem = {
