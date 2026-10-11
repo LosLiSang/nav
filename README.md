@@ -68,6 +68,11 @@
 
 ## 🧹 本地图标缓存维护
 
+服务端缓存与联合刷新仍处于 RFC 设计阶段；见
+[待确认方案与完整 E2E 失败矩阵](docs/cache-rfc-proposal.md)。这些文档不代表 #10 / #12 已实现或已批准。
+安全边界基线可用 `node scripts/probe-metadata-boundary.mjs` 重复验证，报告位于
+`artifacts/metadata-boundary/report.json`；当前基线预期失败，不能当作通过的验收。
+
 在「全局设置 → 界面与壁纸」或「书签展示与排版 → 分类与维护」点击「清理本地图标缓存」：
 
 - 默认选择**主分区当前页的空图标书签**，可逐层调整范围或选择全部书签。
