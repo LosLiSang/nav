@@ -30,12 +30,10 @@ import {
   Wrench,
 } from 'lucide-react'
 import {
-  fetchFaviconBlob,
-  getFaviconCandidates,
   hostnameOf,
-  normalizeIconUrl,
   resolveTextColor,
 } from '../lib/utils'
+import { useBookmarkIcon } from '../lib/useBookmarkIcon'
 import { getBrandIcon } from '../lib/brandIcons'
 import { ConfirmModal } from './ConfirmModal'
 import type {
@@ -261,8 +259,6 @@ function SubBookmarkItem({
   settings,
   cachedIcon,
   isFailedDomain,
-  onSaveCachedIcon,
-  onSaveFailedIcon,
   onContextMenu,
   onRecordVisit,
 }: {
@@ -271,8 +267,6 @@ function SubBookmarkItem({
   settings: Settings
   cachedIcon?: string
   isFailedDomain?: boolean
-  onSaveCachedIcon?: (domain: string, dataOrBlob: string | Blob, objectUrl?: string) => void
-  onSaveFailedIcon?: (domain: string) => void
   onContextMenu: (x: number, y: number) => void
   onRecordVisit?: (link: { title: string; url: string; iconUrl?: string }) => void
 }) {
@@ -281,52 +275,10 @@ function SubBookmarkItem({
     disabled: !isSortMode,
   })
 
-  const domain = useMemo(() => hostnameOf(bookmark.url), [bookmark.url])
   const effectiveTextColor = resolveTextColor(settings)
   const iconShape = settings.iconShape ?? 'rounded'
   const brandIcon = getBrandIcon(bookmark.title, bookmark.url, iconShape, settings)
-  const normalizedIconUrl = useMemo(
-    () => normalizeIconUrl(bookmark.iconUrl),
-    [bookmark.iconUrl],
-  )
-  const normalizedCachedIcon = useMemo(
-    () => normalizeIconUrl(cachedIcon),
-    [cachedIcon],
-  )
-  const candidates = useMemo(
-    () => getFaviconCandidates(bookmark.url, normalizedIconUrl),
-    [bookmark.url, normalizedIconUrl],
-  )
-  const [fetchFailed, setFetchFailed] = useState(isFailedDomain ?? false)
-
-  useEffect(() => {
-    if (normalizedIconUrl || normalizedCachedIcon || isFailedDomain) {
-      setFetchFailed(isFailedDomain ?? false)
-      return
-    }
-    if (!domain || !onSaveCachedIcon || candidates.length === 0) {
-      setFetchFailed(true)
-      return
-    }
-    let cancelled = false
-    setFetchFailed(false)
-    fetchFaviconBlob(candidates).then((result) => {
-      if (cancelled) return
-      if (result) {
-        onSaveCachedIcon(domain, result.blob, result.objectUrl)
-        setFetchFailed(false)
-      } else {
-        setFetchFailed(true)
-        onSaveFailedIcon?.(domain)
-      }
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [bookmark.url, normalizedIconUrl, normalizedCachedIcon, isFailedDomain, domain, candidates, onSaveCachedIcon, onSaveFailedIcon])
-
-  const effectiveIconUrl = normalizedIconUrl || normalizedCachedIcon
-  const hasIcon = Boolean(effectiveIconUrl) && !fetchFailed && !isFailedDomain
+  const { effectiveIconUrl, hasIcon, onIconError } = useBookmarkIcon(bookmark, cachedIcon, isFailedDomain)
 
   const shapeClass =
     iconShape === 'square'
@@ -377,13 +329,7 @@ function SubBookmarkItem({
             alt=""
             draggable={false}
             referrerPolicy="no-referrer"
-            onError={() => {
-              if (cachedIcon && onSaveCachedIcon && domain) {
-                onSaveCachedIcon(domain, '')
-              }
-              setFetchFailed(true)
-              onSaveFailedIcon?.(domain)
-            }}
+            onError={onIconError}
             className={`h-4.5 w-4.5 flex-shrink-0 object-contain pointer-events-none select-none ${shapeClass}`}
             loading="lazy"
           />
@@ -420,8 +366,6 @@ type Props = {
   settings: Settings
   isSortMode?: boolean
   draggingId?: string | null
-  onSaveCachedIcon?: (domain: string, dataOrBlob: string | Blob, objectUrl?: string) => void
-  onSaveFailedIcon?: (domain: string) => void
   onSelectSubSection: (id: string) => void
   onSelectSubCategory: (id: string) => void
   onAddSubSection: (name: string, icon?: string) => void
@@ -447,8 +391,6 @@ export function SubCategorySection({
   settings,
   isSortMode,
   draggingId,
-  onSaveCachedIcon,
-  onSaveFailedIcon,
   onSelectSubSection,
   onSelectSubCategory,
   onAddSubSection,
@@ -709,8 +651,6 @@ export function SubCategorySection({
                     settings={settings}
                     cachedIcon={cachedIcons?.[hostnameOf(bookmark.url)]}
                     isFailedDomain={failedDomains?.[hostnameOf(bookmark.url)]}
-                    onSaveCachedIcon={onSaveCachedIcon}
-                    onSaveFailedIcon={onSaveFailedIcon}
                     onContextMenu={(x, y) => onContextMenuBookmark(bookmark, x, y)}
                   onRecordVisit={onRecordVisit}
                   />

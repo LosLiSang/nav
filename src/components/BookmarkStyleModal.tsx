@@ -16,7 +16,7 @@ type Props = {
   onChangeSettings: (values: Partial<Settings>) => void
   onRenameCategory?: (id: string, name: string) => void
   onDeleteCategory?: (id: string) => void
-  onRefreshAllIcons?: () => void
+  onOpenIconCache?: () => void
 }
 
 const FONT_PRESETS = [
@@ -90,14 +90,13 @@ export function BookmarkStyleModal({
   onChangeSettings,
   onRenameCategory,
   onDeleteCategory,
-  onRefreshAllIcons,
+  onOpenIconCache,
 }: Props) {
   const [activeTab, setActiveTab] = useState<TabType>('typography')
   const [showFallbackIconPicker, setShowFallbackIconPicker] = useState(false)
   const [renaming, setRenaming] = useState(false)
   const [newCatName, setNewCatName] = useState(currentCategory?.name || '')
   const [confirmDeleteCat, setConfirmDeleteCat] = useState(false)
-  const [confirmRefreshIcons, setConfirmRefreshIcons] = useState(false)
   const [isCustomMode, setIsCustomMode] = useState(
     Boolean(
       settings.fontFamily &&
@@ -713,14 +712,14 @@ export function BookmarkStyleModal({
                   <span>导出此分类 ({categoryBookmarks.length} 个网址)</span>
                 </button>
 
-                {onRefreshAllIcons && (
+                {onOpenIconCache && (
                   <button
                     type="button"
-                    onClick={() => setConfirmRefreshIcons(true)}
+                    onClick={onOpenIconCache}
                     className="flex items-center gap-1.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 px-3 py-1.5 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800"
                   >
                     <RotateCcw className="h-3.5 w-3.5 text-neutral-500 dark:text-neutral-400" />
-                    <span>重新获取全部图标</span>
+                    <span>清理本地图标缓存</span>
                   </button>
                 )}
 
@@ -780,18 +779,6 @@ export function BookmarkStyleModal({
           onCancel={() => setConfirmDeleteCat(false)}
         />
 
-        {/* Confirm Refresh All Icons Modal */}
-        <ConfirmModal
-          open={confirmRefreshIcons}
-          title="重新获取图标"
-          message="确定要清除所有本地图标缓存并在后台重新抓取吗？"
-          confirmText="开始重新获取"
-          onConfirm={() => {
-            onRefreshAllIcons?.()
-            setConfirmRefreshIcons(false)
-          }}
-          onCancel={() => setConfirmRefreshIcons(false)}
-        />
       </div>
     </div>
   , document.body)
