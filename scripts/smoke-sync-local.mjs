@@ -15,13 +15,20 @@
  */
 import { execFileSync, spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 const APP_URL = process.env.APP_URL || 'http://127.0.0.1:5199'
 const WORKER_URL = process.env.WORKER_URL || 'http://127.0.0.1:8788'
 const WORKER_DIR = join(import.meta.dirname, '..', 'worker')
+const OUT_DIR = process.env.OUT_DIR || join(import.meta.dirname, '..', 'artifacts', 'sync-e2e')
+const D1_STATE = process.env.D1_STATE
+if (!D1_STATE) throw new Error('必须指定独立测试 D1_STATE，禁止重置开发数据库')
+for (const value of [APP_URL, WORKER_URL]) {
+  if (!['127.0.0.1', 'localhost'].includes(new URL(value).hostname)) throw new Error('只允许本地测试服务')
+}
+mkdirSync(OUT_DIR, { recursive: true })
 const WRANGLER = join(WORKER_DIR, 'node_modules', 'wrangler', 'bin', 'wrangler.js')
 const EDGE =
   process.env.EDGE_PATH ||
@@ -196,7 +203,7 @@ function seedDatabase() {
   ].join('\n')
   const file = join(mkdtempSync(join(tmpdir(), 'nav-seed-')), 'seed.sql')
   writeFileSync(file, sql)
-  execFileSync(process.execPath, [WRANGLER, 'd1', 'execute', 'nav-sync', '--local', `--file=${file}`], {
+  execFileSync(process.execPath, [WRANGLER, 'd1', 'execute', 'nav-sync', '--local', '--persist-to', D1_STATE, `--file=${file}`], {
     cwd: WORKER_DIR,
     stdio: 'ignore',
   })
@@ -344,7 +351,7 @@ async function main() {
     let evaluate = await loginWith(c.cdp, codes.codePending)
     await waitSettled(evaluate, 'pending settled')
     const pending = await evaluate(STATE(`({ status: s.account.status, sync: Boolean(s.syncConfig), message: s.syncMessage, token: s.session.token })`))
-    check('待审批账号可以登录，但不能云同步', pending.status === 'pending' && pending.sync === false, JSON.stringify(pending))
+    check('待审批账号可以登录，但不能云同步', pending.status === 'pending' && pending.sync === false, JSON.stringify({ ...pending, token: '<REDACTED>' }))
     check('待审批账号直接调用数据接口被拒绝', (await api('/api/data', pending.token)).status === 403)
     check('待审批账号不能访问管理接口', (await api('/api/admin/users', pending.token)).status === 403)
     await evaluate(`(async () => { const m = ${STORE}; await m.useNavStore.getState().resolveImport('skip'); return true })()`)
@@ -373,6 +380,7 @@ async function main() {
   }
 
   const failed = results.filter((r) => !r.ok)
+  writeFileSync(join(OUT_DIR, 'report.json'), JSON.stringify({ app: APP_URL, worker: WORKER_URL, results }, null, 2))
   console.log(`\n${results.length - failed.length}/${results.length} 通过`)
   if (failed.length) process.exitCode = 1
 }
@@ -399,6 +407,7 @@ async function cdpReload(cdp, evaluate) {
 }
 
 main().catch((error) => {
+  writeFileSync(join(OUT_DIR, 'report.json'), JSON.stringify({ results, error: error.message }, null, 2))
   console.error('SMOKE ERROR:', error.message)
   process.exitCode = 1
 })

@@ -1,4 +1,5 @@
 import type { Settings } from '../types'
+import { RangeInput } from './RangeInput'
 import {
   CONTENT_WIDTH_MAX,
   CONTENT_WIDTH_MIN,
@@ -61,14 +62,13 @@ export function ContentWidthControl({
       </div>
 
       <div>
-        <input
-          type="range"
+        <RangeInput
+          aria-label="内容区宽度"
           min={CONTENT_WIDTH_MIN}
           max={CONTENT_WIDTH_MAX}
           step={1}
           value={value}
           onChange={(e) => set(Number(e.target.value))}
-          className="w-full accent-orange-500 cursor-pointer"
         />
         <div className="flex justify-between text-[10px] text-neutral-400 dark:text-neutral-500">
           <span>{CONTENT_WIDTH_MIN}%</span>
