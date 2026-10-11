@@ -45,7 +45,7 @@ const DEVICE_LOCAL_SETTINGS: (keyof Settings)[] = [
 const REQUEST_TIMEOUT_MS = 15000
 
 export const DEFAULT_SYNC_URL: string =
-  (import.meta.env.VITE_SYNC_URL as string | undefined)?.trim() || 'https://nav-sync.lisang.workers.dev'
+  (import.meta.env.VITE_SYNC_URL as string | undefined)?.trim() || 'https://nav.lisang.workers.dev'
 
 /** 允许用户只填 `xxx.workers.dev`，自动补协议、去掉结尾斜杠 */
 export function normalizeSyncUrl(value: string): string {
@@ -60,7 +60,11 @@ export function loadSyncConfig(): SyncConfig | null {
     const raw = localStorage.getItem(CONFIG_KEY)
     if (!raw) return null
     const parsed = JSON.parse(raw) as Partial<SyncConfig>
-    const url = normalizeSyncUrl(parsed.url || '')
+    // Worker 由 nav-sync 更名为 nav，旧设备保存的地址自动迁移到新地址
+    const url = normalizeSyncUrl(parsed.url || '').replace(
+      /^https:\/\/nav-sync\.lisang\.workers\.dev$/i,
+      'https://nav.lisang.workers.dev',
+    )
     const token = (parsed.token || '').trim()
     if (!url || !token) return null
     return { url, token }

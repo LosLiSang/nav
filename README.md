@@ -147,14 +147,14 @@ npx wrangler deploy
 部署完成后，终端将输出你的 Worker 服务公网地址，格式如：
 
 ```text
-https://nav-sync.<你的账号子域名>.workers.dev
+https://nav.<你的账号子域名>.workers.dev
 ```
 
 ### 3. 前端绑定云同步
 
 1. 打开导航页，点击右上角设置图标（齿轮）进入「全局设置」；
 2. 切换至「云端同步」选项卡；
-3. 填入刚才部署的 Worker 地址（如 `https://nav-sync.xxx.workers.dev`）以及设置的 `SYNC_TOKEN`；
+3. 填入刚才部署的 Worker 地址（如 `https://nav.xxx.workers.dev`）以及设置的 `SYNC_TOKEN`；
 4. 点击「测试连接并保存」，状态亮起绿灯即表示云同步服务已成功连通。
 
 ### 4. 本地模拟与日常运维
