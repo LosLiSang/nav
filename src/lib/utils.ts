@@ -1,7 +1,7 @@
 import type { Settings } from '../types'
 import { hostnameOf, normalizeUrl } from './url'
 export { hostnameOf, normalizeUrl } from './url'
-import { DEFAULT_SYNC_URL, loadSyncConfig } from './sync'
+import { loadServerUrl } from './auth'
 
 /**
  * 书签文字在暗色模式下的实际渲染颜色。
@@ -135,8 +135,7 @@ export function isUrlLike(value: string): boolean {
 
 
 export function getWorkerUrl(): string {
-  const syncConfig = typeof window !== 'undefined' ? loadSyncConfig() : null
-  const explicit = (syncConfig?.url || DEFAULT_SYNC_URL || '').trim().replace(/\/+$/, '')
+  const explicit = typeof window !== 'undefined' ? loadServerUrl() : ''
   if (explicit) return explicit
 
   // 本地开发环境若未配置线上 Worker，默认走本地 Wrangler Worker (8787)

@@ -2,16 +2,24 @@ name = "nav"
 main = "src/index.ts"
 compatibility_date = "2025-09-22"
 
-# 本地开发（npm run dev）会自动在 .wrangler/state 下建一个本地 SQLite，
-# 不需要填真实的 database_id 也能跑通。
-#
-# 部署前必须把 database_id 换成 `npx wrangler d1 create nav-sync` 返回的 id。
+# 本地开发（npm run dev）会自动在 .wrangler/state 下建一个本地 SQLite。
+# 表结构由 migrations/ 管理：npm run db:migrate:local / db:migrate:remote
 [[d1_databases]]
 binding = "DB"
 database_name = "nav-sync"
 database_id = "880e5230-2474-41a2-a7cb-ea6bb2fffe13"
+migrations_dir = "migrations"
 
-# 允许跨域访问的来源。前端在 GitHub Pages 上，保持默认 "*" 即可，
-# 鉴权靠 SYNC_TOKEN（Authorization: Bearer）而不是 cookie。
 [vars]
-ALLOWED_ORIGIN = "*"
+# 前端站点 origin（逗号分隔）：账号/数据接口的 CORS 白名单 + GitHub 登录回跳白名单
+ALLOWED_ORIGIN = "https://loslisang.github.io"
+# 这些 GitHub 账号登录后自动成为管理员
+ADMIN_GITHUB_LOGINS = "LosLiSang"
+# 旧 SYNC_TOKEN 迁移期只读；所有设备改用 GitHub 登录后改成 "off"
+LEGACY_SYNC = "read"
+
+# secrets（不入库）：
+#   npx wrangler secret put GITHUB_CLIENT_ID
+#   npx wrangler secret put GITHUB_CLIENT_SECRET
+#   npx wrangler secret put SYNC_TOKEN   # 旧 token，仅迁移期只读
+# 本地开发写在 worker/.dev.vars（同名键会覆盖上面的 vars）

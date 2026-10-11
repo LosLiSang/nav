@@ -149,19 +149,6 @@ export default function App() {
     exportBackup,
     importBackup,
     resetToDefaults,
-    syncConfig,
-    autoSync,
-    syncStatus,
-    syncMessage,
-    lastSyncedAt,
-    localUpdatedAt,
-    remoteUpdatedAt,
-    configureSync,
-    setAutoSync,
-    disconnectSync,
-    syncNow,
-    pushToCloud,
-    pullFromCloud,
   } = useNavStore()
 
   const searchBarRef = useRef<SearchBarHandle>(null)
@@ -639,21 +626,6 @@ export default function App() {
               }}
             onChange={updateSettings}
             onOpenIconCache={() => setIconCacheOpen(true)}
-            sync={{
-              config: syncConfig,
-              autoSync,
-              status: syncStatus,
-              message: syncMessage,
-              lastSyncedAt,
-              localUpdatedAt,
-              remoteUpdatedAt,
-              onConfigure: configureSync,
-              onToggleAuto: setAutoSync,
-              onDisconnect: disconnectSync,
-              onSyncNow: syncNow,
-              onPush: pushToCloud,
-              onPull: pullFromCloud,
-            }}
           />
         )}
 
