@@ -16,7 +16,8 @@
     "check:sort": "node scripts/test-sorting-e2e.mjs",
     "check:sub-sort": "node scripts/test-bookmark-drag-e2e.mjs",
     "check:weather": "node scripts/test-weather-e2e.mjs",
-    "smoke:sync": "node scripts/smoke-sync-local.mjs"
+    "smoke:sync": "node scripts/smoke-sync-local.mjs",
+    "test:worker": "node --test scripts/test-worker-policy.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

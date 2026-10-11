@@ -50,7 +50,7 @@ npx wrangler d1 create nav-sync`}</Cmd>
             <p>把返回的 database_id 填进 worker/wrangler.toml。</p>
           </Step>
           <Step n={2} title="建表">
-            <Cmd>npx wrangler d1 execute nav-sync --remote --file=./schema.sql</Cmd>
+            <Cmd>npx wrangler d1 migrations apply nav-sync --remote</Cmd>
           </Step>
           <Step n={3} title="设置同步密钥">
             <p>点下方「生成密钥」，再点眼睛图标显示明文并复制，然后执行：</p>

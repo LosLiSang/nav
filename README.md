@@ -162,7 +162,7 @@ database_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 
 ```bash
 # 4. 在远程 D1 数据库执行表结构初始化
-npx wrangler d1 execute nav-sync --remote --file=./schema.sql
+npx wrangler d1 migrations apply nav-sync --remote
 
 # 5. 配置安全的云同步鉴权密钥 (SYNC_TOKEN)
 # 提示输入时粘贴一个长随机字符串（建议在前端设置面板点「生成随机 Token」获取）

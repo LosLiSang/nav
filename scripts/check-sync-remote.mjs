@@ -40,8 +40,8 @@ async function main() {
   const healthBody = await health.json().catch(() => ({}))
   check(
     '健康检查可达，且服务端已配置 token',
-    health.status === 200 && healthBody.configured === true,
-    `HTTP ${health.status}, configured=${healthBody.configured}`,
+    health.status === 200 && healthBody.ok === true,
+    `HTTP ${health.status}, auth=${healthBody.auth}`,
   )
   check(
     '健康检查不泄露数据',
