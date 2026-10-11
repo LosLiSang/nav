@@ -19,6 +19,8 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
    Trash2,
  } from 'lucide-react'
 import type { CountdownTarget, MemoItem, Settings } from '../types'
+import { POMODORO_DURATIONS, usePomodoro } from '../lib/usePomodoro'
+import { PomodoroCompletion, PomodoroReminderSettings } from './PomodoroReminders'
  
  type Props = {
    scratchpadContent: string
@@ -37,7 +39,6 @@ import type { CountdownTarget, MemoItem, Settings } from '../types'
  
 type ActiveTab = 'scratchpad' | 'todo' | 'focus'
 type TodoFilter = 'all' | 'pending' | 'done'
-type PomodoroMode = 'work' | 'shortBreak' | 'longBreak'
 
 const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
   { id: 'cd-1', title: '2027 新年元旦', targetDate: '2027-01-01' },
@@ -179,83 +180,15 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
   })
  
   // ----------------- 3. Focus & Pomodoro (专注与番茄钟) -----------------
-  const [pomoMode, setPomoMode] = useState<PomodoroMode>('work')
-  const [isRunning, setIsRunning] = useState(false)
-  const [timeLeft, setTimeLeft] = useState(25 * 60)
-  const endTimeRef = useRef<number | null>(null)
-  const [todayPomoCount, setTodayPomoCount] = useState<number>(() => {
-    const todayKey = `nav_pomo_${new Date().toISOString().slice(0, 10)}`
-    return Number(localStorage.getItem(todayKey) || 0)
-  })
-
-  const durations: Record<PomodoroMode, number> = {
-    work: 25 * 60,
-    shortBreak: 5 * 60,
-    longBreak: 15 * 60,
+  function openFocusTimer() {
+    handleTabChange('focus')
+    if (collapsed) onToggleCollapse()
   }
-
-  function playChime() {
-    try {
-      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)()
-      const osc = ctx.createOscillator()
-      const gain = ctx.createGain()
-      osc.type = 'sine'
-      osc.frequency.setValueAtTime(587.33, ctx.currentTime) // D5
-      osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.3) // A5
-      gain.gain.setValueAtTime(0.2, ctx.currentTime)
-      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.8)
-      osc.connect(gain)
-      gain.connect(ctx.destination)
-      osc.start()
-      osc.stop(ctx.currentTime + 0.8)
-    } catch {
-      // AudioContext blocked
-    }
-  }
-
-  function switchPomoMode(mode: PomodoroMode) {
-    setPomoMode(mode)
-    setIsRunning(false)
-    setTimeLeft(durations[mode])
-    endTimeRef.current = null
-  }
-
-  function toggleTimer() {
-    if (isRunning) {
-      setIsRunning(false)
-      endTimeRef.current = null
-    } else {
-      setIsRunning(true)
-      endTimeRef.current = Date.now() + timeLeft * 1000
-    }
-  }
-
-  function resetTimer() {
-    setIsRunning(false)
-    setTimeLeft(durations[pomoMode])
-    endTimeRef.current = null
-  }
-
-  useEffect(() => {
-    if (!isRunning) return
-    const timer = setInterval(() => {
-      if (!endTimeRef.current) return
-      const remaining = Math.max(0, Math.round((endTimeRef.current - Date.now()) / 1000))
-      setTimeLeft(remaining)
-      if (remaining <= 0) {
-        setIsRunning(false)
-        endTimeRef.current = null
-        playChime()
-        if (pomoMode === 'work') {
-          const todayKey = `nav_pomo_${new Date().toISOString().slice(0, 10)}`
-          const next = todayPomoCount + 1
-          setTodayPomoCount(next)
-          localStorage.setItem(todayKey, String(next))
-        }
-      }
-    }, 300)
-    return () => clearInterval(timer)
-  }, [isRunning, pomoMode, todayPomoCount])
+  const pomodoro = usePomodoro(openFocusTimer)
+  const {
+    mode: pomoMode, isRunning, timeLeft, todayCount: todayPomoCount,
+    switchMode: switchPomoMode, toggle: toggleTimer, reset: resetTimer,
+  } = pomodoro
 
   const formatPomoTime = (sec: number) => {
     const m = Math.floor(sec / 60)
@@ -263,7 +196,7 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
     return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
   }
 
-  const pomoTotal = durations[pomoMode]
+  const pomoTotal = POMODORO_DURATIONS[pomoMode]
   const pomoProgress = Math.max(0, Math.min(100, ((pomoTotal - timeLeft) / pomoTotal) * 100))
 
   // 倒数日
@@ -320,6 +253,7 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
    // 如果收折，展示迷你悬浮条
    if (collapsed) {
      return (
+      <>
       <aside id="right-workbench-collapsed" className="sticky top-14 hidden shrink-0 xl:block z-30">
          <button
            type="button"
@@ -334,10 +268,13 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
            </span>
          </button>
        </aside>
+       <PomodoroCompletion timer={pomodoro} onOpen={openFocusTimer} />
+      </>
      )
    }
  
    return (
+    <>
      <aside
       id="right-workbench"
       className={`sticky top-14 hidden shrink-0 xl:flex flex-col w-[290px] 2xl:w-[310px] max-h-[calc(100vh-4.6rem)] h-auto ${cardRadius} border border-white/60 dark:border-white/10 shadow-2xl backdrop-blur-md overflow-hidden z-30 transition-all duration-200`}
@@ -694,7 +631,7 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
                      {formatPomoTime(timeLeft)}
                    </span>
                    <span className="text-[10px] text-neutral-400">
-                     {isRunning ? '专注中...' : '已就绪'}
+                     {isRunning ? '专注中...' : pomodoro.status === 'completed' ? '阶段已完成' : pomodoro.status === 'paused' ? '已暂停' : '已就绪'}
                    </span>
                  </div>
                </div>
@@ -737,10 +674,12 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
                </div>
              </div>
 
+             <PomodoroReminderSettings timer={pomodoro} />
+
              {/* Today Stats */}
              <div className="flex items-center justify-between rounded-xl border border-black/5 dark:border-white/5 bg-black/[0.02] dark:bg-white/[0.02] px-3 py-2 text-xs">
                <span className="text-neutral-500">今日已完成番茄：</span>
-               <span style={{ color: accentColor }} className="font-semibold font-mono">
+               <span data-testid="pomodoro-count" style={{ color: accentColor }} className="font-semibold font-mono">
                  {todayPomoCount} 个 ({todayPomoCount * 25} 分钟)
                </span>
              </div>
@@ -894,5 +833,7 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
          </div>
        )}
      </aside>
+     <PomodoroCompletion timer={pomodoro} onOpen={openFocusTimer} />
+    </>
    )
  }
