@@ -1,7 +1,7 @@
 import { useNavStore } from '../store/useNavStore'
 
 export function WorkbenchSyncStatus() {
-  const { syncConfig, workbenchStatus, workbenchMessage, syncWorkbench } = useNavStore()
+  const { syncConfig, workbenchStatus, workbenchMessage, syncWorkbench, backendUpgradeRequired } = useNavStore()
   if (!syncConfig) return null
   const conflict = workbenchStatus === 'conflict'
   const failed = conflict || workbenchStatus === 'error'
@@ -11,6 +11,7 @@ export function WorkbenchSyncStatus() {
         ? 'border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-200'
         : 'border-neutral-200 bg-neutral-50 text-neutral-700 dark:border-neutral-700 dark:bg-neutral-800/60 dark:text-neutral-300'}`}>
       <p className="font-medium">便签与共享剪贴板 · 独立同步</p>
+      {backendUpgradeRequired && <p data-testid="backend-upgrade-required" className="mt-1 font-semibold">需要后端升级 · 整页上传已暂停</p>}
       <p className="mt-1 break-words">{workbenchMessage || '在本机编辑；重新获得焦点时更新云端内容'}</p>
       {failed && <div className="mt-2 flex flex-wrap gap-2">
         <button type="button" className="rounded-lg border border-current px-2 py-1"
