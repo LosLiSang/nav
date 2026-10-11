@@ -124,6 +124,8 @@ type NavState = {
   lastSyncedAt: number
   workbenchStatus: SyncStatus
   workbenchMessage: string
+  workbenchBackendReady: boolean
+  backendUpgradeRequired: boolean
   syncWorkbench: (resolution?: WorkbenchResolution) => Promise<void>
 
   initialize: () => Promise<void>
@@ -312,6 +314,12 @@ function currentSignature(): string {
   return syncDocSignature(buildSyncDoc(useNavStore.getState()))
 }
 
+function snapshotUploadBlockedMessage(): string {
+  return useNavStore.getState().backendUpgradeRequired
+    ? '同步服务尚未升级便签/剪贴板接口；整页上传已暂停以保护旧云端便签。请先完成后端迁移和部署，再重试。'
+    : '工作台同步尚未确认，整页上传已暂停以保护旧云端便签；请先重试便签与剪贴板同步。'
+}
+
 async function replaceTable<T>(
   table: { clear: () => Promise<void>; bulkAdd: (rows: readonly T[]) => Promise<unknown> },
   rows: T[] | undefined,
@@ -329,6 +337,20 @@ async function applyRemoteDoc(doc: SyncDoc, updatedAt: number): Promise<void> {
 
   suppressPush = true
   try {
+    // 部署过渡期只读保全旧快照中的便签：不覆盖任何现存行、编辑或墓碑。
+    // 这不是回退到旧整页写协议，所有整页写入仍需新的工作台后端已确认。
+    if (!useNavStore.getState().workbenchBackendReady && Array.isArray(doc.memos)) {
+      await db.transaction('rw', db.memos, async () => {
+        const ids = new Set((await db.memos.toArray()).map(m => m.id))
+        for (const memo of doc.memos!) {
+          if (memo && typeof memo.id === 'string' && typeof memo.text === 'string' && !ids.has(memo.id)) {
+            await db.memos.add({ id: memo.id, text: memo.text, done: Boolean(memo.done),
+              createdAt: memo.createdAt || Date.now(), dirty: false })
+            ids.add(memo.id)
+          }
+        }
+      })
+    }
     await Promise.all([
       replaceTable(db.categories, doc.categories),
       replaceTable(db.subSections, doc.subSections),
@@ -364,6 +386,7 @@ async function applyRemoteDoc(doc: SyncDoc, updatedAt: number): Promise<void> {
       subSections: [...(doc.subSections ?? [])].sort((a, b) => a.order - b.order),
       subCategories: [...(doc.subCategories ?? [])].sort((a, b) => a.order - b.order),
       bookmarks: [...(doc.bookmarks ?? [])].sort((a, b) => a.order - b.order),
+      memos: (await db.memos.toArray()).filter(m => !m.deletedAt).sort((a, b) => b.createdAt - a.createdAt),
       totpAccounts: [...(doc.totpAccounts ?? [])].sort((a, b) => a.createdAt - b.createdAt),
       settings,
       localUpdatedAt: updatedAt,
@@ -439,8 +462,8 @@ async function bootstrapSync(hadLocalData: boolean): Promise<void> {
 
     lastPushedSignature = currentSignature()
     useNavStore.setState({
-      syncStatus: 'synced',
-      syncMessage: '本地与云端一致',
+      syncStatus: useNavStore.getState().workbenchBackendReady ? 'synced' : 'error',
+      syncMessage: useNavStore.getState().workbenchBackendReady ? '本地与云端一致' : snapshotUploadBlockedMessage(),
       lastSyncedAt: Date.now(),
     })
   } catch (error) {
@@ -554,6 +577,8 @@ export const useNavStore = create<NavState>((set, get) => ({
   lastSyncedAt: 0,
   workbenchStatus: 'off',
   workbenchMessage: '',
+  workbenchBackendReady: false,
+  backendUpgradeRequired: false,
 
   async syncWorkbench(resolution) {
     const config = get().syncConfig
@@ -564,15 +589,23 @@ export const useNavStore = create<NavState>((set, get) => ({
       return
     }
     workbenchPromise = (async () => {
+      const previouslyReady = get().workbenchBackendReady
       set({ workbenchStatus: 'syncing', workbenchMessage: '正在同步便签与共享剪贴板…' })
       try {
         const result = await synchronizeWorkbench(config, resolution)
         set({ memos: result.memos, scratchpadContent: result.content,
+          workbenchBackendReady: true, backendUpgradeRequired: false,
           workbenchStatus: 'synced', workbenchMessage: '便签与共享剪贴板已同步' })
         if (result.pending) scheduleWorkbench()
+        if (!previouslyReady && get().autoSync && lastPushedSignature && currentSignature() !== lastPushedSignature) scheduleSyncPush()
       } catch (error) {
+        const missingBackend = error instanceof ApiError && error.status === 404
         set({ workbenchStatus: error instanceof ApiError && error.status === 409 ? 'conflict' : 'error',
-          workbenchMessage: describeSyncError(error) + '；未同步内容保留在本机' })
+          workbenchBackendReady: missingBackend ? false : previouslyReady || (error instanceof ApiError && error.status === 409),
+          backendUpgradeRequired: missingBackend || get().backendUpgradeRequired,
+          workbenchMessage: missingBackend
+            ? '同步服务尚未升级便签与共享剪贴板接口；本地修改保留，整页上传已暂停，请先升级后端再重试'
+            : describeSyncError(error) + '；未同步内容保留在本机' })
       }
     })()
     try { await workbenchPromise } finally { workbenchPromise = null }
@@ -1513,6 +1546,14 @@ export const useNavStore = create<NavState>((set, get) => ({
         return
       }
 
+      if (!get().workbenchBackendReady) {
+        set({ syncStatus: 'error', syncMessage: snapshotUploadBlockedMessage() })
+        return
+      }
+      if (currentSignature() !== lastPushedSignature) {
+        await get().pushToCloud()
+        return
+      }
       lastPushedSignature = currentSignature()
       set({ syncStatus: 'synced', syncMessage: '本地与云端一致', lastSyncedAt: Date.now() })
     } catch (error) {
@@ -1529,6 +1570,10 @@ export const useNavStore = create<NavState>((set, get) => ({
     const config = get().syncConfig
     if (!config || get().importOffer) return
     await get().syncWorkbench()
+    if (!get().workbenchBackendReady) {
+      set({ syncStatus: 'error', syncMessage: snapshotUploadBlockedMessage() })
+      return
+    }
 
     set({ syncStatus: 'syncing', syncMessage: force ? '正在强制上传本地…' : '正在上传…' })
     try {
@@ -1626,8 +1671,8 @@ export const useNavStore = create<NavState>((set, get) => ({
       await applyRemoteDoc(remote.doc, remote.updatedAt)
       set({
         remoteUpdatedAt: remote.updatedAt,
-        syncStatus: 'synced',
-        syncMessage: '已从云端恢复',
+        syncStatus: get().workbenchBackendReady ? 'synced' : 'error',
+        syncMessage: get().workbenchBackendReady ? '已从云端恢复' : `已只读恢复导航快照；${snapshotUploadBlockedMessage()}`,
         lastSyncedAt: Date.now(),
       })
     } catch (error) {

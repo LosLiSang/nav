@@ -199,8 +199,9 @@ function seedDatabase() {
     ['u-admin', 1, 'smoke-admin', 'admin', 'active'],
     ['u-pending', 2, 'smoke-pending', 'user', 'pending'],
     ['u-heir', 3, 'smoke-heir', 'admin', 'active'],
+    ['u-oldbackend', 4, 'smoke-oldbackend', 'user', 'active'],
   ]
-  const codes = { codeA: 'u-admin', codeB: 'u-admin', codePending: 'u-pending', codeHeir: 'u-heir' }
+  const codes = { codeA: 'u-admin', codeB: 'u-admin', codePending: 'u-pending', codeHeir: 'u-heir', codeOld: 'u-oldbackend' }
   const sql = [
     'DELETE FROM sessions; DELETE FROM login_codes; DELETE FROM oauth_states;',
     'DELETE FROM user_docs; DELETE FROM legacy_claims; DELETE FROM users; DELETE FROM nav_docs;',
@@ -211,6 +212,7 @@ function seedDatabase() {
     ...Object.entries(codes).map(([code, user]) => `INSERT INTO login_codes VALUES ('${sha256(code)}', '${user}', ${later});`),
     `INSERT INTO sessions VALUES ('${sha256(ADMIN_API_TOKEN)}', 'u-admin', ${now}, ${later}, 'smoke');`,
     `INSERT INTO nav_docs VALUES ('default', '${JSON.stringify(LEGACY_DOC).replace(/'/g, "''")}', 1000, 3, 'legacy');`,
+    `INSERT INTO user_docs VALUES ('u-oldbackend', '${JSON.stringify(LEGACY_DOC).replace(/'/g, "''")}', 1000, 1, 'old-worker');`,
   ].join('\n')
   const file = join(mkdtempSync(join(tmpdir(), 'nav-seed-')), 'seed.sql')
   writeFileSync(file, sql)
@@ -476,6 +478,69 @@ async function main() {
     check('旧快照便签完整迁移且重复读取不重复导入', migrated.body.memos?.filter(m => m.id === 'legacy-memo' && m.done).length === 1 && migratedAgain.body.memos?.filter(m => m.id === 'legacy-memo').length === 1)
   } finally {
     await c.close()
+  }
+
+  // 发布不匹配：实际生产旧 Worker 没有工作台路由。只在浏览器网络边界模拟 404，
+  // 不伪造 store/数据库/同步结果，观察真实应用是否发出危险的整页写入。
+  const old = await launchBrowser(9338)
+  try {
+    await old.cdp.send('Page.addScriptToEvaluateOnNewDocument', { source: `
+      window.__simulateOldWorker = true;
+      window.__snapshotPuts = 0;
+      const nativeFetch = window.fetch.bind(window);
+      window.fetch = (input, init = {}) => {
+        const value = typeof input === 'string' ? input : input.url;
+        const url = new URL(value, location.href);
+        if (url.origin === ${JSON.stringify(WORKER_URL)}) {
+          if (url.pathname === '/api/data' && init.method === 'PUT') window.__snapshotPuts++;
+          if (window.__simulateOldWorker && (url.pathname.startsWith('/api/memos') || url.pathname === '/api/clipboard'))
+            return Promise.resolve(Response.json({ ok:false, error:'not_found' }, { status:404 }));
+        }
+        return nativeFetch(input, init);
+      };
+    ` })
+    const evaluate = await loginWith(old.cdp, codes.codeOld)
+    await waitSettled(evaluate, 'old backend readonly restore')
+    const token = await evaluate(STATE('s.session.token'))
+    const before = (await api('/api/data', token)).body
+    check('旧后端的快照便签仍可读取到本机', await evaluate(STATE(`s.memos.some(m => m.id === 'legacy-memo' && m.text === '旧快照中的便签' && m.done)`)))
+    await evaluate(`(async () => {
+      const m = ${STORE}; const s = m.useNavStore.getState();
+      await s.addBookmark({ title:'后端升级前本地书签', url:'https://example.com/guard' });
+      await s.addMemo('后端升级前本地便签');
+      await s.saveScratchpad('后端升级前本地草稿');
+      return true;
+    })()`)
+    await sleep(1800)
+    const after = (await api('/api/data', token)).body
+    check('工作台 404 时不发送自动整页 PUT，不丢旧云端便签', await evaluate('window.__snapshotPuts === 0') && after.rev === before.rev && after.doc.memos?.some(m => m.id === 'legacy-memo'))
+    check('后端未升级明确提示且保留本地编辑', await evaluate(STATE(`s.backendUpgradeRequired === true && s.workbenchMessage.includes('升级') && s.memos.some(m => m.text === '后端升级前本地便签') && s.scratchpadContent === '后端升级前本地草稿'`)))
+    await evaluate(`(async () => { const m = ${STORE}; await m.useNavStore.getState().pushToCloud(true); return true })()`)
+    check('强制上传也不能绕过后端升级保护', await evaluate('window.__snapshotPuts === 0'))
+    const screenshot = await old.cdp.send('Page.captureScreenshot', { format: 'png' })
+    writeFileSync(join(OUT_DIR, 'backend-upgrade-required.png'), Buffer.from(screenshot.data, 'base64'))
+    check('升级提示可见且不溢出工作台', await evaluate(`(() => {
+      const el = document.querySelector('[data-testid="backend-upgrade-required"]');
+      const box = el?.getBoundingClientRect();
+      const panel = el?.parentElement;
+      return box?.width > 0 && box.right <= innerWidth && panel.scrollWidth <= panel.clientWidth;
+    })()`))
+    await evaluate(`(async () => { const m = ${STORE}; m.useNavStore.getState().updateSettings({themeMode:'dark'}); return true })()`)
+    await sleep(100)
+    const darkUpgradeShot = await old.cdp.send('Page.captureScreenshot', { format: 'png' })
+    writeFileSync(join(OUT_DIR, 'backend-upgrade-required-dark.png'), Buffer.from(darkUpgradeShot.data, 'base64'))
+    check('深色主题仍显示后端升级要求，不虚报同步成功', await evaluate(STATE(`document.documentElement.classList.contains('dark') && Boolean(document.querySelector('[data-testid="backend-upgrade-required"]')) && s.syncStatus !== 'synced'`)))
+    await evaluate(`(async () => { const m = ${STORE}; m.useNavStore.getState().updateSettings({themeMode:'light'}); return true })()`)
+    await evaluate(`(async () => {
+      window.__simulateOldWorker = false;
+      const m = ${STORE}; await m.useNavStore.getState().syncWorkbench();
+      await m.useNavStore.getState().pushToCloud(); return true;
+    })()`)
+    const recovered = (await api('/api/data', token)).body
+    check('后端恢复后提交暂存书签并解除升级提示', recovered.doc?.bookmarks.some(m => m.title === '后端升级前本地书签') && await evaluate(STATE(`s.backendUpgradeRequired === false && s.workbenchBackendReady === true`)))
+    check('升级后旧便签和暂存便签分别进入独立表', (await api('/api/memos', token)).body.memos?.some(m => m.id === 'legacy-memo') && (await api('/api/memos', token)).body.memos?.some(m => m.text === '后端升级前本地便签'))
+  } finally {
+    await old.close()
   }
 
   const failed = results.filter((r) => !r.ok)
