@@ -11,6 +11,7 @@
     "check:sync": "node scripts/check-sync-remote.mjs",
     "check:dark": "node scripts/check-dark-mode.mjs",
     "check:light": "node scripts/check-light-mode.mjs",
+    "check:sidebars": "node scripts/test-sidebars-e2e.mjs",
     "check:title": "node scripts/test-title-fetch.mjs",
     "check:title:local": "node scripts/test-title-fetch.mjs --local-fixtures",
     "check:cache": "node --test scripts/test-icon-cache.mjs",

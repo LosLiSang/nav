@@ -4,11 +4,12 @@
  import { spawn } from 'node:child_process'
  import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
  import { tmpdir } from 'node:os'
- import { join } from 'node:path'
+ import { dirname, join, resolve } from 'node:path'
+ import assert from 'node:assert/strict'
  
- const APP_PORT = 5199
+ const APP_PORT = Number(process.env.APP_PORT || 5199)
  const APP_URL = `http://127.0.0.1:${APP_PORT}`
- const OUT_DIR = join(process.cwd(), '.codex-remote-attachments', 'e2e-artifacts')
+ const OUT_DIR = process.env.OUT_DIR || join(process.cwd(), 'artifacts', 'sidebars-e2e')
  const EDGE =
    process.env.EDGE_PATH ||
    'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe'
@@ -62,8 +63,8 @@
    mkdirSync(OUT_DIR, { recursive: true })
    console.log('=== 1. 启动 Vite 本地服务器 (端口: ' + APP_PORT + ') ===')
  
-   const vite = spawn('npx.cmd', ['vite', '--host', '127.0.0.1', '--port', String(APP_PORT), '--strictPort'], {
-     shell: true,
+   const vite = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--host', '127.0.0.1', '--port', String(APP_PORT), '--strictPort'], {
+     windowsHide: true,
      stdio: 'ignore',
    })
  
@@ -79,7 +80,9 @@
  
    let proc = null
    let profile = null
+   let ws = null
    const results = []
+   const report = { issue: 8, success: false, results, artifacts: [] }
    function check(name, ok, detail = '') {
      results.push({ name, ok, detail })
      console.log(`${ok ? '✓ PASS' : '✗ FAIL'}  ${name}${detail ? `  — ${detail}` : ''}`)
@@ -112,7 +115,7 @@
        20000,
        'devtools',
      )
-     const ws = new WebSocket(target)
+     ws = new WebSocket(target)
      await new Promise((res, rej) => {
        ws.addEventListener('open', res, { once: true })
        ws.addEventListener('error', () => rej(new Error('ws error')), { once: true })
@@ -121,6 +124,54 @@
      await cdp.send('Page.enable')
      await cdp.send('Runtime.enable')
      await cdp.send('DOM.enable')
+     await cdp.send('Page.addScriptToEvaluateOnNewDocument', { source: `(() => {
+       // 真实 UI/计时器不替换，仅推进 Date.now；系统能力用可控夹具记录调用。
+       window.__pomoOffset = 0
+       const now = Date.now.bind(Date)
+       Date.now = () => now() + window.__pomoOffset
+       const probe = window.__pomoProbe = {
+         permissionRequests: 0, notifications: [], audioStarts: 0, gains: [],
+         audioResumes: 0, audioContexts: [], audioFail: false, notificationFail: false,
+         nextPermission: 'granted'
+       }
+       class NotificationFixture {
+         static permission = 'default'
+         static async requestPermission() {
+           probe.permissionRequests++
+           return NotificationFixture.permission = probe.nextPermission
+         }
+         constructor(title, options) {
+           if (probe.notificationFail) throw new Error('notification fixture blocked')
+           this.title = title; this.options = options
+           probe.notifications.push(this)
+         }
+         close() { this.closed = true }
+       }
+       window.Notification = NotificationFixture
+       window.AudioContext = class {
+         constructor() { probe.audioContexts.push(this) }
+         state = 'suspended'
+         currentTime = 0
+         destination = {}
+         async resume() {
+           probe.audioResumes++
+           if (probe.audioFail) throw new Error('audio fixture blocked')
+           this.state = 'running'
+         }
+         async close() { this.state = 'closed' }
+         createOscillator() {
+           return { frequency: { setValueAtTime() {}, exponentialRampToValueAtTime() {} },
+             connect() {}, disconnect() {}, stop() {},
+             start() { probe.audioStarts++ } }
+         }
+         createGain() {
+           return { connect() {}, disconnect() {}, gain: {
+             setValueAtTime(value) { probe.gains.push(value) },
+             exponentialRampToValueAtTime() {}
+           }}
+         }
+       }
+     })()` })
  
      // 宽屏 1920x1080 验证常驻展开效果
      await cdp.send('Emulation.setDeviceMetricsOverride', {
@@ -141,6 +192,35 @@
        return r.result.value === true
      }, 15000, 'Page init')
      await sleep(1000)
+     const evaluate = async (expression) => {
+       const r = await cdp.send('Runtime.evaluate', {
+         expression, awaitPromise: true, returnByValue: true, userGesture: true,
+       })
+       if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description || r.exceptionDetails.text)
+       return r.result.value
+     }
+     const clickText = async (text) => {
+       assert.ok(await evaluate(`(() => {
+         const b = [...document.querySelectorAll('#right-workbench button')].find(b => b.textContent.trim() === ${JSON.stringify(text)})
+         if (!b) return false
+         b.click(); return true
+       })()`), `按钮不存在：${text}`)
+       await sleep(100)
+     }
+     const clickLabel = async (label) => {
+       assert.ok(await evaluate(`(() => {
+         const el = document.querySelector('[aria-label=${JSON.stringify(label)}]')
+         if (!el) return false
+         el.click(); return true
+       })()`), `控件不存在：${label}`)
+       await sleep(100)
+     }
+     const shot = async (name) => {
+       const image = await cdp.send('Page.captureScreenshot', { format: 'png' })
+       const file = join(OUT_DIR, `${name}.png`)
+       writeFileSync(file, Buffer.from(image.data, 'base64'))
+       report.artifacts.push(file)
+     }
  
     console.log('\n--- 测试 1: 验证右侧常驻工作台及其三大板块 (草稿/便签/专注) ---')
      const rightSidebarOk = await cdp.send('Runtime.evaluate', {
@@ -215,11 +295,12 @@
             const setter = Object.getOwnPropertyDescriptor(proto, 'value').set;
             setter.call(input, '深度体验 React 19 生产力');
             input.dispatchEvent(new Event('input', { bubbles: true }));
-            input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
           }
          })()
        `,
      })
+     await sleep(100)
+     await evaluate(`document.querySelector('#right-workbench button[title="保存待办 (Enter)"]').click()`)
      await sleep(600)
  
     const todoAdded = await cdp.send('Runtime.evaluate', {
@@ -389,17 +470,173 @@
     const shotFinal = await cdp.send('Page.captureScreenshot', { format: 'png' })
     writeFileSync(join(OUT_DIR, '08-theme-color-orange-unified.png'), Buffer.from(shotFinal.data, 'base64'))
 
+    console.log('\n--- 测试 7: 番茄钟提醒生命周期（Issue #8）---')
+    await clickText('专注')
+    await evaluate(`document.querySelector('button[title="重置计时"]').click()`)
+    await sleep(100)
+    check('页面加载和启动计时不会请求通知权限', await evaluate('window.__pomoProbe.permissionRequests === 0'))
+    assert.ok(await evaluate(`Boolean(document.querySelector('[aria-label="启用声音提醒"]'))`), '缺少主动开启的声音提醒设置')
+    check('声音和系统通知默认关闭', await evaluate(`!document.querySelector('[aria-label="启用声音提醒"]').checked && !document.querySelector('[aria-label="启用系统通知"]').checked`))
+
+    const advance = async (ms) => {
+      await evaluate(`window.__pomoOffset += ${ms}`)
+      await evaluate(`document.dispatchEvent(new Event('visibilitychange')); window.dispatchEvent(new Event('focus'))`)
+      await sleep(400)
+    }
+    const completed = () => evaluate(`Boolean(document.querySelector('[data-testid="pomodoro-reminder"]'))`)
+    await clickText('开始')
+    await advance(25 * 60 * 1000 - 1100)
+    check('截止时间之前不提前触发完成提醒', !(await completed()))
+    await advance(1500)
+    await poll(completed, 3000, '工作完成提示')
+    const originalTitle = 'nav'
+    check('默认完成提醒包含当前和下一阶段，且不播放声音或发系统通知', await evaluate(`document.querySelector('[data-testid="pomodoro-reminder"]').textContent.includes('工作阶段已完成') && document.querySelector('[data-testid="pomodoro-reminder"]').textContent.includes('短休') && window.__pomoProbe.audioStarts === 0 && window.__pomoProbe.notifications.length === 0`))
+    check('结束后等待用户操作，不自动进入下一阶段', await evaluate(`!document.querySelector('#right-workbench').textContent.includes('专注中...')`))
+    await shot('09-pomodoro-completed-light')
+    const countAfterFirst = await evaluate(`document.querySelector('[data-testid="pomodoro-count"]').textContent`)
+    await advance(1000)
+    check('重复 focus/visibility 事件不会重复统计完成次数', await evaluate(`document.querySelector('[data-testid="pomodoro-count"]').textContent === ${JSON.stringify(countAfterFirst)}`))
+    await clickLabel('关闭完成提醒')
+    check('关闭提示恢复标签页标题', await evaluate(`document.title === ${JSON.stringify(originalTitle)}`))
+
+    // 旧计时不得在暂停、重置或切换阶段后发出过期提醒。
+    await clickText('开始')
+    await advance(1000)
+    await clickText('暂停')
+    await advance(30 * 60 * 1000)
+    check('暂停后超过原截止时间，不提醒', !(await completed()))
+    await clickText('开始')
+    await advance(25 * 60 * 1000)
+    check('暂停后续跑按剩余时间完成', await completed())
+    const workCount = await evaluate(`document.querySelector('[data-testid="pomodoro-count"]').textContent`)
+    await evaluate(`document.querySelector('button[title="重置计时"]').click()`)
+    await clickText('开始')
+    await evaluate(`document.querySelector('button[title="重置计时"]').click()`)
+    await advance(25 * 60 * 1000)
+    check('重置取消旧计时及完成提示', !(await completed()))
+    await clickText('开始')
+    await clickText('短休 5m')
+    await advance(25 * 60 * 1000)
+    check('切换阶段取消旧计时', !(await completed()))
+
+    // 显式启用才申请权限；音量通过实际受控 range 输入修改。
+    await clickLabel('启用声音提醒')
+    await clickLabel('启用系统通知')
+    check('用户主动启用系统通知后仅请求一次权限', await evaluate('window.__pomoProbe.permissionRequests === 1'))
+    await evaluate(`(() => {
+      const el = document.querySelector('[aria-label="提醒音量"]')
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, '35')
+      el.dispatchEvent(new Event('input', { bubbles: true }))
+    })()`)
+    await sleep(100)
+    await clickText('试听')
+    const startsBeforeFinish = await evaluate('window.__pomoProbe.audioStarts')
+    check('试听通过用户手势启用音频并按设定音量播放', await evaluate(`window.__pomoProbe.audioResumes > 0 && window.__pomoProbe.audioStarts > 0 && window.__pomoProbe.gains.some(v => Math.abs(v - .07) < .001)`))
+    await clickText('开始')
+    await clickText('草稿')
+    await evaluate(`document.querySelector('#right-workbench button[title="折叠常驻侧栏"]').click()`)
+    await sleep(100)
+    // visibilityState 夹具模拟隐藏/恢复；仍跑真实计时和恢复处理器。
+    await evaluate(`Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' })`)
+    await advance(5 * 60 * 1000)
+    check('短休结束时，其他板块及折叠侧栏仍有全局页面提示和后台标题提示', await evaluate(`Boolean(document.querySelector('#right-workbench-collapsed')) && document.querySelector('[data-testid="pomodoro-reminder"]')?.textContent.includes('短休阶段已完成') && document.title.includes('短休阶段已完成')`))
+    check('声音与系统通知各触发一次', await evaluate(`window.__pomoProbe.audioStarts === ${startsBeforeFinish + 1} && window.__pomoProbe.notifications.length === 1`))
+    await advance(1000)
+    check('恢复事件去重：系统通知不重复发送', await evaluate('window.__pomoProbe.notifications.length === 1'))
+    await evaluate(`delete document.visibilityState; document.dispatchEvent(new Event('visibilitychange'))`)
+    await sleep(100)
+    check('恢复可见时还原原始标题', await evaluate(`document.title === ${JSON.stringify(originalTitle)}`))
+    await evaluate('window.__pomoProbe.notifications[0].onclick()')
+    await sleep(100)
+    check('点击通知回到专注工作台', await evaluate(`Boolean(document.querySelector('button[title="重置计时"]'))`))
+
+    await clickText('长休 15m')
+    await clickText('开始')
+    await advance(15 * 60 * 1000)
+    check('长休完成提示下一阶段为工作，休息不增加工作次数', await evaluate(`document.querySelector('[data-testid="pomodoro-reminder"]')?.textContent.includes('长休阶段已完成') && document.querySelector('[data-testid="pomodoro-reminder"]').textContent.includes('工作') && document.querySelector('[data-testid="pomodoro-count"]').textContent === ${JSON.stringify(workCount)}`))
+    await clickLabel('关闭完成提醒')
+    await clickLabel('启用声音提醒')
+    await clickLabel('启用系统通知')
+    const beforeDisabled = await evaluate('[window.__pomoProbe.audioStarts, window.__pomoProbe.notifications.length]')
+    await clickText('开始')
+    await advance(15 * 60 * 1000)
+    check('关闭提醒选项后不再播放声音或发送系统通知', await evaluate(`JSON.stringify([window.__pomoProbe.audioStarts, window.__pomoProbe.notifications.length]) === ${JSON.stringify(JSON.stringify(beforeDisabled))}`))
+
+    await clickLabel('关闭完成提醒')
+    await evaluate(`Notification.permission = 'denied'`)
+    await clickLabel('启用系统通知')
+    await clickLabel('启用系统通知')
+    check('已拒绝权限不重复弹出权限请求，给出降级说明', await evaluate(`window.__pomoProbe.permissionRequests === 1 && !document.querySelector('[aria-label="启用系统通知"]').checked && document.querySelector('[data-testid="pomodoro-warning"]')?.textContent.includes('拒绝')`))
+    await evaluate(`Notification.permission = 'granted'; window.__pomoProbe.notificationFail = true`)
+    await clickLabel('启用系统通知')
+    await clickText('工作 25m')
+    await clickText('开始')
+    await advance(25 * 60 * 1000)
+    check('系统通知发送失败时仍显示页面完成提示，并反馈失败', await evaluate(`Boolean(document.querySelector('[data-testid="pomodoro-reminder"]')) && document.querySelector('[data-testid="pomodoro-warning"]')?.textContent.includes('失败')`))
+    await evaluate(`window.__pomoProbe.audioFail = true; window.__pomoProbe.audioContexts.at(-1).state = 'suspended'`)
+    await clickLabel('启用声音提醒')
+    await clickText('试听')
+    check('音频受限时明确提示，页面不崩溃', await evaluate(`document.querySelector('[data-testid="pomodoro-warning"]')?.textContent.includes('声音')`))
+    await evaluate(`(async () => {
+      const { useNavStore } = await import('/src/store/useNavStore.ts')
+      useNavStore.getState().updateSettings({ themeMode: 'dark' })
+    })()`)
+    await sleep(100)
+    await shot('10-pomodoro-completed-dark')
+    // 刷新只保留提醒偏好，不恢复计时或补发过期提醒。
+    await evaluate('window.__oldSidebarDocument = true')
+    await cdp.send('Page.reload')
+    await poll(() => evaluate(`!window.__oldSidebarDocument && Boolean(document.querySelector('#right-workbench'))`), 15000, '新页面')
+    await clickText('专注')
+    check('刷新后不恢复旧计时、不补发通知、不重复申请权限', await evaluate(`!document.querySelector('[data-testid="pomodoro-reminder"]') && window.__pomoProbe.notifications.length === 0 && window.__pomoProbe.permissionRequests === 0 && !document.querySelector('#right-workbench').textContent.includes('专注中...')`))
+    check('刷新后保留本设备的声音偏好和音量', await evaluate(`document.querySelector('[aria-label="启用声音提醒"]').checked && document.querySelector('[aria-label="提醒音量"]').value === '35'`))
+    await evaluate(`window.Notification = undefined`)
+    await clickLabel('启用系统通知')
+    check('不支持 Notification API 时显式降级，不崩溃也不请求权限', await evaluate(`document.querySelector('[data-testid="pomodoro-warning"]')?.textContent.includes('不支持') && window.__pomoProbe.permissionRequests === 0`))
+
+    // 窄屏工作台隐藏，但全局提示仍可读、没有越界；完成提示明暗主题均留截图。
+    await clickText('开始')
+    await advance(25 * 60 * 1000)
+    await cdp.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: false })
+    await sleep(100)
+    check('窄屏完成提示可见且不越界', await evaluate(`(() => {
+      const el = document.querySelector('[data-testid="pomodoro-reminder"]')
+      const r = el?.getBoundingClientRect()
+      return r && r.x >= 0 && r.right <= innerWidth && r.y >= 0 && r.bottom <= innerHeight
+    })()`))
+    await shot('11-pomodoro-mobile-dark')
+    await evaluate(`(async () => {
+      const { useNavStore } = await import('/src/store/useNavStore.ts')
+      useNavStore.getState().updateSettings({ themeMode: 'light' })
+    })()`)
+    await sleep(100)
+    await shot('12-pomodoro-mobile-light')
+
+    report.success = results.every(r => r.ok)
+    if (!report.success) process.exitCode = 1
      console.log('\n=============================================')
-     console.log(`全部测试通过！已生成 8 个端到端验证工件于：\n${OUT_DIR}`)
+     console.log(`${results.filter(r => r.ok).length}/${results.length} 通过，端到端工件：\n${OUT_DIR}`)
      console.log('=============================================\n')
+   } catch (error) {
+     report.error = error.message
+     throw error
    } finally {
+     writeFileSync(join(OUT_DIR, 'report.json'), JSON.stringify(report, null, 2))
+     ws?.close()
      if (proc) {
        proc.kill()
      }
      if (profile) {
-       try {
-         rmSync(profile, { recursive: true, force: true })
-       } catch {}
+       const target = resolve(profile)
+       const temp = resolve(tmpdir())
+       if (dirname(target) !== temp || !target.startsWith(join(temp, 'nav-sidebars-browser-'))) {
+         console.error('拒绝清理未知浏览器 profile')
+         process.exitCode = 1
+       } else {
+         try {
+           rmSync(target, { recursive: true, force: true })
+         } catch {}
+       }
      }
      vite.kill()
    }
