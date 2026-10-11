@@ -118,7 +118,7 @@ export function TopNavbar({
           <span>{timeText}</span>
         </div>
 
-        <span className="text-neutral-300 dark:text-neutral-700">|</span>
+        <span className="text-neutral-400 dark:text-neutral-600">|</span>
 
         {/* City & Weather Switcher */}
         <div ref={cityPickerRef} className="relative">

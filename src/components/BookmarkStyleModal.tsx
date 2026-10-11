@@ -7,6 +7,7 @@ import { ConfirmModal } from './ConfirmModal'
 type TabType = 'typography' | 'layout' | 'manage'
 import { resolveTextColor } from '../lib/utils'
 import { ContentWidthControl } from './ContentWidthControl'
+import { RangeInput } from './RangeInput'
 import type { Bookmark, Category, FallbackIconMode, IconShape, Settings } from '../types'
 
 type Props = {
@@ -515,13 +516,12 @@ export function BookmarkStyleModal({
                 <span className="font-medium text-neutral-800 dark:text-neutral-200">卡片底色不透明度</span>
                 <span className="font-mono text-neutral-600 dark:text-neutral-300 font-bold">{settings.cardOpacity}%</span>
               </div>
-              <input
-                type="range"
+              <RangeInput
+                aria-label="卡片底色不透明度"
                 min={50}
                 max={100}
                 value={settings.cardOpacity}
                 onChange={(e) => onChangeSettings({ cardOpacity: Number(e.target.value) })}
-                className="w-full accent-orange-500"
               />
             </div>
 
@@ -697,7 +697,7 @@ export function BookmarkStyleModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl bg-neutral-900 dark:bg-neutral-800 px-5 py-2 font-medium text-white dark:text-neutral-100 shadow-sm hover:bg-neutral-800 dark:hover:bg-neutral-700 transition border border-transparent dark:border-neutral-700"
+            className="rounded-xl bg-orange-500 px-5 py-2 font-medium text-white shadow-sm hover:bg-orange-600 transition border border-transparent"
           >
             完成
           </button>

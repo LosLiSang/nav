@@ -437,7 +437,7 @@ export function ProfileModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl bg-neutral-900 dark:bg-neutral-800 px-5 py-2 font-medium text-white dark:text-neutral-100 shadow-sm hover:bg-neutral-800 dark:hover:bg-neutral-700 transition border border-transparent dark:border-neutral-700"
+            className="rounded-xl bg-orange-500 px-5 py-2 font-medium text-white shadow-sm hover:bg-orange-600 transition border border-transparent"
           >
             完成
           </button>
