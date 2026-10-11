@@ -17,15 +17,16 @@ export type SyncConfig = {
   token: string
 }
 
+export type SyncDoc = Omit<NavData, 'memos'> & { memos?: NavData['memos'] }
 export type RemoteSnapshot = {
-  doc: NavData | null
+  doc: SyncDoc | null
   updatedAt: number
   rev: number
 }
 
 export type PushResult =
   | { status: 'ok'; updatedAt: number; rev: number }
-  | { status: 'conflict'; doc: NavData | null; updatedAt: number; rev: number }
+  | { status: 'conflict'; doc: SyncDoc | null; updatedAt: number; rev: number }
 
 const AUTO_KEY = 'nav_sync_auto'
 const LOCAL_TS_KEY = 'nav_sync_local_ts'
@@ -86,22 +87,21 @@ export function buildSyncDoc(data: {
   subSections: NavData['subSections']
   subCategories: NavData['subCategories']
   bookmarks: NavData['bookmarks']
-  memos: NavData['memos']
+  memos?: NavData['memos']
   totpAccounts: NavData['totpAccounts']
   settings: Settings
-}): NavData {
+}): SyncDoc {
   return {
     categories: [...data.categories].sort((a, b) => a.order - b.order),
     subSections: [...data.subSections].sort((a, b) => a.order - b.order),
     subCategories: [...data.subCategories].sort((a, b) => a.order - b.order),
     bookmarks: [...data.bookmarks].sort((a, b) => a.order - b.order),
-    memos: [...data.memos].sort((a, b) => a.createdAt - b.createdAt),
     totpAccounts: [...data.totpAccounts].sort((a, b) => a.createdAt - b.createdAt),
     settings: stripDeviceLocalSettings(data.settings),
   }
 }
 
-export function syncDocSignature(doc: NavData): string {
+export function syncDocSignature(doc: SyncDoc): string {
   return JSON.stringify(doc)
 }
 
@@ -112,7 +112,7 @@ export function describeSyncError(error: unknown): string {
 export async function remoteGet(config: SyncConfig): Promise<RemoteSnapshot> {
   const body = await apiRequest<Partial<RemoteSnapshot>>(config.url, '/api/data', { token: config.token })
   return {
-    doc: (body.doc as NavData | null) ?? null,
+    doc: (body.doc as SyncDoc | null) ?? null,
     updatedAt: Number(body.updatedAt) || 0,
     rev: Number(body.rev) || 0,
   }
@@ -120,7 +120,7 @@ export async function remoteGet(config: SyncConfig): Promise<RemoteSnapshot> {
 
 export async function remotePut(
   config: SyncConfig,
-  doc: NavData,
+  doc: SyncDoc,
   options: { updatedAt: number; expectedUpdatedAt: number; force?: boolean },
 ): Promise<PushResult> {
   try {
@@ -137,7 +137,7 @@ export async function remotePut(
     return { status: 'ok', updatedAt: Number(body.updatedAt) || options.updatedAt, rev: Number(body.rev) || 0 }
   } catch (error) {
     if (error instanceof ApiError && error.status === 409) {
-      const body = error.body as { doc?: NavData; updatedAt?: number; rev?: number }
+      const body = error.body as { doc?: SyncDoc; updatedAt?: number; rev?: number }
       return {
         status: 'conflict',
         doc: body.doc ?? null,

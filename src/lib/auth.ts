@@ -61,6 +61,8 @@ const ERROR_TEXT: Record<string, string> = {
   already_claimed: '旧数据已经被认领过',
   no_legacy_data: '云端没有旧版数据',
   user_doc_exists: '你的账号云端已经有数据',
+  workbench_conflict: '便签或草稿在其他设备也有修改，请选择保留本机或采用云端版本',
+  upgrade_required: '服务端已升级，请刷新页面使用独立便签同步',
   payload_too_large: '数据太大，超过了 4MB 上限',
 }
 

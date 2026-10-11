@@ -18,6 +18,7 @@ import {
 } from '../lib/auth'
 import { fetchFaviconBlob, getFaviconCandidates, hostnameOf, normalizeIconUrl } from '../lib/utils'
 import { IconRequestPool } from '../lib/iconRequestPool'
+import { synchronizeWorkbench, type WorkbenchResolution } from '../lib/workbenchSync'
 import { planIconCleanup, type IconFilter, type IconReloadResult } from '../lib/iconCache'
 import {
   DEFAULT_SETTINGS,
@@ -53,6 +54,7 @@ import {
   saveLocalTimestamp,
   syncDocSignature,
   type SyncConfig,
+  type SyncDoc,
 } from '../lib/sync'
 
 export type SyncStatus = 'off' | 'idle' | 'syncing' | 'synced' | 'error' | 'conflict'
@@ -120,6 +122,9 @@ type NavState = {
   localUpdatedAt: number
   remoteUpdatedAt: number
   lastSyncedAt: number
+  workbenchStatus: SyncStatus
+  workbenchMessage: string
+  syncWorkbench: (resolution?: WorkbenchResolution) => Promise<void>
 
   initialize: () => Promise<void>
   setActiveCategory: (categoryId: string) => void
@@ -290,6 +295,18 @@ let lastPushedSignature = ''
 let remoteConfirmed = false
 /** 启动同步的进行中句柄：自动上传要排在它后面，避免「拉取」和「推送」互相踩 */
 let bootstrapPromise: Promise<void> | null = null
+let workbenchPromise: Promise<void> | null = null
+let workbenchTimer: ReturnType<typeof setTimeout> | null = null
+
+function scheduleWorkbench() {
+  const state = useNavStore.getState()
+  if (!state.syncConfig || !state.autoSync || state.importOffer) return
+  if (workbenchTimer) clearTimeout(workbenchTimer)
+  workbenchTimer = setTimeout(() => {
+    workbenchTimer = null
+    void useNavStore.getState().syncWorkbench()
+  }, 400)
+}
 
 function currentSignature(): string {
   return syncDocSignature(buildSyncDoc(useNavStore.getState()))
@@ -306,7 +323,7 @@ async function replaceTable<T>(
 }
 
 /** 把云端快照落到本地：IndexedDB 全量替换 + 内存状态更新（本机 UI 状态保持不动） */
-async function applyRemoteDoc(doc: NavData, updatedAt: number): Promise<void> {
+async function applyRemoteDoc(doc: SyncDoc, updatedAt: number): Promise<void> {
   const current = useNavStore.getState().settings
   const categories = doc.categories ?? []
 
@@ -317,7 +334,6 @@ async function applyRemoteDoc(doc: NavData, updatedAt: number): Promise<void> {
       replaceTable(db.subSections, doc.subSections),
       replaceTable(db.subCategories, doc.subCategories),
       replaceTable(db.bookmarks, doc.bookmarks),
-      replaceTable(db.memos, doc.memos),
       replaceTable(db.totpAccounts, doc.totpAccounts),
     ])
 
@@ -348,7 +364,6 @@ async function applyRemoteDoc(doc: NavData, updatedAt: number): Promise<void> {
       subSections: [...(doc.subSections ?? [])].sort((a, b) => a.order - b.order),
       subCategories: [...(doc.subCategories ?? [])].sort((a, b) => a.order - b.order),
       bookmarks: [...(doc.bookmarks ?? [])].sort((a, b) => a.order - b.order),
-      memos: [...(doc.memos ?? [])].sort((a, b) => b.createdAt - a.createdAt),
       totpAccounts: [...(doc.totpAccounts ?? [])].sort((a, b) => a.createdAt - b.createdAt),
       settings,
       localUpdatedAt: updatedAt,
@@ -489,6 +504,7 @@ async function accountBootstrap(hadLocalData: boolean): Promise<void> {
   }
 
   if (syncConfig && autoSync) {
+    await useNavStore.getState().syncWorkbench()
     lastPushedSignature = currentSignature()
     await bootstrapSync(hadLocalData)
   }
@@ -536,6 +552,31 @@ export const useNavStore = create<NavState>((set, get) => ({
   localUpdatedAt: 0,
   remoteUpdatedAt: 0,
   lastSyncedAt: 0,
+  workbenchStatus: 'off',
+  workbenchMessage: '',
+
+  async syncWorkbench(resolution) {
+    const config = get().syncConfig
+    if (!config || get().importOffer) return
+    if (workbenchPromise) {
+      await workbenchPromise
+      if (resolution) return get().syncWorkbench(resolution)
+      return
+    }
+    workbenchPromise = (async () => {
+      set({ workbenchStatus: 'syncing', workbenchMessage: '正在同步便签与共享剪贴板…' })
+      try {
+        const result = await synchronizeWorkbench(config, resolution)
+        set({ memos: result.memos, scratchpadContent: result.content,
+          workbenchStatus: 'synced', workbenchMessage: '便签与共享剪贴板已同步' })
+        if (result.pending) scheduleWorkbench()
+      } catch (error) {
+        set({ workbenchStatus: error instanceof ApiError && error.status === 409 ? 'conflict' : 'error',
+          workbenchMessage: describeSyncError(error) + '；未同步内容保留在本机' })
+      }
+    })()
+    try { await workbenchPromise } finally { workbenchPromise = null }
+  },
 
   initialize() {
     if (get().ready) return Promise.resolve()
@@ -669,7 +710,7 @@ export const useNavStore = create<NavState>((set, get) => ({
           subSections: [...nextSubSections].sort((a, b) => a.order - b.order),
           subCategories: [...nextSubCategories].sort((a, b) => a.order - b.order),
           bookmarks: [...nextBookmarks].sort((a, b) => a.order - b.order),
-          memos: [...nextMemos].sort((a, b) => b.createdAt - a.createdAt),
+          memos: [...nextMemos].filter(m => !m.deletedAt).sort((a, b) => b.createdAt - a.createdAt),
           totpAccounts: [...nextTotpAccounts].sort((a, b) => a.createdAt - b.createdAt),
           recentVisits: [...nextRecentVisits].sort((a, b) => b.visitedAt - a.visitedAt),
           superPinnedLinks: [...nextSuperPinned].sort((a, b) => a.order - b.order),
@@ -1229,20 +1270,24 @@ export const useNavStore = create<NavState>((set, get) => ({
       text: trimmed,
       done: false,
       createdAt: Date.now(),
+      updatedAt: 0,
+      dirty: true,
     }
     await db.memos.add(memo)
     set((state) => ({ memos: [memo, ...state.memos] }))
+    scheduleWorkbench()
   },
 
   async updateMemo(id, text) {
     const trimmed = text.trim()
     if (!trimmed || !get().memos.some(m => m.id === id)) return
     // 只更新文本，不重新 put 整条记录：保留状态/时间，也不会复活已删除的记录。
-    const changed = await db.memos.update(id, { text: trimmed })
+    const changed = await db.memos.update(id, { text: trimmed, dirty: true })
     if (!changed) return
     set(state => ({
-      memos: state.memos.map(m => m.id === id ? { ...m, text: trimmed } : m),
+      memos: state.memos.map(m => m.id === id ? { ...m, text: trimmed, dirty: true } : m),
     }))
+    scheduleWorkbench()
   },
 
   async toggleMemo(id) {
@@ -1251,18 +1296,20 @@ export const useNavStore = create<NavState>((set, get) => ({
       if (!current) return undefined
       const next = !current.done
       // 与失焦保存并发时只更新 done，不把旧 text 整行写回。
-      await db.memos.update(id, { done: next })
+      await db.memos.update(id, { done: next, dirty: true })
       return next
     })
     if (done === undefined) return
     set((state) => ({
-      memos: state.memos.map((m) => (m.id === id ? { ...m, done } : m)),
+      memos: state.memos.map((m) => (m.id === id ? { ...m, done, dirty: true } : m)),
     }))
+    scheduleWorkbench()
   },
 
   async deleteMemo(id) {
-    await db.memos.delete(id)
+    await db.memos.update(id, { deletedAt: Date.now(), dirty: true })
     set((state) => ({ memos: state.memos.filter((m) => m.id !== id) }))
+    scheduleWorkbench()
   },
 
   async addTotpAccount(name, secret, issuer) {
@@ -1306,6 +1353,8 @@ export const useNavStore = create<NavState>((set, get) => ({
     const session = get().session
     if (pushTimer) clearTimeout(pushTimer)
     pushTimer = null
+    if (workbenchTimer) clearTimeout(workbenchTimer)
+    workbenchTimer = null
     if (session) await logoutRemote(session)
     clearSession()
     window.location.reload()
@@ -1353,6 +1402,11 @@ export const useNavStore = create<NavState>((set, get) => ({
     if (!state.syncConfig) return false
     return (
       Boolean(pushTimer) ||
+      Boolean(workbenchTimer) ||
+      Boolean(workbenchPromise) ||
+      state.workbenchStatus === 'conflict' ||
+      state.workbenchStatus === 'error' ||
+      state.memos.some(m => m.dirty) ||
       state.syncStatus === 'conflict' ||
       state.syncStatus === 'error' ||
       currentSignature() !== lastPushedSignature
@@ -1432,6 +1486,7 @@ export const useNavStore = create<NavState>((set, get) => ({
     }
 
     if (bootstrapPromise) await bootstrapPromise.catch(() => {})
+    await get().syncWorkbench()
 
     set({ syncStatus: 'syncing', syncMessage: '正在同步…' })
     try {
@@ -1473,6 +1528,7 @@ export const useNavStore = create<NavState>((set, get) => ({
   async pushToCloud(force = false) {
     const config = get().syncConfig
     if (!config || get().importOffer) return
+    await get().syncWorkbench()
 
     set({ syncStatus: 'syncing', syncMessage: force ? '正在强制上传本地…' : '正在上传…' })
     try {
@@ -1552,6 +1608,7 @@ export const useNavStore = create<NavState>((set, get) => ({
   async pullFromCloud() {
     const config = get().syncConfig
     if (!config) return
+    await get().syncWorkbench()
 
     set({ syncStatus: 'syncing', syncMessage: '正在从云端恢复…' })
     try {
@@ -1586,7 +1643,7 @@ export const useNavStore = create<NavState>((set, get) => ({
       subSections,
       subCategories,
       bookmarks,
-      memos,
+      memos: memos.map(({ id, text, done, createdAt }) => ({ id, text, done, createdAt })),
       totpAccounts,
       settings,
     }
@@ -1610,8 +1667,21 @@ export const useNavStore = create<NavState>((set, get) => ({
       await db.bookmarks.bulkAdd(data.bookmarks)
     }
     if (data.memos) {
-      await db.memos.clear()
-      await db.memos.bulkAdd(data.memos)
+      await db.transaction('rw', db.memos, async () => {
+        const existing = await db.memos.toArray()
+        const included = new Set(data.memos!.map(m => m.id))
+        for (const memo of existing) {
+          if (!included.has(memo.id) && !memo.deletedAt) {
+            await db.memos.update(memo.id, { deletedAt: Date.now(), dirty: true })
+          }
+        }
+        for (const memo of data.memos!) {
+          const previous = existing.find(m => m.id === memo.id)
+          await db.memos.put({ id: previous?.deletedAt ? crypto.randomUUID() : memo.id,
+            text: memo.text, done: memo.done, createdAt: memo.createdAt,
+            updatedAt: previous?.deletedAt ? 0 : previous?.updatedAt ?? 0, dirty: true, deletedAt: null })
+        }
+      })
     }
     if (data.totpAccounts) {
       await db.totpAccounts.clear()
@@ -1738,9 +1808,13 @@ export const useNavStore = create<NavState>((set, get) => ({
   },
 
   async saveScratchpad(content) {
-    set({ scratchpadContent: content })
     try {
-      await db.scratchpad.put({ id: 'default', content, updatedAt: Date.now() })
+      await db.transaction('rw', db.scratchpad, async () => {
+        const current = await db.scratchpad.get('default')
+        await db.scratchpad.put({ ...current, id: 'default', content, updatedAt: Date.now(), dirty: true })
+      })
+      set({ scratchpadContent: content })
+      scheduleWorkbench()
     } catch (err) {
       console.error('Failed to save scratchpad:', err)
     }
@@ -1770,7 +1844,6 @@ useNavStore.subscribe((state, prev) => {
     state.subSections !== prev.subSections ||
     state.subCategories !== prev.subCategories ||
     state.bookmarks !== prev.bookmarks ||
-    state.memos !== prev.memos ||
     state.totpAccounts !== prev.totpAccounts ||
     state.settings !== prev.settings
   if (!dataChanged) return
@@ -1781,3 +1854,14 @@ useNavStore.subscribe((state, prev) => {
 
   scheduleSyncPush()
 })
+
+if (typeof window !== 'undefined') {
+  const refreshWorkbench = () => {
+    if (useNavStore.getState().autoSync) void useNavStore.getState().syncWorkbench()
+  }
+  window.addEventListener('focus', refreshWorkbench)
+  window.addEventListener('online', refreshWorkbench)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') refreshWorkbench()
+  })
+}

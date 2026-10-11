@@ -48,7 +48,7 @@ export class NavDatabase extends Dexie {
   iconCache!: Table<CachedIcon, string>
   recentVisits!: Table<RecentVisit, string>
   superPinnedLinks!: Table<SuperPinnedLink, string>
-  scratchpad!: Table<{ id: string; content: string; updatedAt: number }, string>
+  scratchpad!: Table<{ id: string; content: string; updatedAt: number; remoteUpdatedAt?: number; dirty?: boolean }, string>
 
   constructor(name = resolveDatabaseName()) {
     super(name)

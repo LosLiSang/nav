@@ -497,7 +497,7 @@
     check('保存期间删除便签，不会因迟到的保存结果复活', await evaluate(`(async () => {
       const { db } = await import('/src/lib/db.ts')
       const { useNavStore } = await import('/src/store/useNavStore.ts')
-      return !(await db.memos.get(${JSON.stringify(deletedId)})) && !useNavStore.getState().memos.some(m => m.id === ${JSON.stringify(deletedId)})
+      return Boolean((await db.memos.get(${JSON.stringify(deletedId)}))?.deletedAt) && !useNavStore.getState().memos.some(m => m.id === ${JSON.stringify(deletedId)})
     })()`))
     await evaluate('window.__restoreMemoUpdate()')
     const link = `${APP_URL}/?memo-open-e2e=1`
@@ -584,10 +584,11 @@
     await poll(() => evaluate(`!window.__oldMemoDocument && Boolean(document.querySelector('#right-workbench'))`), 15000, '便签重载')
     await clickText('便签')
     check('刷新后编辑结果仍然存在，ID、状态和其他便签保留', (await readMemo()).text === '只保存一次' && !(await readMemo()).done && await evaluate(`Boolean(document.querySelector('${linkRow}'))`))
-    check('同步快照沿用现有链路，包含编辑后的便签文本', await evaluate(`(async () => {
+    check('便签编辑本地持久化，但不再进入整页同步快照', await evaluate(`(async () => {
       const { buildSyncDoc } = await import('/src/lib/sync.ts')
       const { useNavStore } = await import('/src/store/useNavStore.ts')
-      return buildSyncDoc(useNavStore.getState()).memos.find(m => m.id === ${JSON.stringify(memoId)}).text === '只保存一次'
+      const { db } = await import('/src/lib/db.ts')
+      return !Object.hasOwn(buildSyncDoc(useNavStore.getState()), 'memos') && (await db.memos.get(${JSON.stringify(memoId)})).text === '只保存一次'
     })()`))
 
     console.log('\n--- 测试 4: 切换到专注板块并启动番茄工作钟 ---')
