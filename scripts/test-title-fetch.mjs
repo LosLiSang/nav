@@ -323,9 +323,10 @@ async function verifyLocalIconCleanup(evaluate, check) {
       if (url.includes('retry.test') && !window.__allowRetry) return Promise.resolve(new Response('', { status: 503 }))
       return nativeFetch(input, init)
     }
-    const { saveSyncConfig, saveLocalTimestamp } = await import('/src/lib/sync.ts')
+    const { saveLocalTimestamp } = await import('/src/lib/sync.ts')
+    const { saveServerUrl } = await import('/src/lib/auth.ts')
     const fixtureConfig = { url: 'http://127.0.0.1:8799', token: 'fixture-test-only' }
-    saveSyncConfig(fixtureConfig)
+    saveServerUrl(fixtureConfig.url)
     saveLocalTimestamp(1234)
     useNavStore.getState().setAutoSync(false)
     useNavStore.setState({ syncConfig: fixtureConfig, localUpdatedAt: 1234 })

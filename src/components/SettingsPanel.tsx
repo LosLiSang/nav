@@ -5,89 +5,41 @@ import {
   Check,
   CheckCircle2,
   Cloud,
-  CloudOff,
   CloudSun,
-  Download,
   ExternalLink,
-  Eye,
-  EyeOff,
-  HelpCircle,
   Image as ImageIcon,
   Loader2,
   Palette,
   RefreshCw,
   Sliders,
-  Upload,
   X,
 } from 'lucide-react'
 import { WALLPAPER_PRESETS } from '../lib/defaults'
-import { DEFAULT_SYNC_URL, generateSyncToken, normalizeSyncUrl } from '../lib/sync'
-import type { SyncConfig } from '../lib/sync'
-import type { SyncStatus } from '../store/useNavStore'
+import { useNavStore } from '../store/useNavStore'
 import type { CornerRadius, FallbackIconMode, Settings, WeatherProvider } from '../types'
 import { testWeatherConfig, type WeatherInfo } from '../lib/weather'
 import { IconPickerModal } from './IconPickerModal'
-import { SyncHelp } from './SyncHelp'
-
-type SyncProps = {
-  config: SyncConfig | null
-  autoSync: boolean
-  status: SyncStatus
-  message: string
-  lastSyncedAt: number
-  localUpdatedAt: number
-  remoteUpdatedAt: number
-  onConfigure: (url: string, token: string) => Promise<void>
-  onToggleAuto: (enabled: boolean) => void
-  onDisconnect: () => void
-  onSyncNow: () => Promise<void>
-  onPush: (force?: boolean) => Promise<void>
-  onPull: () => Promise<void>
-}
+import { SyncTab, syncStatusDot } from './SyncTab'
 
 type Props = {
   settings: Settings
   initialTab?: TabType
   onClose: () => void
   onChange: (values: Partial<Settings>) => void
-  sync: SyncProps
   onOpenIconCache?: () => void
 }
 
 export type TabType = 'appearance' | 'weather' | 'sync'
 
-const STATUS_STYLE: Record<SyncStatus, { label: string; className: string }> = {
-  off: { label: '未开启', className: 'bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400' },
-  idle: { label: '待同步', className: 'bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400' },
-  syncing: { label: '同步中', className: 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400' },
-  synced: { label: '已同步', className: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400' },
-  error: { label: '出错了', className: 'bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400' },
-  conflict: { label: '需要处理', className: 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400' },
-}
-
-function formatTime(ts: number): string {
-  if (!ts) return '—'
-  const d = new Date(ts)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
-}
-
-export function SettingsPanel({ settings, initialTab, onClose, onChange, sync, onOpenIconCache }: Props) {
+export function SettingsPanel({ settings, initialTab, onClose, onChange, onOpenIconCache }: Props) {
+  const syncConfig = useNavStore((s) => s.syncConfig)
+  const syncStatus = useNavStore((s) => s.syncStatus)
   const [activeTab, setActiveTab] = useState<TabType>(initialTab || 'appearance')
   const [showFallbackIconPicker, setShowFallbackIconPicker] = useState(false)
   const [customUrl, setCustomUrl] = useState(settings.wallpaperUrl)
-  const [syncUrl, setSyncUrl] = useState(sync.config?.url ?? DEFAULT_SYNC_URL)
-  const [syncToken, setSyncToken] = useState(sync.config?.token ?? '')
-  const [showSyncToken, setShowSyncToken] = useState(false)
-  const [showSyncHelp, setShowSyncHelp] = useState(false)
   const [testCity, setTestCity] = useState(settings.weatherCity || '广州')
   const [testingWeather, setTestingWeather] = useState(false)
   const [testResult, setTestResult] = useState<{ success: boolean; data?: WeatherInfo; error?: string } | null>(null)
-
-  const statusStyle = STATUS_STYLE[sync.status]
-  const maskedToken = sync.config
-    ? `••••••••${sync.config.token.slice(-4)}`
-    : ''
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
@@ -149,19 +101,7 @@ export function SettingsPanel({ settings, initialTab, onClose, onChange, sync, o
             >
               <Cloud className="h-4 w-4 text-blue-500" />
               云端同步
-              {sync.config && (
-                <span
-                  className={`h-2 w-2 rounded-full ${
-                    sync.status === 'synced'
-                      ? 'bg-emerald-500'
-                      : sync.status === 'error'
-                      ? 'bg-red-500'
-                      : sync.status === 'syncing'
-                      ? 'bg-blue-500 animate-pulse'
-                      : 'bg-neutral-400'
-                  }`}
-                />
-              )}
+              {syncConfig && <span className={`h-2 w-2 rounded-full ${syncStatusDot(syncStatus)}`} />}
             </button>
           </div>
         </div>
@@ -827,214 +767,7 @@ export function SettingsPanel({ settings, initialTab, onClose, onChange, sync, o
               </div>
             </div>
           ) : (
-            <>
-              {/* Cloud Sync Tab */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    {sync.config ? (
-                      <Cloud className="h-4 w-4 text-orange-600 dark:text-orange-400" />
-                    ) : (
-                      <CloudOff className="h-4 w-4 text-neutral-400 dark:text-neutral-500" />
-                    )}
-                    <label className="font-semibold text-neutral-900 dark:text-neutral-100">云同步服务（Cloudflare D1）</label>
-                    <button
-                      type="button"
-                      onClick={() => setShowSyncHelp((v) => !v)}
-                      title="同步配置教程"
-                      aria-label="同步配置教程"
-                      aria-expanded={showSyncHelp}
-                      className={`rounded-full p-0.5 transition ${
-                        showSyncHelp
-                          ? 'text-orange-600 dark:text-orange-400'
-                          : 'text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200'
-                      }`}
-                    >
-                      <HelpCircle className="h-4 w-4" />
-                    </button>
-                  </div>
-                  <span
-                    className={`rounded-full px-2.5 py-0.5 text-[10px] font-medium ${statusStyle.className}`}
-                  >
-                    {statusStyle.label}
-                  </span>
-                </div>
-
-                {showSyncHelp && <SyncHelp />}
-
-                <div className="rounded-xl bg-neutral-50 dark:bg-neutral-800/60 p-3.5 border border-neutral-200/80 dark:border-neutral-700/80">
-                  <p className="leading-relaxed text-neutral-500 dark:text-neutral-400 text-[11px]">
-                    数据默认保存在本地浏览器中，换设备或清理缓存会导致配置丢失。配置部署的 Worker 与密钥后，改动会自动同步至云端 SQLite（D1），换设备只需填入相同密钥即可一键恢复。
-                  </p>
-                </div>
-
-                <div className="space-y-2.5">
-                  <div>
-                    <label className="block text-[11px] font-medium text-neutral-600 dark:text-neutral-400 mb-1">Worker 地址</label>
-                    <input
-                      value={syncUrl}
-                      onChange={(e) => setSyncUrl(e.target.value)}
-                      placeholder="https://nav.你的账号.workers.dev"
-                      className="w-full rounded-xl border border-neutral-200 dark:border-neutral-700 px-3 py-2 text-xs outline-none focus:border-orange-500 bg-transparent"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-medium text-neutral-600 dark:text-neutral-400 mb-1">同步密钥 (SYNC_TOKEN)</label>
-                    <div className="flex gap-2">
-                      <div className="relative min-w-0 flex-1">
-                        <input
-                          value={syncToken}
-                          type={showSyncToken ? 'text' : 'password'}
-                          onChange={(e) => setSyncToken(e.target.value)}
-                          placeholder="填入在 Worker 环境变量中设置的密钥"
-                          autoComplete="off"
-                          spellCheck={false}
-                          className={`w-full rounded-xl border border-neutral-200 dark:border-neutral-700 py-2 pl-3 pr-9 text-xs outline-none focus:border-orange-500 bg-transparent ${
-                            showSyncToken ? 'font-mono' : ''
-                          }`}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowSyncToken((v) => !v)}
-                          title={showSyncToken ? '隐藏密钥' : '显示密钥'}
-                          aria-label={showSyncToken ? '隐藏密钥' : '显示密钥'}
-                          className="absolute inset-y-0 right-1.5 my-auto flex h-6 w-6 items-center justify-center rounded-md text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition"
-                        >
-                          {showSyncToken ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                        </button>
-                      </div>
-                      <button
-                        type="button"
-                        title="生成随机 token，复制到 wrangler secret put SYNC_TOKEN"
-                        onClick={() => {
-                          setSyncToken(generateSyncToken())
-                          setShowSyncToken(true)
-                        }}
-                        className="rounded-xl border border-neutral-200 dark:border-neutral-700 px-3 text-xs font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition"
-                      >
-                        生成密钥
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-2 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => void sync.onConfigure(normalizeSyncUrl(syncUrl), syncToken)}
-                      className="flex-1 rounded-xl bg-orange-500 px-4 py-2 text-xs font-medium text-white shadow-sm hover:bg-orange-600 transition"
-                    >
-                      {sync.config ? '保存并重新连接' : '保存并连接'}
-                    </button>
-                    {sync.config && (
-                      <button
-                        type="button"
-                        onClick={sync.onDisconnect}
-                        className="rounded-xl border border-neutral-200 dark:border-neutral-700 px-4 py-2 text-xs font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition"
-                      >
-                        断开连接
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {!sync.config && sync.message && (
-                  <p
-                    className={`mt-2 ${
-                      sync.status === 'error'
-                        ? 'text-red-600 dark:text-red-400'
-                        : 'text-neutral-500 dark:text-neutral-400'
-                    }`}
-                  >
-                    {sync.message}
-                  </p>
-                )}
-
-                {sync.config && (
-                  <div className="mt-4 space-y-3 rounded-2xl border border-neutral-200/80 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/60 p-3.5">
-                    <label className="flex cursor-pointer items-center justify-between font-medium text-neutral-700 dark:text-neutral-200">
-                      <span>改动自动上传</span>
-                      <input
-                        type="checkbox"
-                        checked={sync.autoSync}
-                        onChange={(e) => sync.onToggleAuto(e.target.checked)}
-                        className="h-4 w-4 accent-orange-500"
-                      />
-                    </label>
-
-                    <div className="space-y-1 font-mono text-[10px] text-neutral-500 dark:text-neutral-400 border-t border-neutral-200/60 dark:border-neutral-700/60 pt-2.5">
-                      <div className="flex justify-between">
-                        <span>本机版本</span>
-                        <span>{formatTime(sync.localUpdatedAt)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>云端版本</span>
-                        <span>{formatTime(sync.remoteUpdatedAt)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>最近同步</span>
-                        <span>{formatTime(sync.lastSyncedAt)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>当前密钥</span>
-                        <span>{maskedToken}</span>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 pt-1">
-                      <button
-                        type="button"
-                        onClick={() => void sync.onSyncNow()}
-                        className="flex items-center justify-center gap-1.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition shadow-sm"
-                      >
-                        <RefreshCw className="h-3.5 w-3.5" />
-                        立即同步
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void sync.onPush()}
-                        className="flex items-center justify-center gap-1.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition shadow-sm"
-                      >
-                        <Upload className="h-3.5 w-3.5" />
-                        上传本地
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void sync.onPull()}
-                        className="flex items-center justify-center gap-1.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition shadow-sm"
-                      >
-                        <Download className="h-3.5 w-3.5" />
-                        从云端恢复
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void sync.onPush(true)}
-                        className="flex items-center justify-center gap-1.5 rounded-xl border border-red-200 dark:border-red-900/60 bg-white dark:bg-neutral-900 px-3 py-2 font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition shadow-sm"
-                      >
-                        <Upload className="h-3.5 w-3.5" />
-                        强制上传本地
-                      </button>
-                    </div>
-
-                    <p className="leading-relaxed text-[10px] text-neutral-400 dark:text-neutral-500 pt-1">
-                      同步按「谁更新谁生效」处理，两边冲突时会暂停并提示。强制上传会覆盖云端数据。TOTP 密钥也会一同加密同步。
-                    </p>
-
-                    {sync.message && (
-                      <p
-                        className={`leading-relaxed text-[11px] ${
-                          sync.status === 'error' || sync.status === 'conflict'
-                            ? 'text-red-600 dark:text-red-400'
-                            : 'text-neutral-500 dark:text-neutral-400'
-                        }`}
-                      >
-                        {sync.message}
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-            </>
+            <SyncTab />
           )}
         </div>
 
