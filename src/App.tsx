@@ -13,6 +13,7 @@ import {
 } from '@dnd-kit/core'
 import { SEARCH_ENGINES } from './lib/defaults'
 import { faviconFor, hostnameOf } from './lib/utils'
+import { resolveContentWidth } from './lib/contentWidth'
 import { useNavStore } from './store/useNavStore'
 import type { Bookmark } from './types'
 
@@ -379,17 +380,13 @@ export default function App() {
         />
 
         {/* Main Layout Container: Center Workspace + Persistent Right Sidebar */}
-        <div className="relative z-10 mx-auto flex w-full max-w-[1920px] justify-center items-start gap-3 px-2 sm:px-4 lg:pr-14 py-3.5">
+        {/* 内容区宽度 = 窗口宽度的百分比（含右侧工作台），小屏始终铺满 */}
+        <div
+          className="relative z-10 mx-auto flex w-full justify-center items-start gap-3 px-2 sm:px-4 lg:pr-14 py-3.5 transition-[width] duration-200"
+          style={{ width: `max(${resolveContentWidth(settings)}%, min(100%, 768px))` }}
+        >
           {/* Main Content Area */}
-          <main
-            className="flex-1 min-w-0 space-y-3.5 transition-[max-width] duration-200"
-            style={{
-              maxWidth:
-                settings.cardWidth === 0
-                  ? '100%'
-                  : `${settings.cardWidth ?? 1380}px`,
-            }}
-          >
+          <main className="flex-1 min-w-0 space-y-3.5">
             {/* 1. Search Box */}
             <SearchBar
               ref={searchBarRef}

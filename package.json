@@ -13,6 +13,7 @@
     "check:title": "node scripts/test-title-fetch.mjs",
     "check:title:local": "node scripts/test-title-fetch.mjs --local-fixtures",
     "check:cache": "node --test scripts/test-icon-cache.mjs",
+    "check:grid": "node --test scripts/test-bookmark-grid.mjs",
     "check:sort": "node scripts/test-sorting-e2e.mjs",
     "check:sub-sort": "node scripts/test-bookmark-drag-e2e.mjs",
     "check:weather": "node scripts/test-weather-e2e.mjs",
