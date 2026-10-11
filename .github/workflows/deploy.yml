@@ -53,7 +53,7 @@ jobs:
           # 非机密，只是 Worker 地址：构建进站点后「云同步」面板会预填它，
           # 换设备时只需要再填一次 token。真正的 SYNC_TOKEN 绝不能出现在这里
           # （Pages 是公开站点，构建产物等于全网可见）。
-          VITE_SYNC_URL: https://nav-sync.lisang.workers.dev
+          VITE_SYNC_URL: https://nav.lisang.workers.dev
 
       - name: Build dev branch (Preview)
         if: steps.checkout-dev.outcome == 'success'
@@ -64,7 +64,7 @@ jobs:
           mkdir -p ../site-dist/dev
           cp -r dist/* ../site-dist/dev/
         env:
-          VITE_SYNC_URL: https://nav-sync.lisang.workers.dev
+          VITE_SYNC_URL: https://nav.lisang.workers.dev
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

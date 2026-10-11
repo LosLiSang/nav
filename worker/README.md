@@ -21,7 +21,7 @@ npx wrangler d1 execute nav-sync --remote --file=./schema.sql   # 建表
 
 npx wrangler secret put SYNC_TOKEN   # 粘贴一个长随机串（可在导航页设置面板点「生成」）
 
-npx wrangler deploy               # 部署，输出形如 https://nav-sync.<你的账号>.workers.dev
+npx wrangler deploy               # 部署，输出形如 https://nav.<你的账号>.workers.dev
 ```
 
 部署完把那个 `https://...workers.dev` 地址填进导航页的「设置 → 云同步」，token 填同一个值，

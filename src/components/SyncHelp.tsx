@@ -59,7 +59,7 @@ npx wrangler d1 create nav-sync`}</Cmd>
           </Step>
           <Step n={4} title="部署 Worker">
             <Cmd>npx wrangler deploy</Cmd>
-            <p>记下输出的地址，形如 https://nav-sync.你的账号.workers.dev。</p>
+            <p>记下输出的地址，形如 https://nav.你的账号.workers.dev。</p>
           </Step>
           <Step n={5} title="在本页连接">
             <p>填好 Worker 地址和同一串密钥，点「保存并连接」。状态变成「已同步」即成功。</p>
