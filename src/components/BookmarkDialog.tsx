@@ -205,7 +205,7 @@ export function BookmarkDialog({
                 required
                 className="w-full rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3.5 py-2.5 pr-14 text-xs outline-none focus:border-orange-500"
               />
-              <span className="absolute right-3 top-3 text-[11px] text-neutral-300 dark:text-neutral-500">
+              <span className="absolute right-3 top-3 text-[11px] text-neutral-500 dark:text-neutral-400">
                 {title.length}/100
               </span>
             </div>

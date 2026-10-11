@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { WALLPAPER_PRESETS } from '../lib/defaults'
 import { ContentWidthControl } from './ContentWidthControl'
+import { RangeInput } from './RangeInput'
 import { useNavStore } from '../store/useNavStore'
 import type { CornerRadius, FallbackIconMode, Settings, WeatherProvider } from '../types'
 import { testWeatherConfig, type WeatherInfo } from '../lib/weather'
@@ -224,15 +225,14 @@ export function SettingsPanel({ settings, initialTab, onClose, onChange, onOpenI
                         {item.unit}
                       </span>
                     </div>
-                    <input
-                      type="range"
+                    <RangeInput
+                      aria-label={item.label}
                       min={item.min}
                       max={item.max}
                       value={settings[item.key as keyof Settings] as number}
                       onChange={(e) =>
                         onChange({ [item.key]: Number(e.target.value) } as Partial<Settings>)
                       }
-                      className="w-full accent-orange-500 cursor-pointer"
                     />
                   </div>
                 ))}
@@ -718,7 +718,7 @@ export function SettingsPanel({ settings, initialTab, onClose, onChange, onOpenI
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl bg-neutral-900 dark:bg-neutral-800 px-5 py-2 font-medium text-white dark:text-neutral-100 shadow-sm hover:bg-neutral-800 dark:hover:bg-neutral-700 transition border border-transparent dark:border-neutral-700"
+            className="rounded-xl bg-orange-500 px-5 py-2 font-medium text-white shadow-sm hover:bg-orange-600 transition border border-transparent"
           >
             完成
           </button>

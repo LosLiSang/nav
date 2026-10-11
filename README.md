@@ -91,6 +91,16 @@ npm run dev
 
 浏览器打开 `http://127.0.0.1:5173` 即可实时预览并支持热重载（HMR）。
 
+#### 主题端到端回归（Issue #22）
+
+```bash
+npm run check:light
+```
+
+脚本自动启动本地 Vite 和独立临时 profile 的无头 Edge，不使用现有浏览器数据，也不访问线上账号。默认测试端口为 `5202` / `9442`，可用 `APP_PORT` / `DEBUG_PORT` 覆盖；通过 `EDGE_PATH` 指定 Chromium 兼容浏览器。
+
+覆盖 1280px / 390px 两种宽度、系统与应用的深浅色四种组合，以及 9 个弹窗/选项卡，共 72 个场景。断言应用 `color-scheme`、弹窗前景/背景、默认文字与字数统计对比度、完成按钮颜色、滑块轨道和填充、键盘操作与刷新后的持久化；截图和 JSON 报告保存在 `artifacts/light-mode/`，可用 `OUT_DIR` 指定其他目录。报告中的 `lowContrastText` 是其他辅助文字的扫描线索，不代表全站 WCAG 合规检查。
+
 ### 2. 静态产物构建
 
 ```bash
