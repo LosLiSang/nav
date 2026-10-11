@@ -141,6 +141,7 @@ export default function App() {
     moveBookmarkToCategory,
     moveBookmarkToSubCategory,
     addMemo,
+    updateMemo,
     toggleMemo,
     deleteMemo,
     addTotpAccount,
@@ -472,6 +473,7 @@ export default function App() {
               }
               onSaveScratchpad={saveScratchpad}
               onAddMemo={addMemo}
+              onUpdateMemo={updateMemo}
               onToggleMemo={toggleMemo}
               onDeleteMemo={deleteMemo}
             />

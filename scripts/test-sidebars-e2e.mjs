@@ -82,7 +82,7 @@
    let profile = null
    let ws = null
    const results = []
-   const report = { issue: 8, success: false, results, artifacts: [] }
+   const report = { issues: [8, 25], success: false, results, artifacts: [] }
    function check(name, ok, detail = '') {
      results.push({ name, ok, detail })
      console.log(`${ok ? '✓ PASS' : '✗ FAIL'}  ${name}${detail ? `  — ${detail}` : ''}`)
@@ -221,6 +221,36 @@
        writeFileSync(file, Buffer.from(image.data, 'base64'))
        report.artifacts.push(file)
      }
+     const nativeClick = async (expression, count = 1) => {
+       const point = await evaluate(`(() => {
+         const el = (${expression})
+         if (!el) return null
+         el.scrollIntoView({ block: 'nearest' })
+         const r = el.getBoundingClientRect()
+         return { x: r.left + Math.min(12, r.width / 2), y: r.top + r.height / 2 }
+       })()`)
+       assert.ok(point, `没有找到点击目标：${expression}`)
+       await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', ...point })
+       await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', button: 'left', clickCount: count, ...point })
+       await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', button: 'left', clickCount: count, ...point })
+       await sleep(150)
+     }
+     const press = async (key) => {
+       await cdp.send('Input.dispatchKeyEvent', { type: 'keyDown', key, code: key, windowsVirtualKeyCode: key === 'Enter' ? 13 : 27 })
+       await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', key, code: key })
+       await sleep(150)
+     }
+     const setInput = async (selector, value) => {
+       assert.ok(await evaluate(`(() => {
+         const el = document.querySelector(${JSON.stringify(selector)})
+         if (!el) return false
+         const prototype = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype
+         Object.getOwnPropertyDescriptor(prototype, 'value').set.call(el, ${JSON.stringify(value)})
+         el.dispatchEvent(new Event('input', { bubbles: true }))
+         return true
+       })()`), `没有找到输入框：${selector}`)
+       await sleep(100)
+     }
  
     console.log('\n--- 测试 1: 验证右侧常驻工作台及其三大板块 (草稿/便签/专注) ---')
      const rightSidebarOk = await cdp.send('Runtime.evaluate', {
@@ -317,6 +347,249 @@
      const shot3 = await cdp.send('Page.captureScreenshot', { format: 'png' })
     writeFileSync(join(OUT_DIR, '03-todo-memo-tab.png'), Buffer.from(shot3.data, 'base64'))
  
+    console.log('\n--- 测试 3b: 便签正文、编辑和打开网址（Issue #25）---')
+    const memoId = await evaluate(`(async () => {
+      const { useNavStore } = await import('/src/store/useNavStore.ts')
+      return useNavStore.getState().memos.find(m => m.text === '深度体验 React 19 生产力').id
+    })()`)
+    const row = `[data-memo-id="${memoId}"]`
+    const body = `document.querySelector('${row} [data-testid="memo-body"]') || [...document.querySelectorAll('#right-workbench div')].find(d => d.textContent.trim() === '深度体验 React 19 生产力')`
+    const readMemo = () => evaluate(`(async () => {
+      const { useNavStore } = await import('/src/store/useNavStore.ts')
+      return useNavStore.getState().memos.find(m => m.id === ${JSON.stringify(memoId)})
+    })()`)
+    const originalMemo = await readMemo()
+    await nativeClick(body)
+    const clickDidNotToggle = !(await readMemo()).done
+    check('单击正文不会切换完成状态', clickDidNotToggle)
+    await shot('13-memo-single-click')
+    assert.ok(clickDidNotToggle, '单击便签正文误切换了完成状态')
+    check('正文可选取复制，普通文本不显示打开入口', await evaluate(`(() => {
+      const el = document.querySelector('${row} [data-testid="memo-body"]')
+      const range = document.createRange(); range.selectNodeContents(el)
+      getSelection().removeAllRanges(); getSelection().addRange(range)
+      return getComputedStyle(el).userSelect === 'text' && getSelection().toString() === '深度体验 React 19 生产力' && !document.querySelector('${row} [data-testid="memo-open"]')
+    })()`))
+    await nativeClick(`document.querySelector('${row} button[role="checkbox"]')`)
+    check('只有圆点切换完成，计数和进度即时更新', (await readMemo()).done && await evaluate(`(async () => {
+      const { useNavStore } = await import('/src/store/useNavStore.ts')
+      const memos = useNavStore.getState().memos
+      const done = memos.filter(m => m.done).length
+      const text = document.querySelector('#right-workbench').textContent
+      return text.includes(done + '/' + memos.length + ' 项已完成') &&
+        text.includes('待办 (' + (memos.length - done) + ')') &&
+        text.includes('已完成 (' + done + ')') &&
+        text.includes(Math.round(done / memos.length * 100) + '%')
+    })()`))
+    await nativeClick(`document.querySelector('${row} button[role="checkbox"]')`)
+    await nativeClick(body, 2)
+    assert.ok(await evaluate(`Boolean(document.querySelector('${row} [data-testid="memo-editor"]'))`), '双击没有进入编辑')
+    await setInput(`${row} [data-testid="memo-editor"]`, '编辑后持久化的便签')
+    await press('Enter')
+    await poll(async () => (await readMemo()).text === '编辑后持久化的便签', 3000, 'Enter 保存')
+    check('双击编辑并用 Enter 保存，不改变 ID、创建时间或完成状态', (await readMemo()).id === memoId && (await readMemo()).createdAt === originalMemo.createdAt && !(await readMemo()).done)
+
+    const edit = () => nativeClick(`document.querySelector('${row} [aria-label="编辑便签"]')`)
+    await edit()
+    await setInput(`${row} [data-testid="memo-editor"]`, 'Esc 应放弃这次修改')
+    await press('Escape')
+    check('编辑按钮进入编辑，Esc 取消且不保存', (await readMemo()).text === '编辑后持久化的便签' && !(await evaluate(`Boolean(document.querySelector('${row} [data-testid="memo-editor"]'))`)))
+    await edit()
+    await setInput(`${row} [data-testid="memo-editor"]`, '   ')
+    await press('Enter')
+    check('空白内容保存视为取消，不删除便签', (await readMemo()).text === '编辑后持久化的便签')
+    await edit()
+    await setInput(`${row} [data-testid="memo-editor"]`, '失焦保存的便签')
+    await nativeClick(`document.querySelector('#right-workbench input[placeholder*="添加待办便签"]')`)
+    await poll(async () => (await readMemo()).text === '失焦保存的便签', 3000, '失焦保存')
+    check('失焦保存文本且保留完成状态', !(await readMemo()).done)
+    await edit()
+    await setInput(`${row} [data-testid="memo-editor"]`, '第一行\n第二行')
+    await evaluate(`document.querySelector('${row} [data-testid="memo-editor"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, bubbles: true }))`)
+    check('Shift+Enter 可继续多行编辑而不保存', await evaluate(`Boolean(document.querySelector('${row} [data-testid="memo-editor"]'))`) && (await readMemo()).text === '失焦保存的便签')
+    await evaluate(`document.querySelector('${row} [data-testid="memo-editor"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', isComposing: true, bubbles: true }))`)
+    check('中文输入法确认 Enter 不会误保存', await evaluate(`Boolean(document.querySelector('${row} [data-testid="memo-editor"]'))`) && (await readMemo()).text === '失焦保存的便签')
+    const editorGrew = await evaluate(`document.querySelector('${row} [data-testid="memo-editor"]').getBoundingClientRect().height > 32`)
+    await press('Enter')
+    check('多行便签保留换行且自动增长编辑框', editorGrew && (await readMemo()).text === '第一行\n第二行')
+
+    // 注入一次真实持久化边界失败；草稿必须留在 UI 中，便于重试。
+    await evaluate(`(async () => {
+      const { db } = await import('/src/lib/db.ts')
+      const update = db.memos.update.bind(db.memos)
+      window.__restoreMemoUpdate = () => { db.memos.update = update }
+      db.memos.update = async () => { throw new Error('memo persistence fixture failed') }
+    })()`)
+    await edit()
+    await setInput(`${row} [data-testid="memo-editor"]`, '失败后重试的便签')
+    await press('Enter')
+    check('保存失败保留草稿并显示可重试提示', await evaluate(`document.querySelector('${row} [data-testid="memo-editor"]')?.value === '失败后重试的便签' && document.querySelector('${row} [role="alert"]')?.textContent.includes('保存失败')`) && (await readMemo()).text === '第一行\n第二行')
+    await evaluate('window.__restoreMemoUpdate()')
+    await press('Enter')
+    await poll(async () => (await readMemo()).text === '失败后重试的便签', 3000, '保存重试')
+    check('持久化恢复后可以直接重试保存', (await readMemo()).text === '失败后重试的便签')
+
+    // Enter + blur 只提交一次，且写回不会把已删除记录复活。
+    await evaluate(`(async () => {
+      const { db } = await import('/src/lib/db.ts')
+      const update = db.memos.update.bind(db.memos)
+      window.__memoSaveCalls = 0
+      window.__restoreMemoUpdate = () => { db.memos.update = update }
+      db.memos.update = async (...args) => {
+        window.__memoSaveCalls++
+        await new Promise(r => setTimeout(r, 100))
+        return update(...args)
+      }
+    })()`)
+    await edit()
+    await setInput(`${row} [data-testid="memo-editor"]`, '只保存一次')
+    await cdp.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 })
+    await evaluate(`document.querySelector('${row} [data-testid="memo-editor"]')?.blur()`)
+    await sleep(250)
+    check('Enter 与 blur 竞态不会重复写入', await evaluate('window.__memoSaveCalls === 1') && (await readMemo()).text === '只保存一次')
+    await evaluate('window.__restoreMemoUpdate()')
+
+    // 拖慢旧式整行 put，复现 blur 保存文本与圆点完成状态竞争的真实调用顺序。
+    await evaluate(`(async () => {
+      const { db } = await import('/src/lib/db.ts')
+      const put = db.memos.put.bind(db.memos)
+      window.__restoreMemoPut = () => { db.memos.put = put }
+      db.memos.put = async (...args) => {
+        await new Promise(r => setTimeout(r, 100))
+        return put(...args)
+      }
+    })()`)
+    await edit()
+    await setInput(`${row} [data-testid="memo-editor"]`, '边保存边勾选也保留文本')
+    await nativeClick(`document.querySelector('${row} button[role="checkbox"]')`)
+    await sleep(150)
+    check('失焦保存与圆点勾选竞争时不覆盖文本', (await readMemo()).text === '边保存边勾选也保留文本' && (await readMemo()).done)
+    await evaluate('window.__restoreMemoPut()')
+    await nativeClick(`document.querySelector('${row} button[role="checkbox"]')`)
+    await edit()
+    await setInput(`${row} [data-testid="memo-editor"]`, '只保存一次')
+    await press('Enter')
+
+    const addTodo = async (text) => {
+      await setInput('#right-workbench input[placeholder*="添加待办便签"]', text)
+      await nativeClick(`document.querySelector('#right-workbench button[title="保存待办 (Enter)"]')`)
+      return evaluate(`(async () => {
+        const { useNavStore } = await import('/src/store/useNavStore.ts')
+        return useNavStore.getState().memos.find(m => m.text === ${JSON.stringify(text)}).id
+      })()`)
+    }
+    const deletedId = await addTodo('删除中的便签')
+    const deletedRow = `[data-memo-id="${deletedId}"]`
+    await evaluate(`(async () => {
+      const { db } = await import('/src/lib/db.ts')
+      const update = db.memos.update.bind(db.memos)
+      window.__restoreMemoUpdate = () => { db.memos.update = update }
+      db.memos.update = async (...args) => {
+        await new Promise(r => setTimeout(r, 500))
+        return update(...args)
+      }
+    })()`)
+    await nativeClick(`document.querySelector('${deletedRow} [aria-label="编辑便签"]')`)
+    await setInput(`${deletedRow} [data-testid="memo-editor"]`, '删除后不得复活')
+    await cdp.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 })
+    await nativeClick(`document.querySelector('${deletedRow} [aria-label="删除便签"]')`)
+    await sleep(550)
+    check('保存期间删除便签，不会因迟到的保存结果复活', await evaluate(`(async () => {
+      const { db } = await import('/src/lib/db.ts')
+      const { useNavStore } = await import('/src/store/useNavStore.ts')
+      return !(await db.memos.get(${JSON.stringify(deletedId)})) && !useNavStore.getState().memos.some(m => m.id === ${JSON.stringify(deletedId)})
+    })()`))
+    await evaluate('window.__restoreMemoUpdate()')
+    const link = `${APP_URL}/?memo-open-e2e=1`
+    const linkId = await addTodo(`本地文档（${link}），第二个链接 https://example.com/second。`)
+    const linkRow = `[data-memo-id="${linkId}"]`
+    check('识别第一个 http(s) 链接，剔除中文标点并设置新标签页隔离', await evaluate(`(() => {
+      const a = document.querySelector('${linkRow} [data-testid="memo-open"]')
+      return a?.href === ${JSON.stringify(link)} && a.target === '_blank' && a.rel.includes('noopener') && a.rel.includes('noreferrer')
+    })()`))
+    await nativeClick(`document.querySelector('${linkRow} [data-testid="memo-open"]')`)
+    let opened
+    await poll(async () => {
+      const targets = await cdp.send('Target.getTargets')
+      opened = targets.targetInfos.find(t => t.type === 'page' && t.url === link)
+      return opened
+    }, 5000, 'UI 打开新标签页')
+    check('打开入口确实创建新标签页，且不切换便签完成状态', Boolean(opened) && await evaluate(`(async () => {
+      const { useNavStore } = await import('/src/store/useNavStore.ts')
+      return !useNavStore.getState().memos.find(m => m.id === ${JSON.stringify(linkId)}).done
+    })()`))
+    const targets = await (await fetch(`http://127.0.0.1:${DEBUG_PORT}/json/list`)).json()
+    const child = targets.find(t => t.id === opened.targetId)
+    const childWs = new WebSocket(child.webSocketDebuggerUrl)
+    try {
+      await new Promise((resolve, reject) => {
+        childWs.addEventListener('open', resolve, { once: true })
+        childWs.addEventListener('error', reject, { once: true })
+      })
+      const childCdp = new Cdp(childWs)
+      let isolated = false
+      await poll(async () => {
+        const r = await childCdp.send('Runtime.evaluate', {
+          expression: `location.href === ${JSON.stringify(link)} && window.opener === null && document.referrer === ''`,
+          returnByValue: true,
+        })
+        isolated = r.result?.value === true
+        return isolated
+      }, 5000, '新标签页隔离')
+      check('新标签页没有 opener 且不携带 referrer', isolated)
+    } finally {
+      childWs.close()
+      await cdp.send('Target.closeTarget', { targetId: opened.targetId })
+    }
+    const unsafeId = await addTodo('javascript:alert(1) data:text/html,hello 不是可打开的网址')
+    check('非 http(s) 文本没有打开入口', !(await evaluate(`Boolean(document.querySelector('[data-memo-id="${unsafeId}"] [data-testid="memo-open"]'))`)))
+    const wrapId = await addTodo('百科 https://example.com/wiki/Test_(demo).')
+    check('链接保留平衡括号，去掉句末英文句点', await evaluate(`document.querySelector('[data-memo-id="${wrapId}"] [data-testid="memo-open"]').href === 'https://example.com/wiki/Test_(demo)'`))
+    await edit()
+    check('展开编辑框后帮助文字可见，列表和操作区没有溢出', await evaluate(`(() => {
+      const el = document.querySelector('${row}')
+      const r = el.getBoundingClientRect(), p = el.parentElement.getBoundingClientRect()
+      return r.top >= p.top - 1 && r.bottom <= p.bottom + 1 && el.scrollWidth <= el.clientWidth
+    })()`))
+    const editorContrast = () => evaluate(`(() => {
+      const s = getComputedStyle(document.querySelector('${row} [data-testid="memo-editor"]'))
+      const c = document.createElement('canvas'); c.width = c.height = 1
+      const ctx = c.getContext('2d', { willReadFrequently: true })
+      const luminance = color => {
+        ctx.fillStyle = color; ctx.fillRect(0, 0, 1, 1)
+        const v = [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3).map(v => {
+          const n = v / 255; return n <= .04045 ? n / 12.92 : ((n + .055) / 1.055) ** 2.4
+        })
+        return v[0] * .2126 + v[1] * .7152 + v[2] * .0722
+      }
+      const f = luminance(s.color), b = luminance(s.backgroundColor)
+      return (Math.max(f, b) + .05) / (Math.min(f, b) + .05)
+    })()`)
+    const lightEditorContrast = await editorContrast()
+    await shot('14-memo-edit-light')
+    await evaluate(`(async () => {
+      const { useNavStore } = await import('/src/store/useNavStore.ts')
+      useNavStore.getState().updateSettings({ themeMode: 'dark' })
+    })()`)
+    await sleep(100)
+    check('浅色和深色编辑框文字对比度均至少 4.5:1', lightEditorContrast >= 4.5 && await editorContrast() >= 4.5)
+    await shot('15-memo-edit-dark')
+    await press('Escape')
+    await evaluate(`(async () => {
+      const { useNavStore } = await import('/src/store/useNavStore.ts')
+      useNavStore.getState().updateSettings({ themeMode: 'light' })
+    })()`)
+    await evaluate('window.__oldMemoDocument = true')
+    await cdp.send('Page.reload')
+    await poll(() => evaluate(`!window.__oldMemoDocument && Boolean(document.querySelector('#right-workbench'))`), 15000, '便签重载')
+    await clickText('便签')
+    check('刷新后编辑结果仍然存在，ID、状态和其他便签保留', (await readMemo()).text === '只保存一次' && !(await readMemo()).done && await evaluate(`Boolean(document.querySelector('${linkRow}'))`))
+    check('同步快照沿用现有链路，包含编辑后的便签文本', await evaluate(`(async () => {
+      const { buildSyncDoc } = await import('/src/lib/sync.ts')
+      const { useNavStore } = await import('/src/store/useNavStore.ts')
+      return buildSyncDoc(useNavStore.getState()).memos.find(m => m.id === ${JSON.stringify(memoId)}).text === '只保存一次'
+    })()`))
+
     console.log('\n--- 测试 4: 切换到专注板块并启动番茄工作钟 ---')
      await cdp.send('Runtime.evaluate', {
        expression: `

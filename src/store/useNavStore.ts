@@ -185,6 +185,7 @@ type NavState = {
 
   // Memos
   addMemo: (text: string) => Promise<void>
+  updateMemo: (id: string, text: string) => Promise<void>
   toggleMemo: (id: string) => Promise<void>
   deleteMemo: (id: string) => Promise<void>
 
@@ -1233,13 +1234,29 @@ export const useNavStore = create<NavState>((set, get) => ({
     set((state) => ({ memos: [memo, ...state.memos] }))
   },
 
+  async updateMemo(id, text) {
+    const trimmed = text.trim()
+    if (!trimmed || !get().memos.some(m => m.id === id)) return
+    // 只更新文本，不重新 put 整条记录：保留状态/时间，也不会复活已删除的记录。
+    const changed = await db.memos.update(id, { text: trimmed })
+    if (!changed) return
+    set(state => ({
+      memos: state.memos.map(m => m.id === id ? { ...m, text: trimmed } : m),
+    }))
+  },
+
   async toggleMemo(id) {
-    const memo = get().memos.find((m) => m.id === id)
-    if (!memo) return
-    const updated = { ...memo, done: !memo.done }
-    await db.memos.put(updated)
+    const done = await db.transaction('rw', db.memos, async () => {
+      const current = await db.memos.get(id)
+      if (!current) return undefined
+      const next = !current.done
+      // 与失焦保存并发时只更新 done，不把旧 text 整行写回。
+      await db.memos.update(id, { done: next })
+      return next
+    })
+    if (done === undefined) return
     set((state) => ({
-      memos: state.memos.map((m) => (m.id === id ? updated : m)),
+      memos: state.memos.map((m) => (m.id === id ? { ...m, done } : m)),
     }))
   },
 

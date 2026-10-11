@@ -2,7 +2,6 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
  import {
    Check,
   CheckCircle2,
-  Circle,
   Clock,
    Copy,
   CornerDownLeft,
@@ -21,6 +20,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import type { CountdownTarget, MemoItem, Settings } from '../types'
 import { POMODORO_DURATIONS, usePomodoro } from '../lib/usePomodoro'
 import { PomodoroCompletion, PomodoroReminderSettings } from './PomodoroReminders'
+import { MemoRow } from './MemoRow'
  
  type Props = {
    scratchpadContent: string
@@ -33,6 +33,7 @@ import { PomodoroCompletion, PomodoroReminderSettings } from './PomodoroReminder
    onToggleCollapse: () => void
    onSaveScratchpad: (content: string) => Promise<void>
   onAddMemo: (text: string) => Promise<void> | void
+  onUpdateMemo: (id: string, text: string) => Promise<void> | void
   onToggleMemo: (id: string) => Promise<void> | void
   onDeleteMemo: (id: string) => Promise<void> | void
  }
@@ -56,6 +57,7 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
    onToggleCollapse,
    onSaveScratchpad,
   onAddMemo,
+  onUpdateMemo,
   onToggleMemo,
   onDeleteMemo,
  }: Props) {
@@ -452,66 +454,15 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
                  </div>
                ) : (
                  filteredMemos.map((memo) => (
-                   <div
+                   <MemoRow
                      key={memo.id}
-                     className="group flex items-start justify-between gap-2.5 rounded-xl border border-black/5 dark:border-white/5 bg-black/[0.02] dark:bg-white/[0.02] p-2.5 transition hover:bg-black/[0.05] dark:hover:bg-white/[0.05]"
-                   >
-                     {/* Checkbox */}
-                     <button
-                       type="button"
-                       onClick={() => void onToggleMemo(memo.id)}
-                       className="mt-0.5 shrink-0 text-neutral-400 hover:text-orange-500 transition"
-                       title={memo.done ? '标记为未完成' : '标记为已完成'}
-                     >
-                       {memo.done ? (
-                         <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                       ) : (
-                         <Circle className="h-4 w-4 hover:stroke-orange-500 transition" />
-                       )}
-                     </button>
- 
-                     {/* Content */}
-                     <div className="flex-1 min-w-0">
-                       <div
-                         onClick={() => void onToggleMemo(memo.id)}
-                         className={`cursor-pointer text-xs leading-relaxed transition ${
-                           memo.done
-                             ? 'line-through text-neutral-400 dark:text-neutral-500'
-                             : 'font-medium text-neutral-800 dark:text-neutral-100'
-                         }`}
-                       >
-                         {memo.text}
-                       </div>
-                       <div className="mt-1 text-[10px] text-neutral-400">
-                         {formatMemoTime(memo.createdAt, nowTime)}
-                       </div>
-                     </div>
- 
-                     {/* Delete button */}
-                     <div className="flex items-center opacity-0 group-hover:opacity-100 transition gap-0.5">
-                       {!memo.done && (
-                         <button
-                           type="button"
-                           onClick={() => {
-                             setFocusedMemoId(memo.id)
-                             handleTabChange('focus')
-                           }}
-                           className="text-neutral-400 hover:text-orange-500 transition p-0.5"
-                           title="为此任务开启专注番茄钟"
-                         >
-                           <Target className="h-3.5 w-3.5" />
-                         </button>
-                       )}
-                       <button
-                         type="button"
-                         onClick={() => void onDeleteMemo(memo.id)}
-                         className="text-neutral-400 hover:text-rose-500 transition p-0.5"
-                         title="删除便签"
-                       >
-                         <Trash2 className="h-3.5 w-3.5" />
-                       </button>
-                     </div>
-                   </div>
+                     memo={memo}
+                     timeLabel={formatMemoTime(memo.createdAt, nowTime)}
+                     onToggle={onToggleMemo}
+                     onUpdate={onUpdateMemo}
+                     onDelete={onDeleteMemo}
+                     onFocus={id => { setFocusedMemoId(id); handleTabChange('focus') }}
+                   />
                  ))
                )}
              </div>
