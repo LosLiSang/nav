@@ -95,12 +95,6 @@ export type SuperPinnedLink = {
   order: number
 }
 
-export type CountdownTarget = {
-  id: string
-  title: string
-  targetDate: string
-}
-
 export type WidgetTab = 'calendar' | 'memo' | 'qrcode' | 'totp' | 'tools'
 
 export type Settings = {
