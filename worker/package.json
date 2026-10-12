@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
+    "dev:proxy": "node ../scripts/dev-worker-proxy.mjs",
     "deploy": "wrangler deploy",
     "tail": "wrangler tail",
     "token": "wrangler secret put SYNC_TOKEN",

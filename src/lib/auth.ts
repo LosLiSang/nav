@@ -153,7 +153,7 @@ export function takeLoginNotice(): string {
 export async function apiRequest<T>(
   url: string,
   path: string,
-  options: { method?: string; token?: string; body?: unknown } = {},
+  options: { method?: string; token?: string; body?: unknown; timeoutMs?: number } = {},
 ): Promise<T> {
   const res = await fetch(`${url}${path}`, {
     method: options.method || 'GET',
@@ -162,7 +162,7 @@ export async function apiRequest<T>(
       ...(options.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
     },
     body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    signal: AbortSignal.timeout(options.timeoutMs ?? REQUEST_TIMEOUT_MS),
   })
   const body = (await res.json().catch(() => ({}))) as Record<string, unknown>
   if (!res.ok) {

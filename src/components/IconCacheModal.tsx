@@ -5,6 +5,7 @@ import { useNavStore } from '../store/useNavStore'
 import { iconStatus, planIconCleanup, toggleSelection, type IconFilter, type IconReloadResult } from '../lib/iconCache'
 import { hostnameOf } from '../lib/utils'
 import type { Bookmark } from '../types'
+import { ServerCachePanel } from './ServerCachePanel'
 
 type Props = { currentPageBookmarks: Bookmark[]; onClose: () => void }
 
@@ -182,6 +183,7 @@ export function IconCacheModal({ currentPageBookmarks, onClose }: Props) {
             </SelectionGroup>}
           </fieldset>
 
+          <ServerCachePanel currentPageBookmarks={currentPageBookmarks} />
         </div>
         <div className="flex justify-end gap-2 border-t border-neutral-200 p-4 text-xs dark:border-neutral-800">
           <button type="button" disabled={iconCleanupRunning} onClick={onClose} className="rounded-lg px-3 py-2 disabled:opacity-40">完成</button>

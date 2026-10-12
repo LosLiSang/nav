@@ -10,5 +10,5 @@
     "noUnusedLocals": true,
     "types": []
   },
-  "include": ["src", "worker-configuration.d.ts"]
+  "include": ["src", "local", "test", "worker-configuration.d.ts"]
 }

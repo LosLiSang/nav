@@ -20,6 +20,7 @@ import { fetchFaviconBlob, getFaviconCandidates, hostnameOf, normalizeIconUrl } 
 import { IconRequestPool } from '../lib/iconRequestPool'
 import { synchronizeWorkbench, type WorkbenchResolution } from '../lib/workbenchSync'
 import { planIconCleanup, type IconFilter, type IconReloadResult } from '../lib/iconCache'
+import { cacheCapabilities, refreshServerCache } from '../lib/metadataCache'
 import {
   DEFAULT_SETTINGS,
   SEARCH_ENGINES,
@@ -189,6 +190,7 @@ type NavState = {
   markIconFailed: (domain: string, expectedIcon: string) => Promise<void>
   clearAndReloadIcons: (bookmarkIds: string[], filter: IconFilter) => Promise<IconReloadResult[]>
   refreshIcon: (domain: string, bookmarkUrl?: string) => Promise<void>
+  applyServerIcon: (bookmarkId: string, version: string, expectedUrl?: string) => Promise<void>
 
   // Memos
   addMemo: (text: string) => Promise<void>
@@ -653,9 +655,12 @@ export const useNavStore = create<NavState>((set, get) => ({
         const now = Date.now()
         for (const row of cachedIconRows) {
           if (row.notFound) {
-            if (now - (row.updatedAt || 0) < SEVEN_DAYS_MS) {
+            if (now - (row.updatedAt || 0) < 5 * 60 * 1000) {
               nextFailedDomains[row.domain] = true
             }
+          } else if (now - (row.updatedAt || 0) >= SEVEN_DAYS_MS) {
+            // Only regenerable automatic cache is expired; bookmark/manual icon rows are untouched.
+            continue
           } else if (row.blob && row.blob instanceof Blob) {
             nextCachedIcons[row.domain] = URL.createObjectURL(row.blob)
           } else if (row.dataUrl && (row.dataUrl.startsWith('data:') || row.dataUrl.startsWith('blob:'))) {
@@ -1290,9 +1295,60 @@ export const useNavStore = create<NavState>((set, get) => ({
 
   async refreshIcon(domain, bookmarkUrl) {
     if (!domain || get().iconCleanupRunning) return
+    const bookmark = get().bookmarks.find(b => !b.iconUrl?.trim() &&
+      (bookmarkUrl ? b.url === bookmarkUrl : hostnameOf(b.url) === domain))
+    if (!bookmark) return
+    try {
+      await cacheCapabilities()
+      const results = await refreshServerCache([{ bookmarkId: bookmark.id, kind: 'icon', expectedUrl: bookmark.url }])
+      const row = results[0]
+      if (row?.status !== 'refreshed' || !row.version) throw new Error('服务端未刷新，旧图标已保留；可在缓存管理查看详情')
+      await get().applyServerIcon(bookmark.id, row.version, bookmark.url)
+    } catch (error) {
+      set({ syncMessage: error instanceof Error ? error.message : '图标刷新失败，旧图标已保留' })
+    }
+  },
+
+  async applyServerIcon(bookmarkId, version, expectedUrl) {
+    const bookmark = get().bookmarks.find(b => b.id === bookmarkId)
+    const session = get().session
+    if (!bookmark || bookmark.iconUrl?.trim() || !session || expectedUrl !== undefined && bookmark.url !== expectedUrl) throw new Error('书签或账号已变化，未更新本地缓存')
+    const domain = hostnameOf(bookmark.url)
+    const unchanged = () => {
+      const current = get().bookmarks.find(b => b.id === bookmarkId)
+      return get().session?.user.id === session.user.id && current?.url === bookmark.url && !current.iconUrl?.trim()
+    }
     iconRequests.invalidate([domain])
-    // Existing explicit force-refresh action is separate from normal local cleanup.
-    await loadAutoIcon(domain, bookmarkUrl || `https://${domain}`, true)
+    const outcome = await iconRequests.run(domain, async (isCurrent, signal) => {
+      set(current => ({ loadingIconDomains: { ...current.loadingIconDomains, [domain]: true } }))
+      let image: Awaited<ReturnType<typeof fetchFaviconBlob>> = null
+      let published = false
+      try {
+        const endpoint = `${session.url}/api/icon?domain=${encodeURIComponent(new URL(bookmark.url).origin)}&version=${encodeURIComponent(version)}`
+        // A version-bound fetch has no fallback: an old value is not a successful local update.
+        image = await fetchFaviconBlob([endpoint], true, signal)
+        if (!image || !isCurrent() || !unchanged()) throw new Error('未获取到服务端新图标或书签已变化，旧图标已保留')
+        await db.transaction('rw', db.iconCache, async () => {
+          if (!isCurrent() || !unchanged()) throw new Error('更新已被其他操作替代')
+          await db.iconCache.put({ domain, blob: image!.blob, notFound: false, updatedAt: Date.now() })
+        })
+        if (!isCurrent()) return { domain, status: 'superseded' }
+        const old = get().cachedIcons[domain]
+        set(current => ({
+          cachedIcons: { ...current.cachedIcons, [domain]: image!.objectUrl },
+          failedDomains: withoutKeys(current.failedDomains, [domain]),
+        }))
+        published = true
+        revokeIcon(old)
+        return { domain, status: 'success' }
+      } catch (error) {
+        return { domain, status: 'failed', message: error instanceof Error ? error.message : '本地更新失败' }
+      } finally {
+        if (image && !published) revokeIcon(image.objectUrl)
+        if (isCurrent()) set(current => ({ loadingIconDomains: withoutKeys(current.loadingIconDomains, [domain]) }))
+      }
+    })
+    if (outcome.status !== 'success') throw new Error(outcome.message || '本地更新已被替代')
   },
 
   async addMemo(text) {

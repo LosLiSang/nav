@@ -1,6 +1,7 @@
 name = "nav"
 main = "src/index.ts"
 compatibility_date = "2025-09-22"
+compatibility_flags = ["global_fetch_strictly_public"]
 
 # 本地开发（npm run dev）会自动在 .wrangler/state 下建一个本地 SQLite。
 # 表结构由 migrations/ 管理：npm run db:migrate:local / db:migrate:remote
