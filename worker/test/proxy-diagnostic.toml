@@ -1,0 +1,5 @@
+name = "nav-local-proxy-diagnostic"
+main = "proxy-diagnostic.ts"
+compatibility_date = "2025-09-22"
+
+# Loopback wire URL and ephemeral token supplied by the diagnostic launcher.

@@ -1,7 +1,7 @@
 import type { Settings } from '../types'
 import { hostnameOf, normalizeUrl } from './url'
 export { hostnameOf, normalizeUrl } from './url'
-import { loadServerUrl } from './auth'
+import { loadServerUrl, loadSession } from './auth'
 
 /**
  * 书签文字在暗色模式下的实际渲染颜色。
@@ -159,7 +159,7 @@ export function getFaviconCandidates(url: string, customIconUrl?: string, force 
   const forceParam = force ? `&force=1&_t=${Date.now()}` : ''
   const workerUrl = getWorkerUrl()
 
-  // 1. 全部统一走 Cloudflare Worker 图标代理，享边缘全球 30 天强缓存与跨域直连
+  // 1. 优先 Worker 的公共图标应用缓存；外层响应 no-store，避免旧版本回填。
   if (workerUrl) {
     candidates.push(`${workerUrl}/api/icon?domain=${host}${forceParam}`)
   }
@@ -179,7 +179,7 @@ export function faviconFor(url: string, customIconUrl?: string): string {
 }
 
 /**
- * 抓取目标网站的标题名称（优先使用云端 Cloudflare Worker 代理并享有边缘 30 天缓存；本地开发环境自动 fallback 本地）
+ * 抓取页面标题；Worker 按账号隔离缓存，失败不把猜测的域名当抓取成功。
  */
 export async function fetchWebsiteTitle(rawUrl: string, force = false): Promise<string> {
   const trimmed = rawUrl.trim()
@@ -191,7 +191,7 @@ export async function fetchWebsiteTitle(rawUrl: string, force = false): Promise<
   const workerUrl = getWorkerUrl()
   const candidates: string[] = []
 
-  // 全部统一走 Cloudflare Worker 边缘代理（全球节点免翻墙、30天缓存、反爬盾 Logo 提取）
+  // 请求只带所属 Worker 的会话，不把凭证发送给目标网站。
   if (workerUrl) {
     candidates.push(`${workerUrl}/api/title?url=${encodedUrl}${forceParam}`)
     candidates.push(`${workerUrl}/api/fetch-title?url=${encodedUrl}${forceParam}`)
@@ -203,7 +203,11 @@ export async function fetchWebsiteTitle(rawUrl: string, force = false): Promise<
       const timer = setTimeout(() => controller.abort(), 9000)
       const res = await fetch(endpoint, {
         signal: controller.signal,
-        headers: { Accept: 'application/json' },
+        cache: 'no-store',
+        headers: {
+          Accept: 'application/json',
+          ...(loadSession()?.url === workerUrl ? { Authorization: `Bearer ${loadSession()!.token}` } : {}),
+        },
       })
       clearTimeout(timer)
       if (res.ok) {
@@ -217,7 +221,9 @@ export async function fetchWebsiteTitle(rawUrl: string, force = false): Promise<
     }
   }
 
-  // 终极保底：客户端本地从域名推导规范名称，杜绝「抓取失败」
+  // 仅未配置 Worker 时允许本地推导名称。
+  // A configured server failure must remain a failure, not a guessed title reported as success.
+  if (workerUrl) return ''
   const host = hostnameOf(rawUrl)
   if (host) {
     return formatDomainTitle(host)
@@ -283,7 +289,7 @@ export function fetchFaviconBlob(
       try {
         const res = await fetch(url, {
           signal: controller.signal,
-          cache: force ? 'reload' : 'default',
+          cache: url.includes('/api/icon?') ? 'no-store' : force ? 'reload' : 'default',
         })
         if (res.status === 429) {
           await new Promise((resolve) => setTimeout(resolve, 300))

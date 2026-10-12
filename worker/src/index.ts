@@ -8,13 +8,15 @@
  *    服务端只认会话解析出来的 user_id，从不信任客户端自报身份。
  * 3. 旧单用户数据（nav_docs.default）由管理员一次性认领，认领前原样备份。
  *    旧的 SYNC_TOKEN 默认降级为只读，供老客户端在迁移期拉取数据。
- * 4. /api/icon、/api/title 为公开抓取接口（逻辑见 fetchers.ts）。
+ * 4. 图标公共共享、标题按账号隔离；匿名标题不持久化。授权刷新见 metadata-management.ts。
  */
 
 import { Hono, type Context, type MiddlewareHandler } from 'hono'
 import { cors } from 'hono/cors'
 import { randomToken, safeEqual, sha256Hex } from './crypto'
-import { iconResponse, titleResponse } from './fetchers'
+import { MetadataCache, metadataResponse, CACHE_LIMITS, type MetadataKind } from './metadata-cache'
+import { publicTransport, readBounded, TargetError, type MetadataTransport } from './safe-metadata-fetch'
+import { MetadataManagement, ManagementError } from './metadata-management'
 import { workbenchRoutes, migrateLegacy } from './workbench'
 import {
   LOGIN_CODE_TTL_MS,
@@ -69,6 +71,7 @@ const LEGACY_DOC_ID = 'default'
 const MAX_BODY_BYTES = 4 * 1024 * 1024
 const GITHUB_UA = 'nav-worker'
 
+export function createApp(transport: MetadataTransport = publicTransport) {
 const app = new Hono<App>()
 
 // ---------------------------------------------------------------------------
@@ -80,8 +83,8 @@ function allowedOrigins(env: Env): string[] {
 }
 
 app.use('/api/icon', cors({ origin: '*' }))
-app.use('/api/title', cors({ origin: '*' }))
-app.use('/api/fetch-title', cors({ origin: '*' }))
+app.use('/api/title', cors({ origin: '*', allowHeaders: ['Authorization', 'Content-Type'], exposeHeaders: ['X-Metadata-Cache', 'X-Metadata-Version'] }))
+app.use('/api/fetch-title', cors({ origin: '*', allowHeaders: ['Authorization', 'Content-Type'], exposeHeaders: ['X-Metadata-Cache', 'X-Metadata-Version'] }))
 app.use('*', async (c, next) => {
   const p = c.req.path
   if (p === '/api/icon' || p === '/api/title' || p === '/api/fetch-title') return next()
@@ -124,9 +127,30 @@ app.get('/', (c) =>
   }),
 )
 
-app.get('/api/icon', (c) => iconResponse(new URL(c.req.url)))
-app.get('/api/title', (c) => titleResponse(new URL(c.req.url)))
-app.get('/api/fetch-title', (c) => titleResponse(new URL(c.req.url)))
+async function metadataRead(c: Ctx, kind: MetadataKind) {
+  if (c.req.query('force')) return fail(c, 403, 'use_authorized_cache_refresh')
+  const raw = c.req.query(kind === 'icon' ? 'domain' : 'url')
+  if (!raw) return fail(c, 400, 'missing_target')
+  if (bearer(c)) {
+    const rejected = await authenticate()(c, async () => {})
+    if (rejected) return rejected
+    const user = currentUser(c)
+    if (!canSync(user)) return fail(c, 403, user.status === 'pending' ? 'pending_approval' : 'account_disabled')
+  }
+  try {
+    const uid = c.get('principal')?.kind === 'user' ? currentUser(c).id : undefined
+    const client = uid || await sha256Hex(c.req.header('CF-Connecting-IP') || 'anonymous')
+    const value = await new MetadataCache(c.env.DB, transport).read(kind, raw, uid, client)
+    if (c.req.query('version') && c.req.query('version') !== value.version) return fail(c, 409, 'metadata_version_changed')
+    return metadataResponse(value, kind)
+  } catch (error) {
+    if (error instanceof TargetError) return fail(c, 400, error.message)
+    return c.json({ ok: false, error: 'metadata_upgrade_required' }, 503)
+  }
+}
+app.get('/api/icon', c => metadataRead(c, 'icon'))
+app.get('/api/title', c => metadataRead(c, 'title'))
+app.get('/api/fetch-title', c => metadataRead(c, 'title'))
 
 // ---------------------------------------------------------------------------
 // GitHub OAuth
@@ -469,11 +493,42 @@ for (const path of ['/api/memos*', '/api/clipboard']) {
 }
 app.route('/', workbenchRoutes)
 
+app.get('/api/cache/capabilities', authenticate(), requireActive, async c => {
+  try {
+    const epoch = await new MetadataCache(c.env.DB, transport).epoch()
+    return c.json({ ok: true, protocol: 1, limits: CACHE_LIMITS, epoch, admin: currentUser(c).role === 'admin' })
+  } catch { return c.json({ ok: false, error: 'metadata_upgrade_required' }, 503) }
+})
+
+async function cacheOperation(c: Ctx, action: 'refresh' | 'invalidate') {
+  let raw: string
+  try {
+    raw = new TextDecoder().decode(await readBounded(new Response(c.req.raw.body), 65536, AbortSignal.timeout(5000)))
+  } catch (error) {
+    return fail(c, error instanceof Error && error.message === 'response_too_large' ? 413 : 400, 'invalid_or_oversized_body')
+  }
+  let body: Record<string, unknown>
+  try { body = JSON.parse(raw) } catch { return fail(c, 400, 'invalid_json') }
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return fail(c, 400, 'invalid_json')
+  try {
+    const management = new MetadataManagement(new MetadataCache(c.env.DB, transport))
+    const result = action === 'refresh' ? await management.refresh(currentUser(c).id, body) :
+      await management.invalidatePublic(currentUser(c).id, body)
+    return c.json(result.body, result.pending ? 202 : 200)
+  } catch (error) {
+    if (error instanceof ManagementError) return c.json({ ok: false, error: error.message }, error.status)
+    return c.json({ ok: false, error: 'metadata_unavailable' }, 503)
+  }
+}
+app.post('/api/cache/refresh', authenticate(), requireActive, c => cacheOperation(c, 'refresh'))
+
 // ---------------------------------------------------------------------------
 // 管理员
 // ---------------------------------------------------------------------------
 
 app.use('/api/admin/*', authenticate(), requireAdmin)
+
+app.post('/api/admin/cache/invalidate-public', c => cacheOperation(c, 'invalidate'))
 
 app.get('/api/admin/users', async (c) => {
   const { results } = await c.env.DB.prepare(
@@ -554,4 +609,7 @@ app.onError((error, c) => {
   return fail(c, 500, 'internal_error')
 })
 
-export default app
+return app
+}
+
+export default createApp()
