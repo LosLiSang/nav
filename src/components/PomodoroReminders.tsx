@@ -66,7 +66,7 @@ function DurationInputs({ timer }: { timer: PomodoroController }) {
                 setDrafts((prev) => ({ ...prev, [key]: value }))
                 timer.setDuration(key, value)
               }}
-              className="w-20 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-right outline-none text-neutral-800 dark:text-neutral-100 focus:border-blue-500"
+              className="w-20 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-right outline-none text-neutral-800 dark:text-neutral-100 focus:border-orange-500"
             />
             <span className="text-neutral-500">分钟</span>
           </span>
@@ -133,7 +133,7 @@ export function PomodoroSettingsDialog({ timer, open, onClose }: { timer: Pomodo
                   setLongBreakDraft(e.target.value)
                   timer.setLongBreakEvery(e.target.value)
                 }}
-                className="w-20 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-right outline-none text-neutral-800 dark:text-neutral-100 focus:border-blue-500"
+                className="w-20 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-right outline-none text-neutral-800 dark:text-neutral-100 focus:border-orange-500"
               />
               <span className="text-[11px] text-neutral-500">个番茄</span>
             </span>

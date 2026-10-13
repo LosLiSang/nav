@@ -126,7 +126,7 @@ export function PomodoroFullscreen({ timer, open, onClose, accentColor, taskText
       <div className="relative flex items-center gap-3">
         <button ref={primary} type="button" onClick={timer.toggle} data-testid="pomodoro-fullscreen-toggle"
           style={{ backgroundColor: timer.isRunning ? undefined : modeColor }}
-          className={`flex min-w-32 items-center justify-center gap-2 rounded-2xl px-6 py-3 text-sm font-semibold text-white shadow-lg transition hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-500 ${timer.isRunning ? 'bg-neutral-700' : ''}`}>
+          className={`flex min-w-32 items-center justify-center gap-2 rounded-2xl px-6 py-3 text-sm font-semibold shadow-lg transition hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-500 ${timer.isRunning ? 'bg-neutral-700 text-white' : timer.mode === 'work' ? 'text-on-accent' : 'text-white'}`}>
           {timer.isRunning ? <><Pause className="h-4 w-4" />暂停</> : <><Play className="h-4 w-4" />开始</>}
         </button>
         <button type="button" onClick={timer.reset} aria-label="重置计时" title="重置计时"

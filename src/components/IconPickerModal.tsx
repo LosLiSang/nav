@@ -242,7 +242,7 @@ export function IconPickerModal({ currentIconUrl, onSelectIcon, onClose }: Props
                 onClick={() => setActiveTab('brands')}
                 className={`rounded-full px-3 py-1 text-xs font-medium transition ${
                   activeTab === 'brands'
-                    ? 'bg-orange-500 text-white shadow-sm'
+                    ? 'bg-orange-500 text-on-accent shadow-sm'
                     : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700'
                 }`}
               >
@@ -253,7 +253,7 @@ export function IconPickerModal({ currentIconUrl, onSelectIcon, onClose }: Props
                 onClick={() => setActiveTab('lucide')}
                 className={`rounded-full px-3 py-1 text-xs font-medium transition ${
                   activeTab === 'lucide'
-                    ? 'bg-orange-500 text-white shadow-sm'
+                    ? 'bg-orange-500 text-on-accent shadow-sm'
                     : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700'
                 }`}
               >
@@ -307,7 +307,7 @@ export function IconPickerModal({ currentIconUrl, onSelectIcon, onClose }: Props
                       {brand.name}
                     </span>
                     {isSelected && (
-                      <div className="absolute right-1 top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-orange-500 text-white">
+                      <div className="absolute right-1 top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-orange-500 text-on-accent">
                         <Check className="h-2.5 w-2.5 stroke-[3]" />
                       </div>
                     )}
@@ -376,7 +376,7 @@ export function IconPickerModal({ currentIconUrl, onSelectIcon, onClose }: Props
                 }
               }}
               disabled={!customInput.trim()}
-              className="rounded-xl bg-orange-500 px-3.5 py-1.5 text-xs font-medium text-white shadow-sm transition hover:bg-orange-600 disabled:opacity-50"
+              className="rounded-xl bg-orange-500 px-3.5 py-1.5 text-xs font-medium text-on-accent shadow-sm transition hover:bg-orange-600 disabled:opacity-50"
             >
               应用
             </button>

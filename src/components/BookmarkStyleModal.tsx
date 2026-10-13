@@ -382,7 +382,7 @@ export function BookmarkStyleModal({
                 { label: '热情红', color: '#ef4444' },
                 { label: '曜石黑', color: '#171717' },
               ].map((c) => {
-                const isSelected = (settings.highlightColor || '#2563eb') === c.color
+                const isSelected = (settings.highlightColor || '#ff6900') === c.color
                 return (
                   <button
                     key={c.color}
@@ -402,7 +402,7 @@ export function BookmarkStyleModal({
                 <span>自定义:</span>
                 <input
                   type="color"
-                  value={settings.highlightColor || '#2563eb'}
+                  value={settings.highlightColor || '#ff6900'}
                   onChange={(e) => onChangeSettings({ highlightColor: e.target.value })}
                   className="h-6 w-6 cursor-pointer rounded border-0 bg-transparent"
                 />
@@ -539,7 +539,7 @@ export function BookmarkStyleModal({
                   onClick={() => onChangeSettings({ columnMode: 'auto' })}
                   className={`rounded-lg px-2.5 py-1 text-[11px] font-medium transition ${
                     settings.columnMode === 'auto'
-                      ? 'bg-orange-500 text-white'
+                      ? 'bg-orange-500 text-on-accent'
                       : 'bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300'
                   }`}
                 >
@@ -550,7 +550,7 @@ export function BookmarkStyleModal({
                   onClick={() => onChangeSettings({ columnMode: 'manual' })}
                   className={`rounded-lg px-2.5 py-1 text-[11px] font-medium transition ${
                     settings.columnMode !== 'auto'
-                      ? 'bg-orange-500 text-white'
+                      ? 'bg-orange-500 text-on-accent'
                       : 'bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300'
                   }`}
                 >
@@ -632,7 +632,7 @@ export function BookmarkStyleModal({
                         }
                         setRenaming(false)
                       }}
-                      className="rounded-lg bg-orange-500 px-3 py-1 text-white"
+                      className="rounded-lg bg-orange-500 px-3 py-1 text-on-accent"
                     >
                       保存
                     </button>
@@ -697,7 +697,7 @@ export function BookmarkStyleModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl bg-orange-500 px-5 py-2 font-medium text-white shadow-sm hover:bg-orange-600 transition border border-transparent"
+            className="rounded-xl bg-orange-500 px-5 py-2 font-medium text-on-accent shadow-sm hover:bg-orange-600 transition border border-transparent"
           >
             完成
           </button>

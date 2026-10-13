@@ -198,7 +198,7 @@ export function TopNavbar({
                       }}
                       className={`rounded-lg px-2.5 py-1 text-xs transition ${
                         city === c
-                          ? 'bg-orange-500 text-white font-medium'
+                          ? 'bg-orange-500 text-on-accent font-medium'
                           : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700'
                       }`}
                     >
@@ -225,7 +225,7 @@ export function TopNavbar({
                         setShowCityPicker(false)
                       }
                     }}
-                    className="rounded-lg bg-orange-500 px-3 py-1 text-xs text-white"
+                    className="rounded-lg bg-orange-500 px-3 py-1 text-xs text-on-accent"
                   >
                     确认
                   </button>

@@ -64,7 +64,7 @@ export function FloatingDock({
         title={isSortMode ? '关闭排序' : '打开排序'}
         className={`flex h-7 w-7 items-center justify-center rounded-full transition ${
           isSortMode
-            ? 'bg-blue-500 text-white'
+            ? 'bg-orange-500 text-on-accent'
             : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-white'
         }`}
       >

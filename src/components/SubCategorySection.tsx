@@ -140,7 +140,7 @@ function SubSectionTabItem({
       onContextMenu={onContextMenu}
       className={`flex flex-shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium select-none transition-colors duration-150 ${
         isActive
-        ? 'text-white shadow-sm'
+        ? 'text-on-accent shadow-sm'
           : isOver && isDraggingOtherType
             ? 'bg-orange-100 dark:bg-orange-950/80 text-orange-700 dark:text-orange-300 ring-2 ring-orange-500 scale-105 shadow-md'
             : 'text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800'
@@ -347,7 +347,7 @@ function SubBookmarkItem({
           fontStyle: settings.isItalic ? 'italic' : undefined,
           color: effectiveTextColor,
         }}
-        className="min-w-0 flex-1 truncate text-[13px] font-normal tracking-tight group-hover:text-blue-500 dark:group-hover:text-white transition-colors pointer-events-none select-none"
+        className="min-w-0 flex-1 truncate text-[13px] font-normal tracking-tight group-hover:text-orange-500 dark:group-hover:text-white transition-colors pointer-events-none select-none"
       >
         {bookmark.title}
       </span>
@@ -554,7 +554,7 @@ export function SubCategorySection({
             type="button"
             onClick={() => onOpenAddBookmark(effectiveSubCatId)}
             style={{ backgroundColor: settings.highlightColor || '#ff6900' }}
-            className="flex items-center gap-1 rounded-lg px-3 py-1 text-xs font-medium text-white shadow-sm hover:opacity-90 transition"
+            className="flex items-center gap-1 rounded-lg px-3 py-1 text-xs font-medium text-on-accent shadow-sm hover:opacity-90 transition"
           >
             <Plus className="h-3 w-3" />
             <span>添加</span>
@@ -757,7 +757,7 @@ export function SubCategorySection({
                   setRenamingItem(null)
                 }}
                 style={{ backgroundColor: settings.highlightColor || '#ff6900' }}
-                className="rounded-xl px-4 py-1.5 font-medium text-white shadow-sm hover:opacity-90 disabled:opacity-50"
+                className="rounded-xl px-4 py-1.5 font-medium text-on-accent shadow-sm hover:opacity-90 disabled:opacity-50"
               >
                 保存
               </button>

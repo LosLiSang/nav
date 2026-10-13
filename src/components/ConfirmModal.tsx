@@ -64,10 +64,10 @@ export function ConfirmModal({
           <button
             type="button"
             onClick={onConfirm}
-            className={`rounded-xl px-4 py-2 font-medium text-white shadow-sm transition ${
+            className={`rounded-xl px-4 py-2 font-medium shadow-sm transition ${
               isDanger
-                ? 'bg-red-600 hover:bg-red-700'
-                : 'bg-orange-500 hover:bg-orange-600'
+                ? 'bg-red-600 text-white hover:bg-red-700'
+                : 'bg-orange-500 text-on-accent hover:bg-orange-600'
             }`}
           >
             {confirmText}

@@ -150,11 +150,11 @@ function CategoryTabItem({
       onContextMenu={onContextMenu}
       className={`relative flex flex-shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium select-none transition-colors duration-150 ${
         active
-          ? 'text-white shadow-sm'
+          ? 'text-on-accent shadow-sm'
           : isOver && isDraggingOtherType
-            ? 'bg-blue-100 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 ring-2 ring-blue-400 dark:ring-blue-500 scale-105 shadow-md'
+            ? 'bg-orange-100 dark:bg-orange-950/80 text-orange-700 dark:text-orange-300 ring-2 ring-orange-400 dark:ring-orange-500 scale-105 shadow-md'
             : 'text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-white'
-      } ${isSortMode ? 'cursor-grab active:cursor-grabbing border border-dashed border-blue-300 dark:border-blue-700' : ''}`}
+      } ${isSortMode ? 'cursor-grab active:cursor-grabbing border border-dashed border-orange-300 dark:border-orange-700' : ''}`}
     >
       {!active && (
         <span
@@ -262,7 +262,7 @@ function BookmarkCardItem({
           fontStyle: settings.isItalic ? 'italic' : undefined,
           color: effectiveTextColor,
         }}
-        className="min-w-0 flex-1 truncate text-[13px] font-normal tracking-tight group-hover:text-blue-500 dark:group-hover:text-white transition-colors pointer-events-none select-none"
+        className="min-w-0 flex-1 truncate text-[13px] font-normal tracking-tight group-hover:text-orange-500 dark:group-hover:text-white transition-colors pointer-events-none select-none"
       >
         {bookmark.title}
       </span>
@@ -403,7 +403,7 @@ export function MainCategoryCard({
                   setAddingCat(false)
                 }}
                placeholder="新分类"
-                className="w-20 rounded-full border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-100 px-2.5 py-0.5 text-xs outline-none focus:border-blue-500"
+                className="w-20 rounded-full border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-100 px-2.5 py-0.5 text-xs outline-none focus:border-orange-500"
              />
            </form>
          ) : (
@@ -449,7 +449,7 @@ export function MainCategoryCard({
             title={isSortMode ? '退出排序模式' : '打开拖拽排序模式'}
             className={`rounded p-1 transition ${
               isSortMode
-                ? 'bg-blue-500 text-white'
+                ? 'bg-orange-500 text-on-accent'
                 : 'hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200'
             }`}
           >
@@ -554,7 +554,7 @@ export function MainCategoryCard({
                     onClick={() => setLayoutTab(tab)}
                     className={`rounded-full px-3 py-1 font-medium transition ${
                       layoutTab === tab
-                        ? 'bg-[#ff6900] text-white shadow-sm'
+                        ? 'bg-orange-500 text-on-accent shadow-sm'
                         : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700'
                     }`}
                   >
@@ -577,7 +577,7 @@ export function MainCategoryCard({
                       })
                     }
                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
-                      settings.showBookmarkIcon !== false ? 'bg-[#ff6900]' : 'bg-neutral-300 dark:bg-neutral-700'
+                      settings.showBookmarkIcon !== false ? 'bg-orange-500' : 'bg-neutral-300 dark:bg-neutral-700'
                     }`}
                   >
                     <span
@@ -604,7 +604,7 @@ export function MainCategoryCard({
                     onClick={() => onUpdateSettings?.({ columnMode: 'auto' })}
                     className={`rounded-full px-3 py-1 text-xs transition ${
                       settings.columnMode === 'auto'
-                        ? 'bg-[#ff6900] text-white shadow-sm'
+                        ? 'bg-orange-500 text-on-accent shadow-sm'
                         : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700'
                     }`}
                   >
@@ -615,7 +615,7 @@ export function MainCategoryCard({
                     onClick={() => onUpdateSettings?.({ columnMode: 'manual' })}
                     className={`rounded-full px-3 py-1 text-xs transition ${
                       settings.columnMode !== 'auto'
-                        ? 'bg-[#ff6900] text-white shadow-sm'
+                        ? 'bg-orange-500 text-on-accent shadow-sm'
                         : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700'
                     }`}
                   >
@@ -771,7 +771,7 @@ export function MainCategoryCard({
               <button
                 type="button"
                 onClick={() => setSelectedHelp(null)}
-                className="rounded-xl bg-[#ff6900] px-4 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-[#e05d00]"
+                className="rounded-xl bg-orange-500 px-4 py-1.5 text-xs font-medium text-on-accent shadow-sm hover:bg-orange-600"
               >
                 知道了
               </button>
@@ -859,7 +859,7 @@ export function MainCategoryCard({
                   }
                   setEditingCategory(null)
                 }}
-                className="rounded-xl bg-[#ff6900] px-4 py-1.5 font-medium text-white shadow-sm hover:bg-[#e05d00] disabled:opacity-50"
+                className="rounded-xl bg-orange-500 px-4 py-1.5 font-medium text-on-accent shadow-sm hover:bg-orange-600 disabled:opacity-50"
               >
                 保存
               </button>

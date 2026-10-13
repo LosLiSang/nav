@@ -11,6 +11,7 @@
     "check:sync": "node scripts/check-sync-remote.mjs",
     "check:dark": "node scripts/check-dark-mode.mjs",
     "check:light": "node scripts/check-light-mode.mjs",
+    "check:accent": "node scripts/test-accent-theme-e2e.mjs",
     "check:sidebars": "node scripts/test-sidebars-e2e.mjs",
     "check:title": "node scripts/test-title-fetch.mjs",
     "check:metadata": "node scripts/test-metadata-cache-e2e.mjs",

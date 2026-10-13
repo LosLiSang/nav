@@ -219,7 +219,7 @@ export function CategoryStyleModal({
                   onSave(style)
                   onClose()
                 }}
-                className="rounded-xl bg-[#ff6900] px-4 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-[#e05d00]"
+                className="rounded-xl bg-orange-500 px-4 py-1.5 text-xs font-medium text-on-accent shadow-sm hover:bg-orange-600"
               >
                 立即保存
               </button>
