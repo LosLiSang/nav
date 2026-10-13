@@ -98,11 +98,20 @@ export function MemoRow({ memo, timeLabel, onToggle, onUpdate, onDelete, onFocus
   }
 
   return (
-    <div data-memo-id={memo.id} aria-busy={saving} className="group flex items-start justify-between gap-2 rounded-xl border border-black/5 dark:border-white/5 bg-black/[0.02] dark:bg-white/[0.02] p-2.5 transition hover:bg-black/[0.05] dark:hover:bg-white/[0.05]">
-      <button type="button" role="checkbox" aria-checked={memo.done} aria-label="切换便签完成状态" title={memo.done ? '标记为未完成' : '标记为已完成'} onClick={() => void onToggle(memo.id)} className="mt-0.5 shrink-0 rounded text-neutral-400 hover:text-orange-500 focus-visible:outline-2 focus-visible:outline-orange-500">
-        {memo.done ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <Circle className="h-4 w-4" />}
-      </button>
-      <div className="min-w-0 flex-1">
+    <div data-memo-id={memo.id} aria-busy={saving} className="group flex flex-col gap-1.5 rounded-xl border border-black/5 dark:border-white/5 bg-black/[0.02] dark:bg-white/[0.02] p-2.5 transition hover:bg-black/[0.05] dark:hover:bg-white/[0.05]">
+      {/* 上方按钮行：完成状态在左，操作按钮在右；正文独占下方整行宽度。 */}
+      <div data-testid="memo-toolbar" className="flex h-5 items-center justify-between gap-2">
+        <button type="button" role="checkbox" aria-checked={memo.done} aria-label="切换便签完成状态" title={memo.done ? '标记为未完成' : '标记为已完成'} onClick={() => void onToggle(memo.id)} className="shrink-0 rounded text-neutral-400 hover:text-orange-500 focus-visible:outline-2 focus-visible:outline-orange-500">
+          {memo.done ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <Circle className="h-4 w-4" />}
+        </button>
+        <div data-testid="memo-actions" className="flex shrink-0 items-center gap-0.5 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100">
+          {link && !editing && <a data-testid="memo-open" aria-label="打开便签链接" title="打开第一个链接（新标签页）" href={link} target="_blank" rel="noopener noreferrer" className="rounded p-0.5 text-neutral-500 hover:text-blue-600 dark:hover:text-blue-400 focus-visible:outline-2 focus-visible:outline-blue-500"><ExternalLink className="h-3.5 w-3.5" /></a>}
+          <button type="button" aria-label="编辑便签" title="编辑便签（双击正文）" disabled={editing || saving} onClick={beginEditing} className="rounded p-0.5 text-neutral-500 hover:text-orange-500 focus-visible:outline-2 focus-visible:outline-orange-500 disabled:opacity-30"><FileEdit className="h-3.5 w-3.5" /></button>
+          {!memo.done && <button type="button" aria-label="专注此便签" onClick={() => onFocus(memo.id)} className="rounded p-0.5 text-neutral-500 hover:text-orange-500 focus-visible:outline-2 focus-visible:outline-orange-500" title="为此任务开启专注番茄钟"><Target className="h-3.5 w-3.5" /></button>}
+          <button type="button" aria-label="删除便签" title="删除便签" onClick={() => void onDelete(memo.id)} className="rounded p-0.5 text-neutral-500 hover:text-rose-500 focus-visible:outline-2 focus-visible:outline-rose-500"><Trash2 className="h-3.5 w-3.5" /></button>
+        </div>
+      </div>
+      <div className="min-w-0">
         {editing ? (
           <>
             <textarea
@@ -131,12 +140,6 @@ export function MemoRow({ memo, timeLabel, onToggle, onUpdate, onDelete, onFocus
           </div>
         )}
         <div className="mt-1 text-[10px] text-neutral-500 dark:text-neutral-400">{timeLabel}</div>
-      </div>
-      <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100">
-        {link && !editing && <a data-testid="memo-open" aria-label="打开便签链接" title="打开第一个链接（新标签页）" href={link} target="_blank" rel="noopener noreferrer" className="rounded p-0.5 text-neutral-500 hover:text-blue-600 dark:hover:text-blue-400 focus-visible:outline-2 focus-visible:outline-blue-500"><ExternalLink className="h-3.5 w-3.5" /></a>}
-        <button type="button" aria-label="编辑便签" title="编辑便签（双击正文）" disabled={editing || saving} onClick={beginEditing} className="rounded p-0.5 text-neutral-500 hover:text-orange-500 disabled:opacity-30"><FileEdit className="h-3.5 w-3.5" /></button>
-        {!memo.done && <button type="button" onClick={() => onFocus(memo.id)} className="rounded p-0.5 text-neutral-500 hover:text-orange-500" title="为此任务开启专注番茄钟"><Target className="h-3.5 w-3.5" /></button>}
-        <button type="button" aria-label="删除便签" title="删除便签" onClick={() => void onDelete(memo.id)} className="rounded p-0.5 text-neutral-500 hover:text-rose-500"><Trash2 className="h-3.5 w-3.5" /></button>
       </div>
     </div>
   )
