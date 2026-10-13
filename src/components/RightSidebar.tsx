@@ -21,7 +21,7 @@ import type { MemoItem, Settings } from '../types'
 import { usePomodoro } from '../lib/usePomodoro'
 import { PomodoroCompletion, PomodoroSettingsDialog } from './PomodoroReminders'
 import { MemoRow } from './MemoRow'
-import { WorkbenchSyncStatus } from './WorkbenchSyncStatus'
+import { WorkbenchSyncIcon, WorkbenchSyncStatus } from './WorkbenchSyncStatus'
  
  type Props = {
    scratchpadContent: string
@@ -191,6 +191,7 @@ type TodoFilter = 'all' | 'pending' | 'done'
   } = pomodoro
   const pomoDurations = pomodoro.preferences.durations
   const [showPomoSettings, setShowPomoSettings] = useState(false)
+  const [showSyncDetails, setShowSyncDetails] = useState(false)
 
   const formatPomoTime = (sec: number) => {
     const m = Math.floor(sec / 60)
@@ -248,7 +249,6 @@ type TodoFilter = 'all' | 'pending' | 'done'
        style={{ backgroundColor: cardBg }}
      >
        {/* Top Header */}
-       <div className="px-3 pt-2 shrink-0"><WorkbenchSyncStatus /></div>
        <div className="flex h-11 shrink-0 items-center justify-between border-b border-black/5 dark:border-white/10 px-3.5">
          {/* Segmented Tabs */}
           <div className="flex items-center gap-1 rounded-xl bg-black/5 dark:bg-white/5 p-0.5 text-xs">
@@ -292,6 +292,8 @@ type TodoFilter = 'all' | 'pending' | 'done'
            </button>
          </div>
  
+         <div className="flex items-center gap-0.5">
+         <WorkbenchSyncIcon expanded={showSyncDetails} onToggle={() => setShowSyncDetails(v => !v)} />
          {/* Collapse Button */}
          <button
            type="button"
@@ -301,7 +303,9 @@ type TodoFilter = 'all' | 'pending' | 'done'
          >
            <PanelRightClose className="h-4 w-4" />
          </button>
+         </div>
        </div>
+       {showSyncDetails && <div id="workbench-sync-details" className="px-3 pt-2 shrink-0"><WorkbenchSyncStatus /></div>}
  
        {/* Main Scrollable Body */}
        <div className="flex-1 overflow-y-auto p-3.5">

@@ -382,6 +382,13 @@ async function main() {
       await m.useNavStore.getState().saveScratchpad('本地未同步内容');
       await m.useNavStore.getState().syncWorkbench(); return true;
     })()`)
+    // #33：侧栏只显示状态图标，点击图标展开详情后再检查冲突入口。
+    check('冲突时侧栏同步图标为红色失败状态', await evaluate(`(() => {
+      const icon = document.querySelector('[data-testid="workbench-sync-icon"]');
+      if (icon?.getAttribute('aria-expanded') !== 'true') icon?.click();
+      return icon?.dataset.syncTone === 'failed' && icon.getAttribute('aria-label').includes('同步冲突');
+    })()`))
+    await sleep(100)
     check('剪贴板冲突保留本地输入并提示选择', await evaluate(STATE(`s.workbenchStatus === 'conflict' && s.scratchpadContent === '本地未同步内容' && Boolean(document.querySelector('[data-testid="workbench-sync-status"]'))`)))
     check('桌面工作台冲突提示与选择按钮可见且不溢出', await evaluate(`(() => {
       const el = document.querySelector('[data-testid="workbench-sync-status"]');
@@ -517,6 +524,12 @@ async function main() {
     check('后端未升级明确提示且保留本地编辑', await evaluate(STATE(`s.backendUpgradeRequired === true && s.workbenchMessage.includes('升级') && s.memos.some(m => m.text === '后端升级前本地便签') && s.scratchpadContent === '后端升级前本地草稿'`)))
     await evaluate(`(async () => { const m = ${STORE}; await m.useNavStore.getState().pushToCloud(true); return true })()`)
     check('强制上传也不能绕过后端升级保护', await evaluate('window.__snapshotPuts === 0'))
+    await evaluate(`(() => {
+      const icon = document.querySelector('[data-testid="workbench-sync-icon"]');
+      if (icon?.getAttribute('aria-expanded') !== 'true') icon?.click();
+      return true;
+    })()`)
+    await sleep(100)
     const screenshot = await old.cdp.send('Page.captureScreenshot', { format: 'png' })
     writeFileSync(join(OUT_DIR, 'backend-upgrade-required.png'), Buffer.from(screenshot.data, 'base64'))
     check('升级提示可见且不溢出工作台', await evaluate(`(() => {

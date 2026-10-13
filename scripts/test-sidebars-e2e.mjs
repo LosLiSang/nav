@@ -82,7 +82,7 @@
    let profile = null
    let ws = null
    const results = []
-   const report = { issues: [8, 25], success: false, results, artifacts: [] }
+  const report = { issues: [8, 25, 33], success: false, results, artifacts: [] }
    function check(name, ok, detail = '') {
      results.push({ name, ok, detail })
      console.log(`${ok ? '✓ PASS' : '✗ FAIL'}  ${name}${detail ? `  — ${detail}` : ''}`)
@@ -949,6 +949,155 @@
     })()`)
     await sleep(100)
     await shot('12-pomodoro-mobile-light')
+
+    console.log('\n--- 测试 6: 便签与共享剪贴板同步状态图标（Issue #33）---')
+    await cdp.send('Emulation.setDeviceMetricsOverride', { width: 1920, height: 1080, deviceScaleFactor: 1, mobile: false })
+    await sleep(300)
+    const SYNC_URL = 'http://sync-e2e.invalid'
+    check('#33 未配置同步时不展示图标和提示', await evaluate(`!document.querySelector('[data-testid="workbench-sync-icon"]') && !document.querySelector('#right-workbench [data-testid="workbench-sync-status"]')`))
+    // 只拦截假同步域名，按 window.__syncMode 返回挂起 / 失败 / 冲突 / 未升级 / 成功；真实 store 状态流转不替换。
+    await evaluate(`(() => {
+      const realFetch = window.__realFetch = window.fetch.bind(window)
+      window.__syncMode = 'ok'
+      window.__syncCalls = 0
+      const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
+      window.fetch = async (input, init = {}) => {
+        const url = typeof input === 'string' ? input : input.url
+        if (!url.startsWith(${JSON.stringify(SYNC_URL)})) return realFetch(input, init)
+        const path = new URL(url).pathname, method = init.method || 'GET'
+        if (path.startsWith('/api/memos') || path === '/api/clipboard') window.__syncCalls++
+        const mode = window.__syncMode
+        if (mode === 'hold') await new Promise(r => { window.__releaseSync = r })
+        const now = window.__syncMode
+        if (now === 'fail') return json(500, { error: 'server_error' })
+        if (now === 'conflict') return json(409, { error: 'conflict' })
+        if (now === 'missing' && (path.startsWith('/api/memos') || path === '/api/clipboard')) return json(404, { error: 'not_found' })
+        if (path === '/api/memos' && method === 'GET') return json(200, { memos: [], cursor: 1 })
+        if (path.startsWith('/api/memos/')) {
+          const body = JSON.parse(init.body || '{}')
+          return json(200, { memo: { id: decodeURIComponent(path.split('/').pop()), text: body.text, done: body.done, createdAt: body.createdAt, updatedAt: Date.now(), ...(method === 'DELETE' ? { deletedAt: Date.now() } : {}) } })
+        }
+        if (path === '/api/clipboard') {
+          if (method === 'PUT') return json(200, { content: JSON.parse(init.body).content, updatedAt: Date.now() })
+          const { useNavStore } = await import('/src/store/useNavStore.ts')
+          return json(200, { content: useNavStore.getState().scratchpadContent, updatedAt: 1 })
+        }
+        return json(404, { error: 'not_found' })
+      }
+      return true
+    })()`)
+    // 图标颜色带 150ms 过渡；采样前等过渡结束，读取最终颜色。
+    const syncView = async () => { await sleep(250); return evaluate(`(() => {
+      const icon = document.querySelector('[data-testid="workbench-sync-icon"]')
+      if (!icon) return null
+      const c = document.createElement('canvas'); c.width = c.height = 1
+      const ctx = c.getContext('2d', { willReadFrequently: true })
+      ctx.fillStyle = getComputedStyle(icon).color; ctx.fillRect(0, 0, 1, 1)
+      const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data
+      const hue = r > 150 && g < 110 && b < 110 ? 'red' : r > 180 && g > 120 && b < 90 ? 'yellow' : g > r + 40 && g > b ? 'green' : Math.abs(r - g) < 20 && Math.abs(g - b) < 20 ? 'gray' : 'other'
+      const details = document.querySelector('#right-workbench [data-testid="workbench-sync-status"]')
+      return { tone: icon.dataset.syncTone, hue, rgb: [r, g, b], label: icon.getAttribute('aria-label'), expanded: icon.getAttribute('aria-expanded'),
+        details: details ? { text: details.textContent, role: details.getAttribute('role'), buttons: [...details.querySelectorAll('button')].map(b => b.textContent.trim()), upgrade: Boolean(details.querySelector('[data-testid="backend-upgrade-required"]')) } : null }
+    })()`) }
+    const syncStore = (code) => evaluate(`(async () => { const { useNavStore } = await import('/src/store/useNavStore.ts'); const s = useNavStore.getState(); ${code} })()`)
+    const syncTrail = []
+    await syncStore(`useNavStore.setState({ syncConfig: { url: ${JSON.stringify(SYNC_URL)}, token: 'e2e' }, workbenchStatus: 'off', workbenchMessage: '', backendUpgradeRequired: false }); return true`)
+    await sleep(150)
+    let sv = await syncView()
+    syncTrail.push({ step: 'configured-not-started', ...sv })
+    check('#33 已配置但尚未同步：灰色中性图标，不误报绿色', sv?.tone === 'pending' && sv.hue === 'gray' && sv.label.includes('尚未同步'), JSON.stringify(sv?.rgb))
+    check('#33 右侧栏不再常驻两行文字提示，图标位于标签栏同一行', await evaluate(`(() => {
+      const icon = document.querySelector('[data-testid="workbench-sync-icon"]')
+      const header = icon.closest('#right-workbench > div')
+      const h = header.getBoundingClientRect(), i = icon.getBoundingClientRect()
+      return !document.querySelector('#right-workbench [data-testid="workbench-sync-status"]') && !document.querySelector('#right-workbench').textContent.includes('独立同步')
+        && Math.round(h.height) === 44 && i.top >= h.top && i.bottom <= h.bottom && i.width <= 28 && header.scrollWidth <= header.clientWidth
+    })()`))
+    await evaluate(`window.__syncMode = 'hold'`)
+    await syncStore(`void s.syncWorkbench(); return true`)
+    await poll(async () => (await syncView())?.tone === 'syncing', 5000, '同步中')
+    sv = await syncView()
+    syncTrail.push({ step: 'syncing', ...sv })
+    check('#33 正在同步：黄色图标', sv.hue === 'yellow' && sv.label.includes('正在同步'), JSON.stringify(sv.rgb))
+    await shot('18-sync-icon-syncing')
+    await evaluate(`window.__syncMode = 'fail'; window.__releaseSync?.()`)
+    await poll(async () => (await syncView())?.tone === 'failed', 5000, '同步失败')
+    sv = await syncView()
+    syncTrail.push({ step: 'failed', ...sv })
+    check('#33 同步失败：状态变化后图标及时变红', sv.hue === 'red' && sv.label.includes('同步失败') && sv.details === null, JSON.stringify(sv.rgb))
+    const hoverIcon = async () => {
+      const p = await evaluate(`(() => { const r = document.querySelector('[data-testid="workbench-sync-icon"]').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 } })()`)
+      await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', ...p })
+      await sleep(150)
+    }
+    await hoverIcon()
+    check('#33 悬停显示状态文字，且有可访问名称', await evaluate(`(() => {
+      const tip = document.querySelector('[data-testid="workbench-sync-tip"]')
+      const r = tip.getBoundingClientRect(), aside = document.querySelector('#right-workbench').getBoundingClientRect()
+      return getComputedStyle(tip).display !== 'none' && tip.textContent === '同步失败' && r.right <= aside.right + 0.5 && r.left >= aside.left - 0.5
+    })()`))
+    await nativeClick(`document.querySelector('[data-testid="workbench-sync-icon"]')`)
+    sv = await syncView()
+    check('#33 点击图标展开错误详情与重试入口', sv.expanded === 'true' && sv.details?.role === 'alert' && sv.details.text.includes('HTTP 500') && sv.details.buttons.includes('重试同步'))
+    await shot('19-sync-icon-failed-details-light')
+    await evaluate(`window.__syncMode = 'ok'`)
+    await nativeClick(`[...document.querySelectorAll('#right-workbench [data-testid="workbench-sync-status"] button')].find(b => b.textContent.trim() === '重试同步')`)
+    await poll(async () => (await syncView())?.tone === 'synced', 5000, '重试成功')
+    sv = await syncView()
+    syncTrail.push({ step: 'retry-synced', ...sv })
+    check('#33 失败后重试恢复：图标变绿，详情显示同步成功', sv.hue === 'green' && sv.label.includes('同步成功') && sv.details?.text.includes('已同步') && sv.details.buttons.length === 0, JSON.stringify(sv.rgb))
+    await evaluate(`window.__syncMode = 'conflict'`)
+    await syncStore(`await s.syncWorkbench(); return true`)
+    sv = await syncView()
+    syncTrail.push({ step: 'conflict', ...sv })
+    check('#33 冲突归入红色，冲突处理入口仍可用', sv.tone === 'failed' && sv.hue === 'red' && sv.label.includes('同步冲突') && ['重试同步', '保留本机修改', '采用云端版本'].every(t => sv.details?.buttons.includes(t)))
+    await evaluate(`window.__syncMode = 'missing'`)
+    await syncStore(`await s.syncWorkbench(); return true`)
+    sv = await syncView()
+    syncTrail.push({ step: 'backend-upgrade', ...sv })
+    check('#33 后端待升级：红色图标并保留升级提示', sv.hue === 'red' && sv.details?.upgrade && sv.details.text.includes('升级') && sv.details.buttons.includes('重试同步'))
+    const syncContrast = async () => { await sleep(250); return evaluate(`(() => {
+      const icon = document.querySelector('[data-testid="workbench-sync-icon"]')
+      const c = document.createElement('canvas'); c.width = c.height = 1
+      const ctx = c.getContext('2d', { willReadFrequently: true })
+      const lum = color => { ctx.clearRect(0, 0, 1, 1); ctx.fillStyle = color; ctx.fillRect(0, 0, 1, 1)
+        return [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3).map(v => v / 255).map(n => n <= .04045 ? n / 12.92 : ((n + .055) / 1.055) ** 2.4).reduce((s, v, i) => s + v * [.2126, .7152, .0722][i], 0) }
+      let bg = 'rgb(255,255,255)'
+      for (let el = icon; el; el = el.parentElement) { const b = getComputedStyle(el).backgroundColor; if (b && !b.endsWith(', 0)') && b !== 'transparent') { bg = b; break } }
+      const f = lum(getComputedStyle(icon).color), b = lum(bg)
+      return (Math.max(f, b) + .05) / (Math.min(f, b) + .05)
+    })()`) }
+    const lightRed = await syncContrast()
+    await syncStore(`s.updateSettings({ themeMode: 'dark' }); return true`)
+    await sleep(150)
+    sv = await syncView()
+    const darkRed = await syncContrast()
+    await shot('20-sync-icon-upgrade-dark')
+    await evaluate(`window.__syncMode = 'ok'`)
+    await syncStore(`await s.syncWorkbench(); return true`)
+    const darkGreen = await syncContrast()
+    const darkSynced = await syncView()
+    await shot('21-sync-icon-synced-dark')
+    report.syncIcon = { trail: syncTrail, contrast: { lightRed, darkRed, darkGreen } }
+    check('#33 深色主题红/绿图标可辨且对比度至少 3:1', sv.hue === 'red' && darkSynced.hue === 'green' && lightRed >= 3 && darkRed >= 3 && darkGreen >= 3, `lightRed=${lightRed.toFixed(2)} darkRed=${darkRed.toFixed(2)} darkGreen=${darkGreen.toFixed(2)}`)
+    await syncStore(`s.updateSettings({ themeMode: 'light' }); return true`)
+    await nativeClick(`document.querySelector('[data-testid="workbench-sync-icon"]')`)
+    check('#33 再次点击图标收起详情', (await syncView()).details === null)
+    await nativeClick(`[...document.querySelectorAll('header button, button')].find(b => b.textContent.trim() === '设置')`)
+    await nativeClick(`[...document.querySelectorAll('button')].find(b => b.textContent.trim() === '云端同步')`)
+    await sleep(200)
+    check('#33 设置页仍完整展示同步详情且无溢出', await evaluate(`(() => {
+      const panels = [...document.querySelectorAll('[data-testid="workbench-sync-status"]')].filter(el => !el.closest('#right-workbench'))
+      const el = panels[0]
+      if (!el) return false
+      const r = el.getBoundingClientRect()
+      return el.textContent.includes('同步成功') && r.width > 0 && el.scrollWidth <= el.clientWidth && r.right <= innerWidth
+    })()`))
+    await shot('22-sync-settings-panel')
+    await cdp.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 })
+    await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape' })
+    await syncStore(`useNavStore.setState({ syncConfig: null, workbenchStatus: 'off', workbenchMessage: '', backendUpgradeRequired: false }); return true`)
+    await evaluate(`window.fetch = window.__realFetch; true`)
 
     report.success = results.every(r => r.ok)
     if (!report.success) process.exitCode = 1
