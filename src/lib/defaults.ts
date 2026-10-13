@@ -610,7 +610,7 @@ export function defaultMemos(): MemoItem[] {
   return [
     { id: 'memo-1', text: '整理收藏夹常用工具与高效分类', done: true, createdAt: now - 3600000 * 24 },
     { id: 'memo-2', text: '体验右侧常驻工作台：草稿板与待办清单', done: true, createdAt: now - 3600000 * 12 },
-    { id: 'memo-3', text: '探索番茄工作时钟与重要目标倒数日', done: false, createdAt: now - 3600000 * 4 },
+    { id: 'memo-3', text: '体验番茄专注钟的自动阶段衔接', done: false, createdAt: now - 3600000 * 4 },
     { id: 'memo-4', text: '在「全局设置」中自定义专属主题色与壁纸', done: false, createdAt: now - 3600000 },
   ]
 }

@@ -2,40 +2,95 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { db } from './db'
 
 export type PomodoroMode = 'work' | 'shortBreak' | 'longBreak'
-export const POMODORO_DURATIONS = { work: 25 * 60, shortBreak: 5 * 60, longBreak: 15 * 60 }
+export const POMODORO_DEFAULT_DURATIONS = { work: 25, shortBreak: 5, longBreak: 15 }
 export const POMODORO_LABELS = { work: '工作', shortBreak: '短休', longBreak: '长休' }
-export const nextPomodoroMode = (mode: PomodoroMode): PomodoroMode => mode === 'work' ? 'shortBreak' : 'work'
+// 用户未确认长休频次（issue #34），提供可配置项并明确默认值。
+export const POMODORO_DEFAULT_LONG_BREAK_EVERY = 4
+export const POMODORO_MIN_MINUTES = 1
+export const POMODORO_MAX_MINUTES = 120
+export const POMODORO_MIN_LONG_BREAK_EVERY = 2
+export const POMODORO_MAX_LONG_BREAK_EVERY = 8
 
-type Preferences = { sound: boolean; notifications: boolean; volume: number }
+export type PomodoroDurations = Record<PomodoroMode, number>
+export const nextPomodoroMode = (mode: PomodoroMode, completedWork = 0, longBreakEvery = POMODORO_DEFAULT_LONG_BREAK_EVERY): PomodoroMode => {
+  if (mode !== 'work') return 'work'
+  // 今日完成的第 N 个工作阶段结束后：N 是 longBreakEvery 的整数倍进长休，否则短休。
+  return completedWork % longBreakEvery === 0 ? 'longBreak' : 'shortBreak'
+}
+
+type Preferences = {
+  sound: boolean
+  notifications: boolean
+  volume: number
+  durations: PomodoroDurations
+  longBreakEvery: number
+}
 type Timer = {
   mode: PomodoroMode
   remainingMs: number
+  totalMs: number
   deadline: number | null
   status: 'ready' | 'running' | 'paused' | 'completed'
 }
 type Completion = { id: number; mode: PomodoroMode }
 const PREFERENCES_KEY = `nav_pomo_preferences:${db.name}`
-const initialTimer = (mode: PomodoroMode): Timer => ({
-  mode, remainingMs: POMODORO_DURATIONS[mode] * 1000, deadline: null, status: 'ready',
-})
 const notificationsSupported = () => typeof Notification !== 'undefined' && window.isSecureContext
 const todayKey = () => `nav_pomo_${new Date().toISOString().slice(0, 10)}`
+const minutesKey = () => `nav_pomo_minutes_${new Date().toISOString().slice(0, 10)}`
 function todayCount() {
   try {
     const value = Number(localStorage.getItem(todayKey()) || 0)
     return Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0
   } catch { return 0 }
 }
+function todayMinutes() {
+  try {
+    const value = Number(localStorage.getItem(minutesKey()) || 0)
+    return Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0
+  } catch { return 0 }
+}
+const sanitizeMinutes = (value: unknown, fallback: number) => {
+  const minutes = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(minutes) && minutes >= POMODORO_MIN_MINUTES && minutes <= POMODORO_MAX_MINUTES
+    ? Math.round(minutes)
+    : fallback
+}
+const sanitizeLongBreakEvery = (value: unknown) => {
+  const every = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(every) && every >= POMODORO_MIN_LONG_BREAK_EVERY && every <= POMODORO_MAX_LONG_BREAK_EVERY
+    ? Math.round(every)
+    : POMODORO_DEFAULT_LONG_BREAK_EVERY
+}
 function readPreferences(): Preferences {
   try {
     const saved = JSON.parse(localStorage.getItem(PREFERENCES_KEY) || '{}')
+    const savedDurations = saved?.durations ?? {}
     return {
       sound: saved?.sound === true,
       notifications: saved?.notifications === true && notificationsSupported() && Notification.permission === 'granted',
       volume: typeof saved?.volume === 'number' && Number.isFinite(saved.volume) ? Math.max(0, Math.min(100, saved.volume)) : 50,
+      durations: {
+        work: sanitizeMinutes(savedDurations.work, POMODORO_DEFAULT_DURATIONS.work),
+        shortBreak: sanitizeMinutes(savedDurations.shortBreak, POMODORO_DEFAULT_DURATIONS.shortBreak),
+        longBreak: sanitizeMinutes(savedDurations.longBreak, POMODORO_DEFAULT_DURATIONS.longBreak),
+      },
+      longBreakEvery: sanitizeLongBreakEvery(saved?.longBreakEvery),
     }
-  } catch { return { sound: false, notifications: false, volume: 50 } }
+  } catch {
+    return {
+      sound: false, notifications: false, volume: 50,
+      durations: { ...POMODORO_DEFAULT_DURATIONS },
+      longBreakEvery: POMODORO_DEFAULT_LONG_BREAK_EVERY,
+    }
+  }
 }
+const initialTimer = (mode: PomodoroMode, durations: PomodoroDurations): Timer => ({
+  mode,
+  remainingMs: durations[mode] * 60 * 1000,
+  totalMs: durations[mode] * 60 * 1000,
+  deadline: null,
+  status: 'ready',
+})
 
 /**
  * 页面内的独立计时：不持久化运行状态、不在刷新时补发、不跨标签页恢复。
@@ -43,7 +98,7 @@ function readPreferences(): Preferences {
  * 声音/系统通知偏好按本设备与账号隔离，不跟随整页快照同步。
  */
 export function usePomodoro(onOpenTimer: () => void) {
-  const [timer, setTimer] = useState(() => initialTimer('work'))
+  const [timer, setTimer] = useState(() => initialTimer('work', readPreferences().durations))
   const timerRef = useRef(timer)
   const [preferences, setPreferences] = useState(readPreferences)
   const preferencesRef = useRef(preferences)
@@ -51,6 +106,7 @@ export function usePomodoro(onOpenTimer: () => void) {
   const completedRef = useRef<Completion | null>(null)
   const [warning, setWarning] = useState('')
   const [count, setCount] = useState(todayCount)
+  const [minutes, setMinutes] = useState(todayMinutes)
   const [permissionPending, setPermissionPending] = useState(false)
   const pendingRef = useRef(false)
   const mounted = useRef(false)
@@ -76,6 +132,14 @@ export function usePomodoro(onOpenTimer: () => void) {
     }
     originalTitle.current = reminderTitle.current = null
   }, [])
+  const switchNextMode = useCallback((from: PomodoroMode) => {
+    // 工作阶段在 reconcile 中已先累加今日次数；休息阶段次数不变。
+    const next = nextPomodoroMode(from, todayCount(), preferencesRef.current.longBreakEvery)
+    const now = Date.now()
+    runId.current++
+    const nextTimer = initialTimer(next, preferencesRef.current.durations)
+    commit({ ...nextTimer, deadline: now + nextTimer.totalMs, status: 'running' })
+  }, [commit])
   const updateTitle = useCallback(() => {
     const completion = completedRef.current
     if (!completion || document.visibilityState !== 'hidden') { restoreTitle(); return }
@@ -162,16 +226,21 @@ export function usePomodoro(onOpenTimer: () => void) {
         if (current.mode === 'work') {
           const next = todayCount() + 1
           setCount(next)
-          try { localStorage.setItem(todayKey(), String(next)) }
-          catch { setWarning('完成次数无法保存；页面提醒仍可用。') }
+          const spent = preferencesRef.current.durations.work
+          setMinutes(todayMinutes() + spent)
+          try {
+            localStorage.setItem(todayKey(), String(next))
+            localStorage.setItem(minutesKey(), String(todayMinutes() + spent))
+          } catch { setWarning('完成次数无法保存；页面提醒仍可用。') }
         }
         if (preferencesRef.current.sound) playChime()
         if (preferencesRef.current.notifications) {
           try {
             if (!notificationsSupported() || Notification.permission !== 'granted') throw new Error('notification unavailable')
             closeNotification()
+            const upcoming = nextPomodoroMode(current.mode, todayCount(), preferencesRef.current.longBreakEvery)
             const item = new Notification(`${POMODORO_LABELS[current.mode]}阶段已完成`, {
-              body: `接下来可以进入${POMODORO_LABELS[nextPomodoroMode(current.mode)]}。点击返回专注工作台。`,
+              body: `已自动开始${POMODORO_LABELS[upcoming]}。点击返回专注工作台。`,
               tag: `nav-pomodoro-${instanceId}-${completion.id}`,
             })
             notification.current = item
@@ -182,10 +251,12 @@ export function usePomodoro(onOpenTimer: () => void) {
             }
           } catch { setWarning('系统通知发送失败或权限已失效；页面完成提示仍可用。') }
         }
+        // 自动衔接下一阶段：提醒保持展示，运行中的下一阶段不受关闭提醒影响。
+        switchNextMode(current.mode)
       }
     }
     updateTitle()
-  }, [commit, playChime, closeNotification, updateTitle, instanceId])
+  }, [commit, playChime, closeNotification, updateTitle, instanceId, switchNextMode])
 
   const disposeReminders = useCallback(() => {
     // 读取最新的能力实例和请求令牌，而不是 effect 挂载时的值。
@@ -216,7 +287,7 @@ export function usePomodoro(onOpenTimer: () => void) {
   const switchMode = (mode: PomodoroMode) => {
     stopTone()
     dismiss()
-    commit(initialTimer(mode))
+    commit(initialTimer(mode, preferencesRef.current.durations))
   }
   const toggle = () => {
     const current = timerRef.current
@@ -228,7 +299,7 @@ export function usePomodoro(onOpenTimer: () => void) {
     } else {
       dismiss()
       runId.current++
-      const remainingMs = current.status === 'completed' ? POMODORO_DURATIONS[current.mode] * 1000 : current.remainingMs
+      const remainingMs = current.status === 'completed' ? current.totalMs : current.remainingMs
       commit({ ...current, remainingMs, deadline: now + remainingMs, status: 'running' })
       if (preferencesRef.current.sound) void prepareAudio()
     }
@@ -265,13 +336,45 @@ export function usePomodoro(onOpenTimer: () => void) {
     setWarning('')
     if (preferencesRef.current.sound && await prepareAudio()) playChime()
   }
+  const setDuration = (mode: PomodoroMode, value: string) => {
+    const text = value.trim()
+    const minutes = Number(text)
+    if (!text || !Number.isFinite(minutes) || !Number.isInteger(minutes)) {
+      setWarning('时长必须为整数分钟。')
+      return false
+    }
+    if (minutes < POMODORO_MIN_MINUTES || minutes > POMODORO_MAX_MINUTES) {
+      setWarning(`时长需在 ${POMODORO_MIN_MINUTES}-${POMODORO_MAX_MINUTES} 分钟之间。`)
+      return false
+    }
+    setWarning('')
+    const durations = { ...preferencesRef.current.durations, [mode]: minutes }
+    savePreferences({ durations })
+    // 就绪阶段立即按新时长初始化；运行/暂停中的阶段保持原计时，修改从下一阶段生效。
+    if (timerRef.current.status === 'ready' && timerRef.current.mode === mode) {
+      commit(initialTimer(mode, durations))
+    }
+    return true
+  }
+  const setLongBreakEvery = (value: string) => {
+    const text = value.trim()
+    const every = Number(text)
+    if (!text || !Number.isFinite(every) || !Number.isInteger(every) || every < POMODORO_MIN_LONG_BREAK_EVERY || every > POMODORO_MAX_LONG_BREAK_EVERY) {
+      setWarning(`长休间隔需为 ${POMODORO_MIN_LONG_BREAK_EVERY}-${POMODORO_MAX_LONG_BREAK_EVERY} 的整数。`)
+      return false
+    }
+    setWarning('')
+    savePreferences({ longBreakEvery: every })
+    return true
+  }
 
   return {
     mode: timer.mode, isRunning: timer.status === 'running', status: timer.status,
-    timeLeft: Math.ceil(timer.remainingMs / 1000), todayCount: count,
+    timeLeft: Math.ceil(timer.remainingMs / 1000), todayCount: count, todayMinutes: minutes,
     completed, warning, preferences, permissionPending,
     toggle, reset: () => switchMode(timerRef.current.mode), switchMode, dismiss,
     setSound, setNotifications, previewSound,
+    setDuration, setLongBreakEvery,
     setVolume: (volume: number) => savePreferences({ volume: Math.max(0, Math.min(100, volume)) }),
   }
 }

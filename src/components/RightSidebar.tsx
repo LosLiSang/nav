@@ -11,15 +11,15 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
    PanelRightOpen,
   Pause,
   Play,
-  Plus,
    RotateCcw,
+  Settings as SettingsIcon,
   Sparkles,
   Target,
    Trash2,
  } from 'lucide-react'
-import type { CountdownTarget, MemoItem, Settings } from '../types'
-import { POMODORO_DURATIONS, usePomodoro } from '../lib/usePomodoro'
-import { PomodoroCompletion, PomodoroReminderSettings } from './PomodoroReminders'
+import type { MemoItem, Settings } from '../types'
+import { usePomodoro } from '../lib/usePomodoro'
+import { PomodoroCompletion, PomodoroSettingsDialog } from './PomodoroReminders'
 import { MemoRow } from './MemoRow'
 import { WorkbenchSyncStatus } from './WorkbenchSyncStatus'
  
@@ -41,11 +41,6 @@ import { WorkbenchSyncStatus } from './WorkbenchSyncStatus'
  
 type ActiveTab = 'scratchpad' | 'todo' | 'focus'
 type TodoFilter = 'all' | 'pending' | 'done'
-
-const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
-  { id: 'cd-1', title: '2027 新年元旦', targetDate: '2027-01-01' },
-  { id: 'cd-2', title: '五一假期', targetDate: '2026-05-01' },
-]
  
  export function RightSidebar({
    scratchpadContent,
@@ -191,8 +186,11 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
   const pomodoro = usePomodoro(openFocusTimer)
   const {
     mode: pomoMode, isRunning, timeLeft, todayCount: todayPomoCount,
+    todayMinutes: todayPomoMinutes,
     switchMode: switchPomoMode, toggle: toggleTimer, reset: resetTimer,
   } = pomodoro
+  const pomoDurations = pomodoro.preferences.durations
+  const [showPomoSettings, setShowPomoSettings] = useState(false)
 
   const formatPomoTime = (sec: number) => {
     const m = Math.floor(sec / 60)
@@ -200,44 +198,8 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
     return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
   }
 
-  const pomoTotal = POMODORO_DURATIONS[pomoMode]
+  const pomoTotal = pomoDurations[pomoMode] * 60
   const pomoProgress = Math.max(0, Math.min(100, ((pomoTotal - timeLeft) / pomoTotal) * 100))
-
-  // 倒数日
-  const [countdowns, setCountdowns] = useState<CountdownTarget[]>(() => {
-    const saved = localStorage.getItem('nav_countdowns')
-    return saved ? JSON.parse(saved) : DEFAULT_COUNTDOWNS
-  })
-  const [showAddCd, setShowAddCd] = useState(false)
-  const [newCdTitle, setNewCdTitle] = useState('')
-  const [newCdDate, setNewCdDate] = useState('')
-
-  function handleAddCountdown() {
-    if (!newCdTitle.trim() || !newCdDate) return
-    const item: CountdownTarget = {
-      id: `cd-${Date.now()}`,
-      title: newCdTitle.trim(),
-      targetDate: newCdDate,
-    }
-    const next = [...countdowns, item]
-    setCountdowns(next)
-    localStorage.setItem('nav_countdowns', JSON.stringify(next))
-    setNewCdTitle('')
-    setNewCdDate('')
-    setShowAddCd(false)
-  }
-
-  function handleDeleteCountdown(id: string) {
-    const next = countdowns.filter((c) => c.id !== id)
-    setCountdowns(next)
-    localStorage.setItem('nav_countdowns', JSON.stringify(next))
-  }
-
-  function calcDaysLeft(dateStr: string) {
-    const target = new Date(dateStr + 'T00:00:00').getTime()
-    const now = new Date().setHours(0, 0, 0, 0)
-    return Math.ceil((target - now) / (1000 * 60 * 60 * 24))
-  }
 
   const focusedMemo = memos.find((m) => m.id === focusedMemoId)
 
@@ -273,6 +235,7 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
          </button>
        </aside>
        <PomodoroCompletion timer={pomodoro} onOpen={openFocusTimer} />
+      <PomodoroSettingsDialog timer={pomodoro} open={showPomoSettings} onClose={() => setShowPomoSettings(false)} />
       </>
      )
    }
@@ -530,7 +493,7 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
                        : 'text-neutral-600 dark:text-neutral-400'
                    }`}
                  >
-                   工作 25m
+                   工作 {pomoDurations.work}m
                  </button>
                  <button
                    type="button"
@@ -541,7 +504,7 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
                        : 'text-neutral-600 dark:text-neutral-400'
                    }`}
                  >
-                   短休 5m
+                   短休 {pomoDurations.shortBreak}m
                  </button>
                  <button
                    type="button"
@@ -552,7 +515,7 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
                        : 'text-neutral-600 dark:text-neutral-400'
                    }`}
                  >
-                   长休 15m
+                   长休 {pomoDurations.longBreak}m
                  </button>
                </div>
 
@@ -628,101 +591,26 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
                </div>
              </div>
 
-             <PomodoroReminderSettings timer={pomodoro} />
+             {/* Settings Dialog Trigger */}
+             <button
+               type="button"
+               onClick={() => setShowPomoSettings(true)}
+               aria-label="打开专注设置"
+               data-testid="pomodoro-settings-button"
+               className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-black/5 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] px-3 py-2 text-xs font-medium text-neutral-600 dark:text-neutral-300 hover:bg-black/[0.04] dark:hover:bg-white/[0.04] transition"
+             >
+               <SettingsIcon className="h-3.5 w-3.5" />
+               <span>专注设置</span>
+             </button>
 
              {/* Today Stats */}
              <div className="flex items-center justify-between rounded-xl border border-black/5 dark:border-white/5 bg-black/[0.02] dark:bg-white/[0.02] px-3 py-2 text-xs">
                <span className="text-neutral-500">今日已完成番茄：</span>
                <span data-testid="pomodoro-count" style={{ color: accentColor }} className="font-semibold font-mono">
-                 {todayPomoCount} 个 ({todayPomoCount * 25} 分钟)
+                 {todayPomoCount} 个 ({todayPomoMinutes} 分钟)
                </span>
              </div>
 
-             {/* Countdowns Card */}
-             <div className="space-y-1.5">
-               <div className="flex items-center justify-between text-xs font-semibold text-neutral-700 dark:text-neutral-300 px-1">
-                 <span>目标与倒数日</span>
-                 <button
-                   type="button"
-                   onClick={() => setShowAddCd(!showAddCd)}
-                   className="flex items-center gap-1 text-[11px] text-blue-500 hover:text-blue-600 transition"
-                 >
-                   <Plus className="h-3 w-3" />
-                   <span>新增</span>
-                 </button>
-               </div>
-
-               {showAddCd && (
-                 <div className="rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white/90 dark:bg-neutral-800/90 p-2.5 text-xs space-y-2 shadow-md">
-                   <input
-                     placeholder="目标名称 (如: 毕业/发版)"
-                     value={newCdTitle}
-                     onChange={(e) => setNewCdTitle(e.target.value)}
-                     className="w-full rounded-lg border border-neutral-200 dark:border-neutral-700 bg-transparent px-2 py-1 outline-none text-neutral-800 dark:text-neutral-100 focus:border-blue-500"
-                   />
-                   <input
-                     type="date"
-                     value={newCdDate}
-                     onChange={(e) => setNewCdDate(e.target.value)}
-                     className="w-full rounded-lg border border-neutral-200 dark:border-neutral-700 bg-transparent px-2 py-1 outline-none text-neutral-800 dark:text-neutral-100 focus:border-blue-500"
-                   />
-                   <div className="flex justify-end gap-1.5 pt-1">
-                     <button
-                       type="button"
-                       onClick={() => setShowAddCd(false)}
-                       className="px-2.5 py-1 text-neutral-500 hover:text-neutral-800"
-                     >
-                       取消
-                     </button>
-                     <button
-                       type="button"
-                       onClick={handleAddCountdown}
-                       className="rounded-lg bg-blue-500 px-3 py-1 font-medium text-white shadow-sm hover:bg-blue-600"
-                     >
-                       保存
-                     </button>
-                   </div>
-                 </div>
-               )}
-
-               <div className="space-y-1">
-                 {countdowns.map((cd) => {
-                   const days = calcDaysLeft(cd.targetDate)
-                   const isPast = days < 0
-                   return (
-                     <div
-                       key={cd.id}
-                       className="group flex items-center justify-between rounded-xl border border-black/5 dark:border-white/5 bg-black/[0.02] dark:bg-white/[0.02] px-2.5 py-1.5 text-xs transition hover:bg-black/[0.04] dark:hover:bg-white/[0.04]"
-                     >
-                       <div className="min-w-0 flex-1">
-                         <div className="font-medium text-neutral-800 dark:text-neutral-200 truncate">{cd.title}</div>
-                         <div className="text-[10px] text-neutral-400">{cd.targetDate}</div>
-                       </div>
-                       <div className="flex items-center gap-1.5">
-                         <span
-                           className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                             isPast
-                               ? 'bg-neutral-200 dark:bg-neutral-800 text-neutral-500'
-                               : days <= 7
-                                 ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20'
-                                 : 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20'
-                           }`}
-                         >
-                           {isPast ? `已过 ${Math.abs(days)} 天` : `还有 ${days} 天`}
-                         </span>
-                         <button
-                           type="button"
-                           onClick={() => handleDeleteCountdown(cd.id)}
-                           className="opacity-0 group-hover:opacity-100 text-neutral-400 hover:text-rose-500 transition"
-                         >
-                           <Trash2 className="h-3 w-3" />
-                         </button>
-                       </div>
-                     </div>
-                   )
-                 })}
-               </div>
-             </div>
            </div>
          )}
        </div>
@@ -788,6 +676,7 @@ const DEFAULT_COUNTDOWNS: CountdownTarget[] = [
        )}
      </aside>
      <PomodoroCompletion timer={pomodoro} onOpen={openFocusTimer} />
+    <PomodoroSettingsDialog timer={pomodoro} open={showPomoSettings} onClose={() => setShowPomoSettings(false)} />
     </>
    )
  }
