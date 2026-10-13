@@ -82,7 +82,7 @@
    let profile = null
    let ws = null
    const results = []
-   const report = { issues: [8, 25], success: false, results, artifacts: [] }
+  const report = { issues: [8, 25, 32], success: false, results, artifacts: [] }
    function check(name, ok, detail = '') {
      results.push({ name, ok, detail })
      console.log(`${ok ? '✓ PASS' : '✗ FAIL'}  ${name}${detail ? `  — ${detail}` : ''}`)
@@ -545,6 +545,84 @@
     check('非 http(s) 文本没有打开入口', !(await evaluate(`Boolean(document.querySelector('[data-memo-id="${unsafeId}"] [data-testid="memo-open"]'))`)))
     const wrapId = await addTodo('百科 https://example.com/wiki/Test_(demo).')
     check('链接保留平衡括号，去掉句末英文句点', await evaluate(`document.querySelector('[data-memo-id="${wrapId}"] [data-testid="memo-open"]').href === 'https://example.com/wiki/Test_(demo)'`))
+
+    // #32：卡片上方为独立按钮行，正文独占下方整行宽度。
+    const longUrlId = await addTodo('https://github.com/LosLiSang/nav/issues/32?very_long_query_parameter=memo-card-layout-should-wrap-naturally-without-overlap&another=1234567890')
+    const longCnId = await addTodo('这是一条很长的中文便签，用来验证正文会使用整张卡片的可用宽度自然换行，而不会再被右侧的打开、编辑、专注、删除按钮挤压成狭窄的一列文字，多行文本同样保持在按钮行下方。')
+    await nativeClick(`document.querySelector('[data-memo-id="${unsafeId}"] button[role="checkbox"]')`)
+    const layoutIds = [linkId, longUrlId, longCnId, unsafeId, wrapId]
+    const memoLayout = () => evaluate(`(() => ${JSON.stringify(layoutIds)}.map(id => {
+      const row = document.querySelector('[data-memo-id="' + id + '"]')
+      const bar = row.querySelector('[data-testid="memo-toolbar"]')
+      const body = row.querySelector('[data-testid="memo-body"]')
+      const check = row.querySelector('button[role="checkbox"]')
+      const actions = [...row.querySelectorAll('[data-testid="memo-actions"] > *')]
+      const R = row.getBoundingClientRect(), B = bar.getBoundingClientRect(), T = body.getBoundingClientRect(), C = check.getBoundingClientRect()
+      const inner = row.clientWidth - parseFloat(getComputedStyle(row).paddingLeft) - parseFloat(getComputedStyle(row).paddingRight)
+      const centers = [C, ...actions.map(a => a.getBoundingClientRect())].map(r => r.top + r.height / 2)
+      return {
+        id,
+        done: check.getAttribute('aria-checked') === 'true',
+        actions: actions.length,
+        bodyBelowBar: T.top >= B.bottom - 0.5,
+        bodyFullWidth: Math.abs(T.width - inner) <= 1,
+        actionsInside: actions.every(a => { const r = a.getBoundingClientRect(); return r.left >= B.left - 0.5 && r.right <= R.right + 0.5 && r.top >= B.top - 0.5 && r.bottom <= B.bottom + 0.5 }),
+        aligned: Math.max(...centers) - Math.min(...centers) <= 1.5,
+        noOverflow: row.scrollWidth <= row.clientWidth && body.scrollWidth <= body.clientWidth,
+        lines: Math.round(T.height / parseFloat(getComputedStyle(body).lineHeight)),
+      }
+    }))()`)
+    const layout = await memoLayout()
+    report.memoLayout = layout
+    check('#32 每张便签：按钮行在上、正文在下且占满卡片宽度', layout.every(l => l.bodyBelowBar && l.bodyFullWidth), JSON.stringify(layout.filter(l => !(l.bodyBelowBar && l.bodyFullWidth))))
+    check('#32 有链接/无链接、已完成/未完成的按钮行对齐且无溢出裁切', layout.every(l => l.actionsInside && l.aligned && l.noOverflow) && layout.some(l => l.done) && layout.some(l => !l.done) && layout.find(l => l.id === linkId).actions === 4 && layout.find(l => l.id === unsafeId).actions === 2)
+    check('#32 长 URL 与长中文多行自然换行', layout.find(l => l.id === longUrlId).lines >= 2 && layout.find(l => l.id === longCnId).lines >= 3 && layout.every(l => l.noOverflow))
+    const actionsOpacity = (id) => evaluate(`getComputedStyle(document.querySelector('[data-memo-id="${id}"] [data-testid="memo-actions"]')).opacity`)
+    await evaluate(`document.querySelector('[data-memo-id="${longCnId}"] [aria-label="编辑便签"]').focus()`)
+    await sleep(250)
+    check('#32 键盘聚焦时操作按钮可见', Number(await actionsOpacity(longCnId)) === 1)
+    await evaluate('document.activeElement.blur()')
+    const hoverRow = async (id) => {
+      const p = await evaluate(`(() => { const el = document.querySelector('[data-memo-id="${id}"]'); el.scrollIntoView({ block: 'nearest' }); const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 } })()`)
+      await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', ...p })
+      await sleep(250)
+    }
+    await hoverRow(longUrlId)
+    check('#32 悬停时操作按钮可见', Number(await actionsOpacity(longUrlId)) === 1)
+    const iconContrast = () => evaluate(`(() => {
+      const row = document.querySelector('[data-memo-id="${longUrlId}"]')
+      const icon = row.querySelector('[aria-label="删除便签"]')
+      const c = document.createElement('canvas'); c.width = c.height = 1
+      const ctx = c.getContext('2d', { willReadFrequently: true })
+      const lum = color => {
+        ctx.clearRect(0, 0, 1, 1); ctx.fillStyle = color; ctx.fillRect(0, 0, 1, 1)
+        const v = [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3).map(v => { const n = v / 255; return n <= .04045 ? n / 12.92 : ((n + .055) / 1.055) ** 2.4 })
+        return v[0] * .2126 + v[1] * .7152 + v[2] * .0722
+      }
+      let bg = 'rgb(255,255,255)'
+      for (let el = row; el; el = el.parentElement) { const b = getComputedStyle(el).backgroundColor; if (b && !b.endsWith(', 0)') && b !== 'transparent') { bg = b; break } }
+      const f = lum(getComputedStyle(icon).color), b = lum(bg)
+      return (Math.max(f, b) + .05) / (Math.min(f, b) + .05)
+    })()`)
+    const lightIcon = await iconContrast()
+    await shot('16-memo-card-layout-light')
+    await evaluate(`(async () => {
+      const { useNavStore } = await import('/src/store/useNavStore.ts')
+      useNavStore.getState().updateSettings({ themeMode: 'dark' })
+    })()`)
+    await sleep(150)
+    await hoverRow(longUrlId)
+    const darkLayout = await memoLayout()
+    const darkIcon = await iconContrast()
+    report.memoIconContrast = { light: lightIcon, dark: darkIcon }
+    check('#32 深色主题布局一致，图标对比度浅/深均至少 3:1', darkLayout.every(l => l.bodyBelowBar && l.bodyFullWidth && l.actionsInside && l.noOverflow) && lightIcon >= 3 && darkIcon >= 3, `light=${lightIcon.toFixed(2)} dark=${darkIcon.toFixed(2)}`)
+    await shot('17-memo-card-layout-dark')
+    await evaluate(`(async () => {
+      const { useNavStore } = await import('/src/store/useNavStore.ts')
+      useNavStore.getState().updateSettings({ themeMode: 'light' })
+    })()`)
+    await nativeClick(`document.querySelector('[data-memo-id="${unsafeId}"] button[role="checkbox"]')`)
+    check('#32 完成状态切换在新布局下仍可用', await evaluate(`document.querySelector('[data-memo-id="${unsafeId}"] button[role="checkbox"]').getAttribute('aria-checked') === 'false'`))
     await edit()
     check('展开编辑框后帮助文字可见，列表和操作区没有溢出', await evaluate(`(() => {
       const el = document.querySelector('${row}')
