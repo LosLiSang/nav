@@ -7,6 +7,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
   CornerDownLeft,
    FileEdit,
   ListTodo,
+  Maximize2,
    PanelRightClose,
    PanelRightOpen,
   Pause,
@@ -20,6 +21,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import type { MemoItem, Settings } from '../types'
 import { usePomodoro } from '../lib/usePomodoro'
 import { PomodoroCompletion, PomodoroSettingsDialog } from './PomodoroReminders'
+import { PomodoroFullscreen, requestPageFullscreen } from './PomodoroFullscreen'
 import { MemoRow } from './MemoRow'
 import { WorkbenchSyncIcon, WorkbenchSyncStatus } from './WorkbenchSyncStatus'
  
@@ -192,6 +194,13 @@ type TodoFilter = 'all' | 'pending' | 'done'
   const pomoDurations = pomodoro.preferences.durations
   const [showPomoSettings, setShowPomoSettings] = useState(false)
   const [showSyncDetails, setShowSyncDetails] = useState(false)
+  const [showPomoFullscreen, setShowPomoFullscreen] = useState(false)
+  const openPomoFullscreen = () => {
+    // 先在点击手势内请求浏览器全屏；被拒绝或不支持时仍展示页面内全屏视图。
+    void requestPageFullscreen()
+    setShowPomoFullscreen(true)
+  }
+  const closePomoFullscreen = useCallback(() => setShowPomoFullscreen(false), [])
 
   const formatPomoTime = (sec: number) => {
     const m = Math.floor(sec / 60)
@@ -237,6 +246,7 @@ type TodoFilter = 'all' | 'pending' | 'done'
        </aside>
        <PomodoroCompletion timer={pomodoro} onOpen={openFocusTimer} />
       <PomodoroSettingsDialog timer={pomodoro} open={showPomoSettings} onClose={() => setShowPomoSettings(false)} />
+      <PomodoroFullscreen timer={pomodoro} open={showPomoFullscreen} onClose={closePomoFullscreen} accentColor={accentColor} taskText={focusedMemo?.text} />
       </>
      )
    }
@@ -595,17 +605,30 @@ type TodoFilter = 'all' | 'pending' | 'done'
                </div>
              </div>
 
-             {/* Settings Dialog Trigger */}
-             <button
-               type="button"
-               onClick={() => setShowPomoSettings(true)}
-               aria-label="打开专注设置"
-               data-testid="pomodoro-settings-button"
-               className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-black/5 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] px-3 py-2 text-xs font-medium text-neutral-600 dark:text-neutral-300 hover:bg-black/[0.04] dark:hover:bg-white/[0.04] transition"
-             >
-               <SettingsIcon className="h-3.5 w-3.5" />
-               <span>专注设置</span>
-             </button>
+             {/* Fullscreen & Settings Triggers */}
+             <div className="grid grid-cols-2 gap-2">
+               <button
+                 type="button"
+                 onClick={openPomoFullscreen}
+                 aria-label="全屏专注"
+                 title="全屏显示番茄钟（Esc 退出）"
+                 data-testid="pomodoro-fullscreen-button"
+                 className="flex items-center justify-center gap-1.5 rounded-xl border border-black/5 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] px-3 py-2 text-xs font-medium text-neutral-600 dark:text-neutral-300 hover:bg-black/[0.04] dark:hover:bg-white/[0.04] transition"
+               >
+                 <Maximize2 className="h-3.5 w-3.5" />
+                 <span>全屏专注</span>
+               </button>
+               <button
+                 type="button"
+                 onClick={() => setShowPomoSettings(true)}
+                 aria-label="打开专注设置"
+                 data-testid="pomodoro-settings-button"
+                 className="flex items-center justify-center gap-1.5 rounded-xl border border-black/5 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] px-3 py-2 text-xs font-medium text-neutral-600 dark:text-neutral-300 hover:bg-black/[0.04] dark:hover:bg-white/[0.04] transition"
+               >
+                 <SettingsIcon className="h-3.5 w-3.5" />
+                 <span>专注设置</span>
+               </button>
+             </div>
 
              {/* Today Stats */}
              <div className="flex items-center justify-between rounded-xl border border-black/5 dark:border-white/5 bg-black/[0.02] dark:bg-white/[0.02] px-3 py-2 text-xs">
@@ -681,6 +704,7 @@ type TodoFilter = 'all' | 'pending' | 'done'
      </aside>
      <PomodoroCompletion timer={pomodoro} onOpen={openFocusTimer} />
     <PomodoroSettingsDialog timer={pomodoro} open={showPomoSettings} onClose={() => setShowPomoSettings(false)} />
+    <PomodoroFullscreen timer={pomodoro} open={showPomoFullscreen} onClose={closePomoFullscreen} accentColor={accentColor} taskText={focusedMemo?.text} />
     </>
    )
  }

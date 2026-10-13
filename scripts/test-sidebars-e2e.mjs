@@ -1172,10 +1172,100 @@
       return el.textContent.includes('同步成功') && r.width > 0 && el.scrollWidth <= el.clientWidth && r.right <= innerWidth
     })()`))
     await shot('22-sync-settings-panel')
-    await cdp.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 })
-    await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape' })
+    await nativeClick(`[...document.querySelectorAll('button')].find(b => b.textContent.trim() === '完成')`)
+    check('#33 设置面板可关闭', !(await evaluate(`[...document.querySelectorAll('button')].some(b => b.textContent.trim() === '完成')`)))
     await syncStore(`useNavStore.setState({ syncConfig: null, workbenchStatus: 'off', workbenchMessage: '', backendUpgradeRequired: false }); return true`)
     await evaluate(`window.fetch = window.__realFetch; true`)
+
+    console.log('\n--- 测试 7: 番茄钟全屏专注 ---')
+    // 可能失败的方式：进入/退出全屏重置或暂停计时；全屏 API 被拒导致无法进入；
+    // 用户按 Esc 退出浏览器全屏后覆盖层残留；按钮聚焦时空格重复切换；
+    // 完成提醒被覆盖层挡住；窄屏/深色下溢出或不可读；退出后焦点丢失。
+    await clickText('专注')
+    if (await evaluate(`Boolean(document.querySelector('[aria-label="关闭完成提醒"]'))`)) await clickLabel('关闭完成提醒')
+    await clickText('工作 2m')
+    await clickText('开始')
+    const fsOpen = () => evaluate(`Boolean(document.querySelector('[data-testid="pomodoro-fullscreen"]'))`)
+    const fsTime = () => evaluate(`(() => { const [m, s] = document.querySelector('[data-testid="pomodoro-fullscreen-time"]').textContent.split(':').map(Number); return m * 60 + s })()`)
+    const sideTime = () => evaluate(`(() => { const t = [...document.querySelectorAll('#right-workbench span')].find(s => /^\\d\\d:\\d\\d$/.test(s.textContent.trim())); const [m, s] = t.textContent.split(':').map(Number); return m * 60 + s })()`)
+    const toggleText = () => evaluate(`document.querySelector('[data-testid="pomodoro-fullscreen-toggle"]').textContent.trim()`)
+    const before = await sideTime()
+    await nativeClick(`document.querySelector('[data-testid="pomodoro-fullscreen-button"]')`)
+    await sleep(500)
+    const browserFullscreen = await evaluate('Boolean(document.fullscreenElement)')
+    report.pomodoroFullscreen = { browserFullscreen }
+    const fsStart = await fsTime()
+    check('点击「全屏专注」打开全屏视图，计时不重置不暂停', await fsOpen() && Math.abs(fsStart - before) <= 2 && (await toggleText()) === '暂停' && await evaluate(`document.querySelector('[data-testid="pomodoro-fullscreen"]').getAttribute('role') === 'dialog'`), `before=${before} fullscreen=${fsStart} browserFullscreen=${browserFullscreen}`)
+    check('全屏视图焦点落在开始/暂停按钮', await evaluate(`document.activeElement?.dataset.testid === 'pomodoro-fullscreen-toggle'`))
+    await advance(30 * 1000)
+    const fsAfter = await fsTime()
+    check('全屏中时间与侧栏同一计时源持续走动', fsStart - fsAfter >= 29 && fsStart - fsAfter <= 32 && Math.abs(fsAfter - await sideTime()) <= 1, `${fsStart} -> ${fsAfter}`)
+    const pressSpace = async () => {
+      await cdp.send('Input.dispatchKeyEvent', { type: 'keyDown', key: ' ', code: 'Space', windowsVirtualKeyCode: 32, text: ' ' })
+      await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', key: ' ', code: 'Space', windowsVirtualKeyCode: 32 })
+      await sleep(200)
+    }
+    await pressSpace()
+    check('按钮聚焦时空格只切换一次（暂停）', (await toggleText()) === '开始')
+    await evaluate(`document.activeElement.blur(); true`)
+    await pressSpace()
+    check('无焦点时空格快捷键继续计时', (await toggleText()) === '暂停')
+    const fsLayout = () => evaluate(`(() => {
+      const el = document.querySelector('[data-testid="pomodoro-fullscreen"]')
+      const r = el.getBoundingClientRect()
+      const inside = [...el.querySelectorAll('button, [data-testid="pomodoro-fullscreen-time"]')].every(n => { const b = n.getBoundingClientRect(); return b.left >= 0 && b.top >= 0 && b.right <= innerWidth && b.bottom <= innerHeight })
+      const s = getComputedStyle(el.querySelector('[data-testid="pomodoro-fullscreen-time"]'))
+      const c = document.createElement('canvas'); c.width = c.height = 1
+      const ctx = c.getContext('2d', { willReadFrequently: true })
+      const lum = color => { ctx.clearRect(0, 0, 1, 1); ctx.fillStyle = color; ctx.fillRect(0, 0, 1, 1)
+        return [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3).map(v => v / 255).map(n => n <= .04045 ? n / 12.92 : ((n + .055) / 1.055) ** 2.4).reduce((a, v, i) => a + v * [.2126, .7152, .0722][i], 0) }
+      const f = lum(s.color), b = lum(getComputedStyle(el).backgroundColor)
+      return { covers: r.left <= 0 && r.top <= 0 && r.right >= innerWidth && r.bottom >= innerHeight, inside,
+        noScroll: el.scrollHeight <= el.clientHeight + 1 && el.scrollWidth <= el.clientWidth + 1,
+        contrast: (Math.max(f, b) + .05) / (Math.min(f, b) + .05), fontSize: parseFloat(s.fontSize) }
+    })()`)
+    const lightFs = await fsLayout()
+    await shot('23-pomodoro-fullscreen-light')
+    await evaluate(`(async () => { const { useNavStore } = await import('/src/store/useNavStore.ts'); useNavStore.getState().updateSettings({ themeMode: 'dark' }) })()`)
+    await sleep(200)
+    const darkFs = await fsLayout()
+    await shot('24-pomodoro-fullscreen-dark')
+    await cdp.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 700, deviceScaleFactor: 1, mobile: true })
+    await sleep(300)
+    const narrowFs = await fsLayout()
+    await shot('25-pomodoro-fullscreen-narrow-dark')
+    await cdp.send('Emulation.setDeviceMetricsOverride', { width: 1920, height: 1080, deviceScaleFactor: 1, mobile: false })
+    await evaluate(`(async () => { const { useNavStore } = await import('/src/store/useNavStore.ts'); useNavStore.getState().updateSettings({ themeMode: 'light' }) })()`)
+    await sleep(300)
+    report.pomodoroFullscreen.layout = { lightFs, darkFs, narrowFs }
+    check('全屏视图浅色/深色/窄屏铺满且无溢出，时间大字可读', [lightFs, darkFs, narrowFs].every(l => l.covers && l.inside && l.noScroll && l.contrast >= 7) && lightFs.fontSize >= 100 && narrowFs.fontSize >= 40, JSON.stringify({ light: lightFs.fontSize, narrow: narrowFs.fontSize, darkContrast: darkFs.contrast.toFixed(1) }))
+    await advance(2 * 60 * 1000)
+    check('阶段完成提醒显示在全屏视图之上', await evaluate(`(() => {
+      const n = document.querySelector('[data-testid="pomodoro-reminder"]')
+      if (!n) return false
+      const r = n.getBoundingClientRect()
+      return n.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)) && Boolean(document.querySelector('[data-testid="pomodoro-fullscreen"]'))
+    })()`))
+    check('全屏中阶段自动衔接到休息并显示在全屏视图', (await evaluate(`document.querySelector('[data-testid="pomodoro-fullscreen-mode"]').textContent`)).includes('休') && (await toggleText()) === '暂停')
+    await clickLabel('关闭完成提醒')
+    const runningBeforeExit = await fsTime()
+    if (browserFullscreen) {
+      // 模拟用户按 Esc 退出浏览器全屏：只触发 fullscreenchange，不点击退出按钮。
+      await evaluate(`document.exitFullscreen().then(() => true)`)
+    } else {
+      await press('Escape')
+    }
+    await sleep(300)
+    check('Esc 退出全屏后覆盖层关闭，计时仍继续', !(await fsOpen()) && !(await evaluate('Boolean(document.fullscreenElement)')) && Math.abs((await sideTime()) - runningBeforeExit) <= 2 && await evaluate(`[...document.querySelectorAll('#right-workbench button')].some(b => b.textContent.trim() === '暂停')`))
+    check('退出后焦点回到「全屏专注」按钮', await evaluate(`document.activeElement?.dataset.testid === 'pomodoro-fullscreen-button'`))
+    // 全屏 API 被拒绝时降级为页面内全屏视图，并可用退出按钮关闭。
+    await evaluate(`window.__realRequestFullscreen = document.documentElement.requestFullscreen; document.documentElement.requestFullscreen = () => Promise.reject(new Error('denied by fixture')); true`)
+    await nativeClick(`document.querySelector('[data-testid="pomodoro-fullscreen-button"]')`)
+    await sleep(300)
+    check('浏览器拒绝全屏时仍以页面内全屏视图展示', await fsOpen() && !(await evaluate('Boolean(document.fullscreenElement)')) && (await fsLayout()).covers)
+    await nativeClick(`document.querySelector('[aria-label="退出全屏专注"]')`)
+    check('退出按钮关闭全屏视图且不影响计时', !(await fsOpen()) && await evaluate(`[...document.querySelectorAll('#right-workbench button')].some(b => b.textContent.trim() === '暂停')`))
+    await evaluate(`document.documentElement.requestFullscreen = window.__realRequestFullscreen; true`)
 
     report.success = results.every(r => r.ok)
     if (!report.success) process.exitCode = 1
