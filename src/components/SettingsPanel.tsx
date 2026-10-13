@@ -202,7 +202,7 @@ export function SettingsPanel({ settings, initialTab, onClose, onChange, onOpenI
                   <button
                     type="button"
                     onClick={() => onChange({ wallpaperUrl: customUrl.trim() })}
-                    className="rounded-xl bg-orange-500 px-4 py-2 text-xs font-medium text-white shadow-sm hover:bg-orange-600 transition"
+                    className="rounded-xl bg-orange-500 px-4 py-2 text-xs font-medium text-on-accent shadow-sm hover:bg-orange-600 transition"
                   >
                     应用链接
                   </button>
@@ -647,7 +647,7 @@ export function SettingsPanel({ settings, initialTab, onClose, onChange, onOpenI
                       setTestResult(res)
                       setTestingWeather(false)
                     }}
-                    className="flex items-center gap-1.5 rounded-xl bg-orange-500 px-4 py-2 text-xs font-medium text-white shadow-sm hover:bg-orange-600 disabled:opacity-50 transition cursor-pointer"
+                    className="flex items-center gap-1.5 rounded-xl bg-orange-500 px-4 py-2 text-xs font-medium text-on-accent shadow-sm hover:bg-orange-600 disabled:opacity-50 transition cursor-pointer"
                   >
                     {testingWeather ? (
                       <>
@@ -718,7 +718,7 @@ export function SettingsPanel({ settings, initialTab, onClose, onChange, onOpenI
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl bg-orange-500 px-5 py-2 font-medium text-white shadow-sm hover:bg-orange-600 transition border border-transparent"
+            className="rounded-xl bg-orange-500 px-5 py-2 font-medium text-on-accent shadow-sm hover:bg-orange-600 transition border border-transparent"
           >
             完成
           </button>

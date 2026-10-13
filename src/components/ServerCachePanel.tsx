@@ -180,7 +180,7 @@ export function ServerCachePanel({ currentPageBookmarks }: { currentPageBookmark
           </details>
           <p>最多 {caps?.limits.batch ?? 20} 项/批，并发最多 {caps?.limits.concurrent ?? 3}。服务端按实际资源去重，受账号配额和资源冷却限制。</p>
           <button type="button" disabled={running || !caps || !targets.length} onClick={() => void run()}
-            className="rounded-lg bg-orange-500 px-3 py-2 text-white disabled:opacity-40">确认并联合刷新</button>
+            className="rounded-lg bg-orange-500 px-3 py-2 text-on-accent disabled:opacity-40">确认并联合刷新</button>
         </fieldset>}
       {running && <div role="status" className="flex flex-wrap items-center gap-2">
         <Loader2 className="h-4 w-4 animate-spin" />处理进度 {progress.done}/{progress.total}

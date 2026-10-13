@@ -213,13 +213,13 @@
              title="近期访问足迹"
              className={`relative flex h-10 w-10 items-center justify-center rounded-full transition-all duration-200 ${
                showHistory
-                 ? 'bg-blue-500 text-white shadow-md'
+                 ? 'bg-orange-500 text-on-accent shadow-md'
                  : 'text-neutral-600 dark:text-neutral-400 hover:bg-black/5 dark:hover:bg-white/10 hover:text-neutral-900 dark:hover:text-white'
              }`}
            >
              <History className="h-4 w-4" />
              {recentVisits.length > 0 && (
-               <span className="absolute -top-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-orange-500 text-[8px] font-bold text-white shadow">
+               <span className="absolute -top-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-orange-500 text-[8px] font-bold text-on-accent shadow">
                  {recentVisits.length}
                </span>
              )}
@@ -269,7 +269,7 @@
                            className="h-4 w-4 shrink-0 rounded object-contain"
                          />
                          <div className="min-w-0 flex-1">
-                           <div className="truncate font-medium text-neutral-800 dark:text-neutral-200 group-hover:text-blue-500">
+                           <div className="truncate font-medium text-neutral-800 dark:text-neutral-200 group-hover:text-orange-500">
                              {item.title}
                            </div>
                            <div className="text-[10px] text-neutral-400">
@@ -320,7 +320,7 @@
                    placeholder="如: GitHub / Gmail"
                    value={newTitle}
                    onChange={(e) => setNewTitle(e.target.value)}
-                   className="w-full rounded-xl border border-neutral-200 dark:border-neutral-700 bg-transparent px-3 py-2 outline-none text-neutral-800 dark:text-neutral-100 focus:border-blue-500"
+                   className="w-full rounded-xl border border-neutral-200 dark:border-neutral-700 bg-transparent px-3 py-2 outline-none text-neutral-800 dark:text-neutral-100 focus:border-orange-500"
                  />
                </div>
                <div>
@@ -329,7 +329,7 @@
                    placeholder="https://..."
                    value={newUrl}
                    onChange={(e) => setNewUrl(e.target.value)}
-                   className="w-full rounded-xl border border-neutral-200 dark:border-neutral-700 bg-transparent px-3 py-2 outline-none text-neutral-800 dark:text-neutral-100 focus:border-blue-500"
+                   className="w-full rounded-xl border border-neutral-200 dark:border-neutral-700 bg-transparent px-3 py-2 outline-none text-neutral-800 dark:text-neutral-100 focus:border-orange-500"
                  />
                </div>
              </div>
@@ -345,7 +345,7 @@
                  type="button"
                  disabled={!newUrl.trim()}
                  onClick={handleAddSubmit}
-                 className="rounded-xl bg-blue-500 px-4 py-1.5 font-medium text-white shadow-sm hover:bg-blue-600 disabled:opacity-50"
+                 className="rounded-xl bg-orange-500 px-4 py-1.5 font-medium text-on-accent shadow-sm hover:bg-orange-600 disabled:opacity-50"
                >
                  添加
                </button>

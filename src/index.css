@@ -2,6 +2,56 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/*
+ * 主题强调色（#41）：项目里 orange-* 一直作为品牌强调色使用，这里把整套 orange
+ * 色阶映射到用户的「全局主题高亮色」。默认橙色时 --nav-orange-* 未定义，完全回落到
+ * Tailwind 原值，界面零变化；自定义主题色时由下面 :root[data-accent='custom'] 生成色阶。
+ * 红/绿/琥珀/蓝等语义色不受影响。
+ */
+@theme {
+  --color-orange-50: var(--nav-orange-50, oklch(98% 0.016 73.684));
+  --color-orange-100: var(--nav-orange-100, oklch(95.4% 0.038 75.164));
+  --color-orange-200: var(--nav-orange-200, oklch(90.1% 0.076 70.697));
+  --color-orange-300: var(--nav-orange-300, oklch(83.7% 0.128 66.29));
+  --color-orange-400: var(--nav-orange-400, oklch(75% 0.183 55.934));
+  --color-orange-500: var(--nav-orange-500, oklch(70.5% 0.213 47.604));
+  --color-orange-600: var(--nav-orange-600, oklch(64.6% 0.222 41.116));
+  --color-orange-700: var(--nav-orange-700, oklch(55.3% 0.195 38.402));
+  --color-orange-800: var(--nav-orange-800, oklch(47% 0.157 37.304));
+  --color-orange-900: var(--nav-orange-900, oklch(40.8% 0.123 38.172));
+  --color-orange-950: var(--nav-orange-950, oklch(26.6% 0.079 36.259));
+  --color-on-accent: var(--accent-ink, #fff);
+}
+
+/* 沿用 Tailwind 原色阶的亮度，色相与饱和度取自主题色，文字对比度与默认橙色保持一致。 */
+:root[data-accent='custom'] {
+  --nav-orange-50: oklch(from var(--accent-color) 98% calc(c * 0.075) h);
+  --nav-orange-100: oklch(from var(--accent-color) 95.4% calc(c * 0.178) h);
+  --nav-orange-200: oklch(from var(--accent-color) 90.1% calc(c * 0.357) h);
+  --nav-orange-300: oklch(from var(--accent-color) 83.7% calc(c * 0.601) h);
+  --nav-orange-400: oklch(from var(--accent-color) 75% calc(c * 0.859) h);
+  --nav-orange-500: var(--accent-color);
+  --nav-orange-600: oklch(from var(--accent-color) calc(l * 0.916) calc(c * 1.042) h);
+  --nav-orange-700: oklch(from var(--accent-color) 55.3% calc(c * 0.915) h);
+  --nav-orange-800: oklch(from var(--accent-color) 47% calc(c * 0.737) h);
+  --nav-orange-900: oklch(from var(--accent-color) 40.8% calc(c * 0.577) h);
+  --nav-orange-950: oklch(from var(--accent-color) 26.6% calc(c * 0.371) h);
+}
+
+/* 深色背景上过暗的主题色（如曜石黑）提亮，避免复选框、焦点边框和选中态不可见。 */
+:root.dark[data-accent='custom'] {
+  --nav-orange-500: oklch(from var(--accent-color) max(l, 0.62) c h);
+  --nav-orange-600: oklch(from var(--accent-color) max(calc(l * 0.916), 0.56) calc(c * 1.042) h);
+}
+
+@layer base {
+  /* 原生复选框 / 单选框统一跟随主题色；浏览器会自动选择对勾颜色。 */
+  input[type='checkbox'],
+  input[type='radio'] {
+    accent-color: var(--color-orange-500);
+  }
+}
+
 :root {
   color-scheme: light;
 }

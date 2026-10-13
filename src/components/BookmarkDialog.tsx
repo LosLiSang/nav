@@ -291,7 +291,7 @@ export function BookmarkDialog({
                         }}
                         className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition ${
                           c.id === categoryId
-                            ? 'bg-orange-500 text-white shadow-sm ring-2 ring-orange-500/20'
+                            ? 'bg-orange-500 text-on-accent shadow-sm ring-2 ring-orange-500/20'
                             : 'bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:border-neutral-300'
                         }`}
                       >
@@ -313,7 +313,7 @@ export function BookmarkDialog({
                         }}
                         className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition ${
                           sc.id === subCategoryId
-                            ? 'bg-orange-500 text-white shadow-sm ring-2 ring-orange-500/20'
+                            ? 'bg-orange-500 text-on-accent shadow-sm ring-2 ring-orange-500/20'
                             : 'bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:border-neutral-300'
                         }`}
                       >
@@ -378,7 +378,7 @@ export function BookmarkDialog({
               <button
                 type="submit"
                 disabled={saving || !title.trim() || !url.trim()}
-                className="rounded-xl bg-[#ff6900] px-6 py-2 font-medium text-white shadow-sm transition hover:bg-[#e05d00] disabled:opacity-50"
+                className="rounded-xl bg-orange-500 px-6 py-2 font-medium text-on-accent shadow-sm transition hover:bg-orange-600 disabled:opacity-50"
               >
                 {saving ? '保存中...' : '保存'}
               </button>

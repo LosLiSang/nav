@@ -306,7 +306,7 @@ export function WidgetToolsCard({
                 let customStyle: React.CSSProperties | undefined = undefined
 
                 if (isToday) {
-                  bgClass = 'font-bold text-white shadow-sm ring-1 ring-white/20'
+                  bgClass = 'font-bold text-on-accent shadow-sm ring-1 ring-white/20'
                   customStyle = { backgroundColor: accentColor }
                 } else if (isSelected) {
                   bgClass = 'font-semibold'
@@ -435,7 +435,7 @@ export function WidgetToolsCard({
                   <button
                     type="submit"
                     style={{ backgroundColor: accentColor }}
-                    className="rounded-lg px-3.5 py-1 text-white shadow-sm hover:opacity-90 transition"
+                    className="rounded-lg px-3.5 py-1 text-on-accent shadow-sm hover:opacity-90 transition"
                   >
                     保存
                   </button>

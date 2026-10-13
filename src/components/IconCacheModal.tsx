@@ -188,7 +188,7 @@ export function IconCacheModal({ currentPageBookmarks, onClose }: Props) {
         <div className="flex justify-end gap-2 border-t border-neutral-200 p-4 text-xs dark:border-neutral-800">
           <button type="button" disabled={iconCleanupRunning} onClick={onClose} className="rounded-lg px-3 py-2 disabled:opacity-40">完成</button>
           <button type="button" disabled={iconCleanupRunning || !plan.targets.length} onClick={() => void execute()}
-            className="rounded-lg bg-orange-500 px-4 py-2 font-medium text-white disabled:opacity-40">清理并立即获取</button>
+            className="rounded-lg bg-orange-500 px-4 py-2 font-medium text-on-accent disabled:opacity-40">清理并立即获取</button>
         </div>
       </div>
     </div>, document.body,

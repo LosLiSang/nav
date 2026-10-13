@@ -382,7 +382,7 @@ type TodoFilter = 'all' | 'pending' | 'done'
                   }}
                    className={`rounded-lg px-2 py-0.5 font-medium transition ${
                      todoFilter === 'pending'
-                      ? 'text-white shadow-sm'
+                      ? 'text-on-accent shadow-sm'
                        : 'text-neutral-500 dark:text-neutral-400 hover:bg-black/5 dark:hover:bg-white/5'
                    }`}
                  >
@@ -418,7 +418,7 @@ type TodoFilter = 'all' | 'pending' | 'done'
                  onClick={handleAddTodo}
                  disabled={!todoInput.trim()}
                 style={{ backgroundColor: accentColor }}
-                className="absolute right-1.5 flex h-6 w-6 items-center justify-center rounded-lg text-white transition hover:opacity-90 disabled:opacity-30"
+                className="absolute right-1.5 flex h-6 w-6 items-center justify-center rounded-lg text-on-accent transition hover:opacity-90 disabled:opacity-30"
                  title="保存待办 (Enter)"
                >
                  <CornerDownLeft className="h-3 w-3" />
@@ -503,7 +503,7 @@ type TodoFilter = 'all' | 'pending' | 'done'
                    }}
                    className={`rounded-full px-2.5 py-0.5 font-medium transition ${
                      pomoMode === 'work'
-                       ? 'text-white shadow-sm'
+                       ? 'text-on-accent shadow-sm'
                        : 'text-neutral-600 dark:text-neutral-400'
                    }`}
                  >
@@ -575,10 +575,10 @@ type TodoFilter = 'all' | 'pending' | 'done'
                    style={{
                      backgroundColor: isRunning ? undefined : accentColor,
                    }}
-                   className={`flex items-center gap-1.5 rounded-xl px-4 py-1.5 text-xs font-semibold text-white shadow-sm transition ${
+                   className={`flex items-center gap-1.5 rounded-xl px-4 py-1.5 text-xs font-semibold shadow-sm transition ${
                      isRunning
-                       ? 'bg-neutral-700 hover:bg-neutral-800'
-                       : 'hover:opacity-90'
+                       ? 'bg-neutral-700 text-white hover:bg-neutral-800'
+                       : 'text-on-accent hover:opacity-90'
                    }`}
                  >
                    {isRunning ? (

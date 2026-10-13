@@ -188,7 +188,7 @@ export const SearchBar = forwardRef<SearchBarHandle, Props>(function SearchBar(
                 }}
                 className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition ${
                   isActive
-                    ? 'text-white shadow-sm'
+                    ? 'text-on-accent shadow-sm'
                     : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-white'
                 }`}
               >

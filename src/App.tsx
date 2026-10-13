@@ -32,6 +32,7 @@ import { SearchBar, type SearchBarHandle } from './components/SearchBar'
 import { SettingsPanel, type TabType } from './components/SettingsPanel'
 import { getSubIcon } from './components/SubCategorySection'
 import { TopNavbar } from './components/TopNavbar'
+import { DEFAULT_ACCENT, accentInk } from './lib/accent'
 
 
 const customCollisionDetection: CollisionDetection = (args) => {
@@ -186,6 +187,10 @@ export default function App() {
   // Dynamically set CSS custom property for global theme accent color
   useEffect(() => {
     document.documentElement.style.setProperty('--accent-color', accentColor)
+    const root = document.documentElement
+    // 默认橙色保持 Tailwind 原色阶；其余颜色生成整套强调色阶（见 index.css）。
+    root.dataset.accent = accentColor.toLowerCase() === DEFAULT_ACCENT ? 'default' : 'custom'
+    root.style.setProperty('--accent-ink', accentInk(accentColor))
   }, [accentColor])
 
   // Dynamically load online web font if specified
