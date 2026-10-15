@@ -120,6 +120,12 @@ export type Settings = {
   isItalic: boolean
   textColor: string
   fontFamily?: string
+  /** 书签西文字体栈（空串=系统默认）；与 fontCjk 一起拼出 fontFamily */
+  fontLatin?: string
+  /** 书签中文字体栈（空串=按西文风格自动匹配） */
+  fontCjk?: string
+  /** 字体作用范围：仅书签标题（默认）或全部界面 */
+  fontScope?: 'bookmarks' | 'global'
   customFontUrl?: string
   showBookmarkIcon?: boolean
   columnMode?: 'auto' | 'manual'

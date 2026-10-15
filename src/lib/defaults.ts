@@ -1,3 +1,4 @@
+import { composeFontFamily } from './fonts'
 import type {
   Bookmark,
   Category,
@@ -90,7 +91,7 @@ export const DEFAULT_SETTINGS: Settings = {
   isBold: false,
   isItalic: false,
   textColor: '#1f2937',
-  fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+  fontFamily: composeFontFamily(),
   customFontUrl: '',
   showBookmarkIcon: true,
   columnMode: 'auto',

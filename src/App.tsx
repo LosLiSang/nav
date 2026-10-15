@@ -207,6 +207,14 @@ export default function App() {
     document.documentElement.classList.toggle('dark', isDark)
   }, [isDark])
 
+  // 字体作用到全部界面：覆盖 Tailwind 的 --font-sans（html 默认字体与 .font-sans 都读它，portal 弹窗也生效）
+  const globalFont = settings.fontScope === 'global' ? settings.fontFamily : ''
+  useEffect(() => {
+    const root = document.documentElement
+    if (globalFont) root.style.setProperty('--font-sans', globalFont)
+    else root.style.removeProperty('--font-sans')
+  }, [globalFont])
+
   // 对话框通过 portal 挂在 body 下，用 <html data-radius> 控制它们的圆角（与页面卡片分开配置）
   const dialogRadius = settings.dialogCornerRadius ?? settings.cornerRadius
   useEffect(() => {
