@@ -24,7 +24,6 @@
  export function LeftSidebar({
    pinnedLinks,
    recentVisits,
-   cardOpacity,
    settings,
    onAddPinnedLink,
    onRemovePinnedLink,
@@ -32,7 +31,6 @@
    onClearRecentVisits,
    onRecordVisit,
  }: Props) {
-   const isDark = settings.themeMode === 'dark'
    const [showHistory, setShowHistory] = useState(false)
    const [showAddPin, setShowAddPin] = useState(false)
    const [newTitle, setNewTitle] = useState('')
@@ -90,9 +88,6 @@
      return () => document.removeEventListener('mousedown', handleClickOutside)
    }, [showHistory])
  
-   const cardBg = isDark
-     ? `rgba(24, 24, 27, ${cardOpacity / 100})`
-     : `rgba(255, 255, 255, ${cardOpacity / 100})`
  
    const cardRadius =
      settings.cornerRadius === 'none'
@@ -133,8 +128,7 @@
     <aside id="left-dock" className="sticky top-14 hidden shrink-0 lg:flex flex-col items-center gap-3 z-30">
        {/* Pinned Super-Links Dock */}
        <div
-         className={`flex flex-col items-center gap-2 p-2 border border-white/60 dark:border-white/10 shadow-2xl backdrop-blur-md transition-all duration-200 ${cardRadius}`}
-         style={{ backgroundColor: cardBg }}
+         className={`flex flex-col items-center gap-2 p-2 nav-glass transition-all duration-200 ${cardRadius}`}
        >
          <div className="flex flex-col items-center gap-1.5">
            {pinnedLinks.map((link, index) => {

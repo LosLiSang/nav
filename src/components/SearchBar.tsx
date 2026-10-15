@@ -36,6 +36,27 @@ export const SearchBar = forwardRef<SearchBarHandle, Props>(function SearchBar(
     }
   })
   const containerRef = useRef<HTMLDivElement>(null)
+  const engineRowRef = useRef<HTMLDivElement>(null)
+
+  // 引擎多时单行横向滚动：竖向滚轮转成横向滚动（仅在确实溢出时拦截，避免影响页面滚动）。
+  useEffect(() => {
+    const row = engineRowRef.current
+    if (!row) return
+    const onWheel = (e: WheelEvent) => {
+      if (row.scrollWidth <= row.clientWidth || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return
+      e.preventDefault()
+      row.scrollLeft += e.deltaY
+    }
+    row.addEventListener('wheel', onWheel, { passive: false })
+    return () => row.removeEventListener('wheel', onWheel)
+  }, [])
+
+  // 切换引擎（含 Tab 键）时把当前项滚进可视区。
+  useEffect(() => {
+    engineRowRef.current
+      ?.querySelector<HTMLElement>('[data-active="true"]')
+      ?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }, [engine.id])
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -172,24 +193,28 @@ export const SearchBar = forwardRef<SearchBarHandle, Props>(function SearchBar(
         : 'rounded-xl'
 
   return (
-    <section className={`relative ${showSettings || showHistoryDropdown ? 'z-40' : 'z-30'} border border-neutral-100/90 dark:border-white/10 bg-white/95 dark:bg-[#18181b]/90 p-3 shadow-[0_2px_12px_rgba(0,0,0,0.06)] backdrop-blur-md text-neutral-800 dark:text-neutral-100 ${cardRadius}`}>
+    <section className={`relative ${showSettings || showHistoryDropdown ? 'z-40' : 'z-30'} nav-glass p-3 text-neutral-800 dark:text-neutral-100 ${cardRadius}`}>
       {/* Top row engine tabs */}
-      <div className="flex flex-wrap items-center justify-between gap-1.5 px-1">
-        <div className="flex flex-wrap items-center gap-1.5">
+      <div className="flex items-center justify-between gap-3 px-1">
+        <div
+          ref={engineRowRef}
+          className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto whitespace-nowrap no-scrollbar"
+        >
           {engines.map((item) => {
             const isActive = item.id === engine.id
             return (
               <button
                 key={item.id}
                 type="button"
+                data-active={isActive}
                 onClick={() => onSelectEngine(item.id)}
                 style={{
                   backgroundColor: isActive ? (settings.highlightColor || '#ff6900') : undefined,
                 }}
-                className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition ${
+                className={`flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition ${
                   isActive
                     ? 'text-on-accent shadow-sm'
-                    : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-white'
+                    : 'text-neutral-700 dark:text-neutral-300 hover:bg-black/5 dark:hover:bg-white/10 hover:text-neutral-900 dark:hover:text-white'
                 }`}
               >
                 {getEngineIcon(item.id)}
@@ -199,7 +224,7 @@ export const SearchBar = forwardRef<SearchBarHandle, Props>(function SearchBar(
           })}
         </div>
 
-        <span className="hidden text-xs text-neutral-400 lg:block">
+        <span className="hidden shrink-0 text-xs text-neutral-500 dark:text-neutral-400 lg:block">
           Tab 切换搜索引擎 · Ctrl+K 聚焦
         </span>
       </div>

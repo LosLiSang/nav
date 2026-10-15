@@ -146,6 +146,91 @@ html[data-radius='md'] .nav-dialog {
   border-radius: var(--radius-xl) !important;
 }
 
+/* 设置面板分组卡片：仿 Apple 分组列表，行间分隔线从左侧内边距开始。 */
+/*
+ * 页面卡片材质：仿 Apple 官网/系统的毛玻璃（半透明底色 + saturate(180%) blur）。
+ * saturate 让透出的壁纸保持鲜艳，不发灰；blur 足够大，背后物体只剩色块，不会看到模糊轮廓。
+ * --glass-alpha 由 App 根据「卡片不透明度」写入。
+ */
+.nav-glass {
+  background-color: rgb(255 255 255 / var(--glass-alpha, 0.72));
+  -webkit-backdrop-filter: saturate(180%) blur(28px);
+  backdrop-filter: saturate(180%) blur(28px);
+  border: 1px solid rgb(255 255 255 / 0.55);
+  box-shadow:
+    0 0 0 0.5px rgb(0 0 0 / 0.06),
+    0 12px 32px -14px rgb(0 0 0 / 0.22);
+}
+
+.dark .nav-glass {
+  background-color: rgb(30 30 32 / var(--glass-alpha, 0.72));
+  border-color: rgb(255 255 255 / 0.08);
+  box-shadow:
+    0 0 0 0.5px rgb(0 0 0 / 0.5),
+    0 12px 32px -14px rgb(0 0 0 / 0.6);
+}
+
+.settings-group > * + * {
+  position: relative;
+}
+
+.settings-group > * + *::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 14px;
+  right: 0;
+  height: 1px;
+  background: rgb(0 0 0 / 0.07);
+}
+
+.dark .settings-group > * + *::before {
+  background: rgb(255 255 255 / 0.08);
+}
+
+/* 仿 iOS / macOS 开关：仍是原生复选框，保留键盘、表单与 accent-color 行为。 */
+.nav-switch {
+  appearance: none;
+  position: relative;
+  flex-shrink: 0;
+  width: 34px;
+  height: 20px;
+  border-radius: 9999px;
+  background: rgb(0 0 0 / 0.14);
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.dark .nav-switch {
+  background: rgb(255 255 255 / 0.18);
+}
+
+.nav-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
+  transition: transform 0.2s ease;
+}
+
+.nav-switch:checked {
+  background: var(--color-orange-500);
+}
+
+.nav-switch:checked::after {
+  transform: translateX(14px);
+}
+
+.nav-switch:focus-visible {
+  outline: 2px solid var(--color-orange-500);
+  outline-offset: 2px;
+}
+
 /* Sleek custom scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
@@ -180,6 +265,15 @@ html[data-radius='md'] .nav-dialog {
 
 .dark * {
   scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+
+/* 横向标签条隐藏滚动条（仍可滚轮/触控板滑动）。需写在全局 * 规则之后才能覆盖。 */
+.no-scrollbar {
+  scrollbar-width: none !important;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
 
 /* 彻底隐藏草稿文本框自身的任何内嵌滚动条，仅保留外层卡片滚动条 */

@@ -353,7 +353,7 @@ async function verifyLocalIconCleanup(evaluate, check) {
   await evaluate(`document.querySelector('button[title="全局界面与壁纸设置"]').click()`)
   await poll(() => evaluate(`(() => {
     const button = [...document.querySelectorAll('button')].find(b => b.textContent.trim() === '清理本地图标缓存')
-    if (!button) return false
+    if (!button) { [...document.querySelectorAll('.nav-dialog nav button')].find(b=>b.textContent.trim()==='网站图标')?.click(); return false }
     button.click(); return true
   })()`), 5000, 'open cleanup selector')
   const defaults = await evaluate(`(() => {

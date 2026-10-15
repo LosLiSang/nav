@@ -28,7 +28,6 @@ type Props = {
 export function WidgetToolsCard({
   totpAccounts,
   settings,
-  cardOpacity,
   onSelectWidgetTab,
   onAddTotp,
   onDeleteTotp,
@@ -39,10 +38,6 @@ export function WidgetToolsCard({
       : settings.cornerRadius === 'md'
         ? 'rounded-xl'
         : 'rounded-2xl'
-  const isDark = settings.themeMode === 'dark'
-  const cardBg = isDark
-    ? `rgba(24, 24, 27, ${cardOpacity / 100})`
-    : `rgba(255, 255, 255, ${cardOpacity / 100})`
   const accentColor = settings.highlightColor || '#ff6900'
 
   const [totpCodes, setTotpCodes] = useState<
@@ -177,11 +172,10 @@ export function WidgetToolsCard({
 
       {/* Widget Card Container */}
       <div
-        className={`flex flex-col overflow-hidden border border-neutral-100/90 dark:border-white/10 shadow-[0_4px_20px_rgba(0,0,0,0.06)] backdrop-blur-md text-neutral-800 dark:text-neutral-100 ${cardRadius}`}
-        style={{ backgroundColor: cardBg }}
+        className={`flex flex-col overflow-hidden nav-glass text-neutral-800 dark:text-neutral-100 ${cardRadius}`}
       >
         {/* Tabs header */}
-        <div className="flex items-center gap-1 border-b border-neutral-100 dark:border-neutral-800 px-3 py-2 overflow-x-auto whitespace-nowrap [scrollbar-width:none]">
+        <div className="flex items-center gap-1 border-b border-neutral-100 dark:border-neutral-800 px-3 py-2 overflow-x-auto whitespace-nowrap no-scrollbar">
           <button
             type="button"
             onClick={() => onSelectWidgetTab('calendar')}
@@ -192,7 +186,7 @@ export function WidgetToolsCard({
             className={`rounded-full px-2.5 py-1 text-xs font-medium transition ${
               settings.activeWidgetTab === 'calendar' || settings.activeWidgetTab === 'memo'
                 ? 'font-semibold'
-                : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
+                : 'text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white'
             }`}
           >
             日历
@@ -207,7 +201,7 @@ export function WidgetToolsCard({
             className={`rounded-full px-2.5 py-1 text-xs font-medium transition ${
               settings.activeWidgetTab === 'totp'
                 ? 'font-semibold'
-                : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
+                : 'text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white'
             }`}
           >
             2FA
@@ -222,7 +216,7 @@ export function WidgetToolsCard({
             className={`rounded-full px-2.5 py-1 text-xs font-medium transition ${
               settings.activeWidgetTab === 'qrcode'
                 ? 'font-semibold'
-                : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
+                : 'text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white'
             }`}
           >
             二维码
@@ -237,7 +231,7 @@ export function WidgetToolsCard({
             className={`rounded-full px-2.5 py-1 text-xs font-medium transition ${
               settings.activeWidgetTab === 'tools'
                 ? 'font-semibold'
-                : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
+                : 'text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white'
             }`}
           >
             开发工具
@@ -270,7 +264,7 @@ export function WidgetToolsCard({
                 </button>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-normal">
+                <span className="text-[10px] text-neutral-500 dark:text-neutral-400 font-normal">
                   {selectedDayInfo.lunarYearName}{selectedDayInfo.lunarZodiac ? `${selectedDayInfo.lunarZodiac}年` : ''}
                 </span>
                 {!isViewingCurrentMonth && (
@@ -286,7 +280,7 @@ export function WidgetToolsCard({
               </div>
             </div>
 
-            <div className="grid grid-cols-7 gap-0.5 text-center font-medium text-neutral-400 py-0.5 text-[11px] border-y border-neutral-100 dark:border-neutral-800">
+            <div className="grid grid-cols-7 gap-0.5 text-center font-medium text-neutral-500 dark:text-neutral-400 py-0.5 text-[11px] border-y border-neutral-100 dark:border-neutral-800">
               <span>一</span>
               <span>二</span>
               <span>三</span>
@@ -347,7 +341,7 @@ export function WidgetToolsCard({
                           ? 'text-white/85 font-medium'
                           : isHoliday && dayInfo.isCurrentMonth
                             ? 'font-semibold'
-                            : 'text-neutral-400 dark:text-neutral-500'
+                            : 'text-neutral-500 dark:text-neutral-400'
                       }`}
                     >
                       {dayInfo.subText}
@@ -445,7 +439,7 @@ export function WidgetToolsCard({
 
             <div className="grid grid-cols-1 gap-2 max-h-[240px] overflow-y-auto pr-1">
               {totpAccounts.length === 0 ? (
-                <div className="py-6 text-center text-neutral-400">暂无 2FA 账号</div>
+                <div className="py-6 text-center text-neutral-500 dark:text-neutral-400">暂无 2FA 账号</div>
               ) : (
                 totpAccounts.map((acc) => {
                   const data = totpCodes[acc.id] ?? {
@@ -538,7 +532,7 @@ export function WidgetToolsCard({
                 </div>
               </div>
             ) : (
-              <div className="py-6 text-neutral-400">请输入内容生成二维码</div>
+              <div className="py-6 text-neutral-500 dark:text-neutral-400">请输入内容生成二维码</div>
             )}
           </div>
         )}
@@ -546,7 +540,7 @@ export function WidgetToolsCard({
         {/* Tab 5: Dev Tools */}
         {settings.activeWidgetTab === 'tools' && (
           <div className="flex flex-col p-3.5 text-xs">
-            <div className="flex items-center gap-1 border-b border-neutral-100 dark:border-neutral-800 pb-2 overflow-x-auto whitespace-nowrap [scrollbar-width:none]">
+            <div className="flex items-center gap-1 border-b border-neutral-100 dark:border-neutral-800 pb-2 overflow-x-auto whitespace-nowrap no-scrollbar">
               {(['base64', 'url', 'timestamp', 'uuid'] as const).map((tab) => (
                 <button
                   key={tab}

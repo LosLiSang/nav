@@ -388,7 +388,6 @@ export function SubCategorySection({
   bookmarks,
   cachedIcons,
   failedDomains,
-  cardOpacity,
   settings,
   isSortMode,
   draggingId,
@@ -410,10 +409,6 @@ export function SubCategorySection({
       : settings.cornerRadius === 'md'
         ? 'rounded-xl'
         : 'rounded-2xl'
-  const isDark = settings.themeMode === 'dark'
-  const cardBg = isDark
-    ? `rgba(24, 24, 27, ${cardOpacity / 100})`
-    : `rgba(255, 255, 255, ${cardOpacity / 100})`
 
   const [addingSection, setAddingSection] = useState(false)
   const [newSectionName, setNewSectionName] = useState('')
@@ -481,12 +476,11 @@ export function SubCategorySection({
 
   return (
     <div
-      className={`flex-1 min-w-0 w-full flex flex-col overflow-hidden border border-neutral-100/90 dark:border-white/10 shadow-[0_4px_20px_rgba(0,0,0,0.06)] backdrop-blur-md text-neutral-800 dark:text-neutral-100 ${cardRadius}`}
-      style={{ backgroundColor: cardBg }}
+      className={`flex-1 min-w-0 w-full flex flex-col overflow-hidden nav-glass text-neutral-800 dark:text-neutral-100 ${cardRadius}`}
     >
       {/* Top Section Tabs Header Bar */}
       <div className="flex items-center justify-between gap-2 border-b border-neutral-100 dark:border-neutral-800 px-4 py-2">
-        <div className="flex items-center gap-1.5 overflow-x-auto whitespace-nowrap [scrollbar-width:none]">
+        <div className="flex items-center gap-1.5 overflow-x-auto whitespace-nowrap no-scrollbar">
           <SortableContext
             items={subSections.map((sec) => `section:${sec.id}`)}
             strategy={horizontalListSortingStrategy}
@@ -623,7 +617,7 @@ export function SubCategorySection({
               type="button"
               onClick={() => setAddingSubCat(true)}
               title="添加子分类"
-              className="flex flex-col items-center justify-center rounded-xl border border-dashed border-neutral-200 dark:border-neutral-700 p-2 text-neutral-400 hover:border-orange-400 hover:text-orange-500 transition"
+              className="flex flex-col items-center justify-center rounded-xl border border-dashed border-neutral-200 dark:border-neutral-700 p-2 text-neutral-500 dark:text-neutral-400 hover:border-orange-400 hover:text-orange-500 transition"
             >
               <Plus className="h-3.5 w-3.5" />
               <span className="text-[10px] mt-0.5">新增</span>
@@ -634,8 +628,8 @@ export function SubCategorySection({
        {/* Right Bookmarks Grid Area（始终按内容自适应列数） */}
         <SubCategoryDropZone subCategoryId={effectiveSubCatId}>
           {currentSubBookmarks.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center text-xs text-neutral-400">
-              <Folder className="h-8 w-8 text-neutral-300 dark:text-neutral-600 mb-2 stroke-[1.5]" />
+            <div className="flex flex-col items-center justify-center py-16 text-center text-xs text-neutral-600 dark:text-neutral-300">
+              <Folder className="h-8 w-8 text-neutral-400 dark:text-neutral-500 mb-2 stroke-[1.5]" />
               <span>该分类下暂无网址，点击上方「+ 添加」新增书签，或从上方拖拽书签移入</span>
             </div>
           ) : (
