@@ -22,6 +22,7 @@
     "check:sort": "node scripts/test-sorting-e2e.mjs",
     "check:sub-sort": "node scripts/test-bookmark-drag-e2e.mjs",
     "check:icons": "node scripts/check-icon-picker.mjs",
+    "check:fonts": "node scripts/test-bookmark-font-e2e.mjs",
     "check:weather": "node scripts/test-weather-e2e.mjs",
     "smoke:sync": "node scripts/smoke-sync-local.mjs",
     "test:worker": "node --test scripts/test-worker-policy.mjs"

@@ -1,22 +1,19 @@
 import { useState } from 'react'
-import { Bold, Italic, Minus, Plus } from 'lucide-react'
+import { Bold, Check, ChevronRight, Italic, Minus, Plus } from 'lucide-react'
+import {
+  CJK_FONTS,
+  FONT_DESIGNS,
+  LATIN_FONTS,
+  LEGACY_DEFAULT_FONT_FAMILY,
+  composeFontFamily,
+  findDesign,
+  findFont,
+} from '../../lib/fonts'
 import { resolveTextColor } from '../../lib/utils'
 import type { IconShape, Settings } from '../../types'
+import { FontSlotPicker, useLocalFontFamilies } from './FontPicker'
 import { Group, Row, Segmented } from './ui'
 import { FIELD, SECONDARY_BUTTON } from './styles'
-
-const FONT_PRESETS = [
-  { label: '系统默认', value: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' },
-  { label: '苹方 / 鸿蒙', value: '"PingFang SC", "HarmonyOS Sans", "Noto Sans SC", sans-serif' },
-  { label: '微软雅黑', value: '"Microsoft YaHei", "微软雅黑", sans-serif' },
-  { label: '宋体', value: '"Noto Serif SC", "Source Han Serif SC", SimSun, serif' },
-  { label: '楷体', value: 'KaiTi, "STKaiti", cursive' },
-  { label: '极客代码 (JetBrains Mono)', value: '"JetBrains Mono", "Fira Code", Consolas, "PingFang SC", "Microsoft YaHei", monospace' },
-  { label: '现代极简 (Inter)', value: '"Inter", -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif' },
-  { label: '人文雅集 (Georgia + 宋体)', value: 'Georgia, "Times New Roman", "Source Han Serif SC", SimSun, serif' },
-  { label: '旗舰科技 (SF Pro)', value: '"SF Pro Display", "Roboto", "Segoe UI", "HarmonyOS Sans", sans-serif' },
-  { label: '文艺随笔 (Caveat + 行楷)', value: '"Caveat", "Comic Sans MS", "STKaiti", KaiTi, cursive' },
-]
 
 const TEXT_COLORS = [
   { color: '#1f2937', title: '默认黑灰' },
@@ -41,8 +38,24 @@ export function BookmarksSection({
   settings: Settings
   onChange: (values: Partial<Settings>) => void
 }) {
-  const presetMatched = FONT_PRESETS.some((f) => f.value === settings.fontFamily)
-  const [customFont, setCustomFont] = useState(Boolean(settings.fontFamily) && !presetMatched)
+  const localFonts = useLocalFontFamilies()
+  // 应用推荐搭配时重新挂载两个字体槽，清掉「本机字体」输入态
+  const [pickerEpoch, setPickerEpoch] = useState(0)
+  const latin = settings.fontLatin ?? ''
+  const cjk = settings.fontCjk ?? ''
+  const isLegacyFont =
+    settings.fontLatin === undefined &&
+    settings.fontCjk === undefined &&
+    Boolean(settings.fontFamily) &&
+    settings.fontFamily !== LEGACY_DEFAULT_FONT_FAMILY &&
+    settings.fontFamily !== composeFontFamily()
+  const usesLocalFont = (latin !== '' && !findFont(LATIN_FONTS, latin)) || (cjk !== '' && !findFont(CJK_FONTS, cjk))
+  const activeDesign = isLegacyFont ? undefined : findDesign(latin, cjk)
+  // 默认只露出推荐字体；自己拆过西文 / 中文时自动展开
+  const [customOpen, setCustomOpen] = useState(() => isLegacyFont || !activeDesign)
+  const setFonts = (nextLatin: string, nextCjk: string) =>
+    onChange({ fontLatin: nextLatin, fontCjk: nextCjk, fontFamily: composeFontFamily(nextLatin, nextCjk) })
+  const isGlobalFont = settings.fontScope === 'global'
   const columns = settings.manualColumns || 7
   const styleToggle = (active: boolean) =>
     `flex h-7 w-7 items-center justify-center rounded-md transition ${
@@ -108,7 +121,18 @@ export function BookmarksSection({
         </Row>
       </Group>
 
-      <Group title="文字">
+      <Group
+        title="书签文字"
+        footer={
+          <>
+            {isGlobalFont
+              ? '字体已应用到全部界面；字号、样式和颜色仍只作用于书签标题。'
+              : '字体只作用于书签标题（主卡片和子分类），不影响界面其它文字。'}
+            汉字会自动落到「中文字体」上。
+            {isLegacyFont && ' 当前沿用旧版字体设置，选择任意字体后会替换。'}
+          </>
+        }
+      >
         <div
           data-testid="bookmark-font-preview"
           className="px-3.5 py-3 text-[13px]"
@@ -122,37 +146,93 @@ export function BookmarksSection({
         >
           GitHub · 哔哩哔哩 · LeetCode · 知乎 · 百度网盘
         </div>
-        <Row label="字体">
-          <select
-            aria-label="书签字体"
-            value={customFont ? 'custom' : settings.fontFamily || FONT_PRESETS[0].value}
-            onChange={(e) => {
-              if (e.target.value === 'custom') {
-                setCustomFont(true)
-              } else {
-                setCustomFont(false)
-                onChange({ fontFamily: e.target.value })
-              }
-            }}
-            className={`${FIELD} !w-56`}
-          >
-            {FONT_PRESETS.map((f) => (
-              <option key={f.label} value={f.value}>
-                {f.label}
-              </option>
-            ))}
-            <option value="custom">自定义…</option>
-          </select>
-        </Row>
-        {customFont && (
-          <Row label="自定义字体" hint="本地已安装的字体名，可附在线 Web 字体 CSS 链接" stacked>
-            <input
-              aria-label="字体族名"
-              value={settings.fontFamily || ''}
-              onChange={(e) => onChange({ fontFamily: e.target.value })}
-              placeholder='"LXGW WenKai", sans-serif'
-              className={FIELD}
+        {/* 字体列表：每一项用自己的字体写出名字，右侧打勾 */}
+        <div role="radiogroup" aria-label="字体设计">
+          {FONT_DESIGNS.map((d) => {
+            const selected = activeDesign === d
+            const family = composeFontFamily(d.latin, d.cjk)
+            return (
+              <button
+                key={d.label}
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                onClick={() => {
+                  setFonts(d.latin, d.cjk)
+                  setPickerEpoch((n) => n + 1)
+                }}
+                className="flex min-h-12 w-full items-center gap-3 px-3.5 py-2 text-left transition hover:bg-black/[0.03] dark:hover:bg-white/[0.04]"
+              >
+                <span className="min-w-0 flex-1">
+                  <span
+                    className="block text-[16px] leading-snug text-neutral-900 dark:text-neutral-100"
+                    style={{ fontFamily: family }}
+                  >
+                    {d.label}
+                    <span className="ml-2.5 text-[14px] text-neutral-500 dark:text-neutral-400">
+                      The quick brown fox · 永和九年
+                    </span>
+                  </span>
+                  <span className="mt-0.5 block text-[11px] text-neutral-500 dark:text-neutral-400">{d.hint}</span>
+                </span>
+                <Check
+                  className={`h-4 w-4 shrink-0 text-orange-500 ${selected ? '' : 'invisible'}`}
+                  strokeWidth={2.5}
+                />
+              </button>
+            )
+          })}
+        </div>
+        <button
+          type="button"
+          aria-expanded={customOpen}
+          onClick={() => setCustomOpen((v) => !v)}
+          className="flex min-h-11 w-full items-center justify-between px-3.5 py-2.5 text-left text-[13px] text-neutral-900 transition hover:bg-black/[0.03] dark:text-neutral-100 dark:hover:bg-white/[0.04]"
+        >
+          <span>
+            分别设置西文和中文
+            {!customOpen && !activeDesign && (
+              <span className="ml-2 text-[11px] text-neutral-500 dark:text-neutral-400">已自定义</span>
+            )}
+          </span>
+          <ChevronRight
+            className={`h-3.5 w-3.5 text-neutral-400 transition-transform ${customOpen ? 'rotate-90' : ''}`}
+          />
+        </button>
+        {customOpen && (
+          <>
+            <FontSlotPicker
+              key={`latin-${pickerEpoch}`}
+              label="西文字体"
+              ariaLabel="书签西文字体"
+              options={LATIN_FONTS}
+              value={latin}
+              onChange={(v) => setFonts(v, cjk)}
+              local={localFonts}
             />
+            <FontSlotPicker
+              key={`cjk-${pickerEpoch}`}
+              label="中文字体"
+              ariaLabel="书签中文字体"
+              options={CJK_FONTS}
+              value={cjk}
+              onChange={(v) => setFonts(latin, v)}
+              local={localFonts}
+            />
+          </>
+        )}
+        <Row label="应用到全部界面" hint="搜索框、侧栏、设置面板等也使用上面的字体">
+          <input
+            type="checkbox"
+            role="switch"
+            aria-label="字体应用到全部界面"
+            checked={isGlobalFont}
+            onChange={(e) => onChange({ fontScope: e.target.checked ? 'global' : 'bookmarks' })}
+            className="nav-switch"
+          />
+        </Row>
+        {(usesLocalFont || Boolean(settings.customFontUrl)) && (
+          <Row label="在线字体 CSS" hint="可选：其它设备没装这个字体时，从这里加载 Web 字体" stacked>
             <input
               aria-label="Web 字体 CSS 链接"
               value={settings.customFontUrl || ''}

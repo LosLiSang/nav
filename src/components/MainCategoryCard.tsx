@@ -261,7 +261,7 @@ function BookmarkCardItem({
           fontStyle: settings.isItalic ? 'italic' : undefined,
           color: effectiveTextColor,
         }}
-        className="min-w-0 flex-1 truncate text-[13px] font-normal tracking-tight group-hover:text-orange-500 dark:group-hover:text-white transition-colors pointer-events-none select-none"
+        className="min-w-0 flex-1 truncate text-[13px] font-normal group-hover:text-orange-500 dark:group-hover:text-white transition-colors pointer-events-none select-none"
       >
         {bookmark.title}
       </span>

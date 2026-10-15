@@ -70,6 +70,13 @@ body {
   background-color: var(--color-neutral-950);
 }
 
+/* 原生下拉弹层用 option 自身颜色绘制；select 的半透明底色在弹层里会变成浅底浅字。 */
+.dark select option,
+.dark select optgroup {
+  background-color: var(--color-neutral-800);
+  color: var(--color-neutral-100);
+}
+
 /* 轨道由应用主题控制；填充比例由 RangeInput 按 min/max 计算。 */
 .nav-range {
   --range-track: var(--color-neutral-200);
