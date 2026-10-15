@@ -49,27 +49,26 @@ export const SEARCH_ENGINES: SearchEngine[] = [
   },
 ]
 
+/**
+ * 二次元风景预设壁纸：随站点打包在 public/wallpapers（1920×1080），
+ * 不依赖外链图床，国内网络也能稳定加载；设置面板用同名 -thumb 小图预览。
+ */
+const wallpaper = (id: string, name: string) => ({
+  id,
+  name,
+  url: `${import.meta.env.BASE_URL}wallpapers/${id}.jpg`,
+  thumb: `${import.meta.env.BASE_URL}wallpapers/${id}-thumb.jpg`,
+})
+
 export const WALLPAPER_PRESETS = [
-  {
-    id: 'eva-sky',
-    name: 'EVA 蓝天城市 (截图风格)',
-    url: 'https://images.unsplash.com/photo-1519501025264-65ba15a82390?w=1920&q=80',
-  },
-  {
-    id: 'anime-cloud',
-    name: '都市天际线晴空',
-    url: 'https://images.unsplash.com/photo-1514565131-fce0801e5785?w=1920&q=80',
-  },
-  {
-    id: 'cyberpunk',
-    name: '赛博朋克夜色',
-    url: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=1920&q=80',
-  },
-  {
-    id: 'scenic-lake',
-    name: '山水风景',
-    url: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=1920&q=80',
-  },
+  wallpaper('summer-beach', '夏日海滩'),
+  wallpaper('sunny-pier', '晴空码头'),
+  wallpaper('dusk-cabin', '黄昏小屋'),
+  wallpaper('riverside-bench', '河畔长椅'),
+  wallpaper('moonlit-bay', '月夜海湾'),
+  wallpaper('forest-night', '林间夜灯'),
+  wallpaper('flying-castle', '天空之城'),
+  wallpaper('cloud-sea', '云海少女'),
 ]
 
 export const DEFAULT_SETTINGS: Settings = {

@@ -23,7 +23,7 @@ type Props = {
   city?: string
   settings?: SettingsType
   onUpdateCity?: (city: string) => void
-  onOpenSettings: (tab?: 'appearance' | 'weather' | 'sync') => void
+  onOpenSettings: (tab?: 'weather') => void
   onOpenProfile: () => void
 }
 

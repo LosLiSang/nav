@@ -14,7 +14,6 @@ import {
   HelpCircle,
   Info,
   LayoutGrid,
-  MoreHorizontal,
   Plus,
   Star,
   Trash2,
@@ -276,7 +275,6 @@ export function MainCategoryCard({
   bookmarks,
   isSortMode,
   draggingId,
-  cardOpacity,
   settings,
   cachedIcons,
   failedDomains,
@@ -296,7 +294,6 @@ export function MainCategoryCard({
   const [showHelpMenu, setShowHelpMenu] = useState(false)
   const [selectedHelp, setSelectedHelp] = useState<(typeof HELP_ITEMS)[0] | null>(null)
   const [showLayoutMenu, setShowLayoutMenu] = useState(false)
-  const [layoutTab, setLayoutTab] = useState<'common' | 'icon' | 'note'>('common')
   const [categoryContextMenu, setCategoryContextMenu] = useState<{ category: Category; x: number; y: number } | null>(null)
   const [editingCategory, setEditingCategory] = useState<Category | null>(null)
   const [editCatName, setEditCatName] = useState('')
@@ -317,10 +314,6 @@ export function MainCategoryCard({
   }, [])
 
   const isFavActive = activeCategoryId === 'cat-fav'
-  const isDark = settings.themeMode === 'dark'
-  const cardBg = isDark
-    ? `rgba(24, 24, 27, ${cardOpacity / 100})`
-    : `rgba(255, 255, 255, ${cardOpacity / 100})`
 
   const cardRadius =
     settings.cornerRadius === 'none'
@@ -331,13 +324,12 @@ export function MainCategoryCard({
 
   return (
     <section
-      className={`relative ${showLayoutMenu || showHelpMenu ? 'z-30' : 'z-10'} border border-neutral-100/90 dark:border-white/10 p-4 shadow-[0_4px_20px_rgba(0,0,0,0.06)] backdrop-blur-md transition-all text-neutral-800 dark:text-neutral-100 ${cardRadius}`}
-      style={{ backgroundColor: cardBg }}
+      className={`relative ${showLayoutMenu || showHelpMenu ? 'z-30' : 'z-10'} nav-glass p-4 transition-all text-neutral-800 dark:text-neutral-100 ${cardRadius}`}
     >
       {/* Category header tabs: strictly SINGLE LINE, no wrap */}
       <div className="flex items-center justify-between gap-2 border-b border-neutral-100 dark:border-neutral-800 pb-2.5">
         {/* Left category pills: horizontal scroll without scrollbar */}
-        <div className="flex items-center gap-1 min-w-0 flex-1 overflow-x-auto whitespace-nowrap [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex items-center gap-1 min-w-0 flex-1 overflow-x-auto whitespace-nowrap no-scrollbar">
           {/* ⭐ Star Tab (Favorite/Bookmark Tab) */}
           <button
             type="button"
@@ -470,19 +462,6 @@ export function MainCategoryCard({
             <LayoutGrid className="h-3.5 w-3.5" />
           </button>
 
-          <button
-            type="button"
-            onClick={() => {
-              setShowHelpMenu(false)
-              setShowLayoutMenu(false)
-              onOpenBookmarkStyle()
-            }}
-            title="书签排版与展示设置"
-            className="rounded p-1 transition hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200"
-          >
-            <MoreHorizontal className="h-3.5 w-3.5" />
-          </button>
-
           {/* Dropdown 1: Help Menu (Image #1) */}
           {showHelpMenu && (
             <div className="absolute right-20 top-8 z-50 w-56 rounded-2xl border border-neutral-100 dark:border-neutral-800 bg-white dark:bg-[#18181b] p-1.5 text-xs shadow-2xl backdrop-blur-md">
@@ -543,26 +522,6 @@ export function MainCategoryCard({
             <div className="absolute right-6 top-8 z-50 w-72 rounded-2xl border border-neutral-100 dark:border-neutral-800 bg-white dark:bg-[#18181b] p-4 text-xs shadow-2xl backdrop-blur-md text-neutral-800 dark:text-neutral-200">
               <div className="flex items-center justify-between pb-2 font-medium text-neutral-800 dark:text-neutral-100 text-sm">
                 <span>网址样式</span>
-              </div>
-
-              {/* Tabs */}
-              <div className="mt-2 flex items-center gap-1.5">
-                {(['common', 'icon', 'note'] as const).map((tab) => (
-                  <button
-                    key={tab}
-                    type="button"
-                    onClick={() => setLayoutTab(tab)}
-                    className={`rounded-full px-3 py-1 font-medium transition ${
-                      layoutTab === tab
-                        ? 'bg-orange-500 text-on-accent shadow-sm'
-                        : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700'
-                    }`}
-                  >
-                    {tab === 'common' && '通用'}
-                    {tab === 'icon' && '图标'}
-                    {tab === 'note' && '备注'}
-                  </button>
-                ))}
               </div>
 
               {/* Row 1: 显示图标 switch */}
@@ -680,6 +639,17 @@ export function MainCategoryCard({
                 >
                   <span>⊗ 清除自定义</span>
                 </button>
+                <span className="mx-2 text-neutral-300 dark:text-neutral-600">·</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowLayoutMenu(false)
+                    onOpenBookmarkStyle()
+                  }}
+                  className="text-[11px] text-orange-600 dark:text-orange-400 hover:underline"
+                >
+                  更多书签设置…
+                </button>
               </div>
             </div>
           )}
@@ -705,7 +675,7 @@ export function MainCategoryCard({
       {/* Bookmarks Grid：自适应按标题内容宽度 + 卡片真实宽度排列 */}
       <div className="pt-2">
         {bookmarks.length === 0 ? (
-          <div className="py-12 text-center text-xs text-neutral-400">
+          <div className="py-12 text-center text-xs text-neutral-600 dark:text-neutral-300">
             {isFavActive
               ? '暂无收藏网址，右键任意书签选择「设为收藏」即可添加！'
               : '该分类下暂无网址，点击上方「+ 添加」新增书签'}

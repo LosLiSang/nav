@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import {
   closestCenter,
   pointerWithin,
@@ -19,14 +19,12 @@ import type { Bookmark } from './types'
 
 import { BookmarkDialog } from './components/BookmarkDialog'
 import { BookmarkContextMenu } from './components/BookmarkContextMenu'
-import { BookmarkStyleModal } from './components/BookmarkStyleModal'
 import { BottomSection } from './components/BottomSection'
 import { ConfirmModal } from './components/ConfirmModal'
 import { FloatingDock } from './components/FloatingDock'
 import { IconPickerModal } from './components/IconPickerModal'
 import { IconCacheModal } from './components/IconCacheModal'
 import { MainCategoryCard } from './components/MainCategoryCard'
-import { ProfileModal } from './components/ProfileModal'
 import { RightSidebar } from './components/RightSidebar'
 import { SearchBar, type SearchBarHandle } from './components/SearchBar'
 import { SettingsPanel, type TabType } from './components/SettingsPanel'
@@ -124,7 +122,6 @@ export default function App() {
     toggleFavorite,
     addCategory,
     updateCategory,
-    renameCategory,
     deleteCategory,
     reorderCategories,
     addSubSection,
@@ -159,8 +156,6 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [iconCacheOpen, setIconCacheOpen] = useState(false)
   const [settingsTab, setSettingsTab] = useState<TabType>('appearance')
-  const [profileOpen, setProfileOpen] = useState(false)
-  const [bookmarkStyleOpen, setBookmarkStyleOpen] = useState(false)
   const [editingBookmark, setEditingBookmark] = useState<Bookmark | null>(null)
   const [defaultSubCategoryId, setDefaultSubCategoryId] = useState<string | undefined>()
   const [deletingBookmark, setDeletingBookmark] = useState<Bookmark | null>(null)
@@ -351,7 +346,10 @@ export default function App() {
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className={`relative min-h-screen w-full select-none overflow-x-hidden font-sans antialiased ${isDark ? 'dark text-neutral-100' : 'text-neutral-800'}`}>
+      <div
+        className={`relative min-h-screen w-full select-none overflow-x-hidden font-sans antialiased ${isDark ? 'dark text-neutral-100' : 'text-neutral-800'}`}
+        style={{ '--glass-alpha': settings.cardOpacity / 100 } as CSSProperties}
+      >
         {/* Wallpaper background image layer */}
         <div
           className="fixed inset-0 bg-cover bg-center transition-[filter] duration-300 pointer-events-none"
@@ -382,13 +380,16 @@ export default function App() {
             if (tab) setSettingsTab(tab)
             setSettingsOpen(true)
           }}
-          onOpenProfile={() => setProfileOpen(true)}
+          onOpenProfile={() => {
+            setSettingsTab('profile')
+            setSettingsOpen(true)
+          }}
         />
 
         {/* Main Layout Container: Center Workspace + Persistent Right Sidebar */}
         {/* 内容区宽度 = 窗口宽度的百分比（含右侧工作台），小屏始终铺满 */}
         <div
-          className="relative z-10 mx-auto flex w-full justify-center items-start gap-3 px-2 sm:px-4 lg:pr-14 py-3.5 transition-[width] duration-200"
+          className="relative z-10 mx-auto flex w-full flex-col xl:flex-row justify-center items-stretch xl:items-start gap-3 px-2 sm:px-4 lg:pr-14 py-3.5 transition-[width] duration-200"
           style={{ width: `max(${resolveContentWidth(settings)}%, min(100%, 768px))` }}
         >
           {/* Main Content Area */}
@@ -422,7 +423,10 @@ export default function App() {
             onToggleSortMode={toggleSortMode}
             onOpenAddBookmark={() => openAddDialog()}
             onContextMenuBookmark={(b, x, y) => setContextMenu({ bookmark: b, x, y })}
-            onOpenBookmarkStyle={() => setBookmarkStyleOpen(true)}
+            onOpenBookmarkStyle={() => {
+              setSettingsTab('bookmarks')
+              setSettingsOpen(true)
+            }}
             onUpdateSettings={updateSettings}
           />
 
@@ -630,32 +634,11 @@ export default function App() {
               }}
             onChange={updateSettings}
             onOpenIconCache={() => setIconCacheOpen(true)}
-          />
-        )}
-
-        {/* Profile & Data Management Modal (点击头像打开) */}
-        {profileOpen && (
-          <ProfileModal
-            settings={settings}
-            onClose={() => setProfileOpen(false)}
-            onChangeSettings={updateSettings}
             onExportBackup={exportBackup}
             onImportBackup={importBackup}
             onResetToDefaults={resetToDefaults}
-          />
-        )}
-
-        {/* Bookmark Typography & Style Modal (点击卡片三个点打开) */}
-        {bookmarkStyleOpen && (
-          <BookmarkStyleModal
-            settings={settings}
             currentCategory={categories.find((c) => c.id === settings.activeCategoryId)}
             categoryBookmarks={activeMainBookmarks}
-            onClose={() => setBookmarkStyleOpen(false)}
-            onChangeSettings={updateSettings}
-            onRenameCategory={(id, name) => void renameCategory(id, name)}
-            onDeleteCategory={(id) => void deleteCategory(id)}
-            onOpenIconCache={() => setIconCacheOpen(true)}
           />
         )}
 

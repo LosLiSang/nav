@@ -56,18 +56,17 @@ class Cdp {
 }
 
 const settings = `document.querySelector('button[title="全局界面与壁纸设置"]')`
-const style = `document.querySelector('button[title="书签排版与展示设置"]')`
+const style = settings
 const profile = `document.querySelector('[title="个人中心与数据管理"]')`
 const add = `[...document.querySelectorAll('button')].find(b => b.textContent.trim() === '添加')`
 const tab = (name) => `[...document.querySelectorAll('.nav-dialog button')].find(b => b.textContent.includes('${name}'))`
 const PANELS = [
-  { id: 'settings', actions: [settings], sliders: 4, primary: true },
+  { id: 'settings', actions: [settings], sliders: 1, primary: true },
+  { id: 'settings-wallpaper', actions: [settings, tab('壁纸')], sliders: 3, primary: true },
   { id: 'settings-sync', actions: [settings, tab('云端同步')], primary: true },
   { id: 'profile', actions: [profile], primary: true },
   { id: 'profile-data', actions: [profile, tab('数据备份')], primary: true },
-  { id: 'bookmark-style', actions: [style], primary: true },
-  { id: 'bookmark-layout', actions: [style, tab('视觉与布局')], sliders: 2, primary: true },
-  { id: 'bookmark-manage', actions: [style, tab('分类与维护')], primary: true },
+  { id: 'bookmark-style', actions: [settings, tab('书签')], primary: true },
   { id: 'bookmark-add', actions: [add], counter: true },
   { id: 'icon-picker', actions: [add, `document.querySelector('svg.lucide-camera')?.closest('button')`], dialogs: 2 },
 ]

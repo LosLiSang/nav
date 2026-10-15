@@ -187,7 +187,7 @@ async function main() {
       await click(`[...document.querySelectorAll('header button, button')].find(b => b.textContent.trim() === '设置' && __visible(b))`, '设置')
       await click(byText('天气服务'), '天气服务')
       groups.settings = await measure(`document.querySelector('.nav-dialog')`, `[...document.querySelectorAll('.nav-dialog input')].find(i => (i.type === 'text' || i.type === 'password' || !i.type) && __visible(i))`)
-      await click(byText('界面与壁纸'), '界面与壁纸')
+      await click(byText('外观'), '外观')
       await shot(`${c.name}-settings`)
       await click(byText('完成'), '完成')
 

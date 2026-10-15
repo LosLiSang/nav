@@ -141,21 +141,10 @@ const PANELS = [
   },
   {
     id: '3-bookmark-style',
-    name: '书签样式 - 字体排版 Tab (BookmarkStyleModal)',
-    click: `document.querySelector('button[title="书签排版与展示设置"]')`,
+    name: '全局设置 - 书签 (SettingsPanel)',
+    setup: `document.querySelector('button[title="全局界面与壁纸设置"]')`,
+    click: `[...document.querySelectorAll('.nav-dialog nav button')].find((b) => b.textContent.trim() === '书签')`,
     expectPreviewTextLight: true,
-  },
-  {
-    id: '3b-bookmark-style-layout',
-    name: '书签样式 - 视觉与布局 Tab (BookmarkStyleModal)',
-    setup: `document.querySelector('button[title="书签排版与展示设置"]')`,
-    click: `[...document.querySelectorAll('button')].find((b) => b.textContent.includes('视觉与布局'))`,
-  },
-  {
-    id: '3c-bookmark-style-manage',
-    name: '书签样式 - 分类与维护 Tab (BookmarkStyleModal)',
-    setup: `document.querySelector('button[title="书签排版与展示设置"]')`,
-    click: `[...document.querySelectorAll('button')].find((b) => b.textContent.includes('分类与维护'))`,
   },
   {
     id: '4-bookmark-dialog',
@@ -298,8 +287,7 @@ async function main() {
     let previewLuma = null
     if (panel.expectPreviewTextLight) {
       const preview = await evaluate(`(() => {
-        const el = [...document.querySelectorAll('div')].find((d) =>
-          d.textContent.trim().startsWith('Aa Bb 1234567890'))
+        const el = document.querySelector('[data-testid="bookmark-font-preview"]')
         if (!el) return null
         const cv = document.createElement('canvas')
         cv.width = cv.height = 1

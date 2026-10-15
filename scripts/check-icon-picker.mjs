@@ -1,5 +1,5 @@
 /**
- * 图标选择器端到端验证：真的点一遍「添加书签 → 图标库 → 分类图标 → 选一个 → 保存」，
+ * 图标选择器端到端验证：真的点一遍「添加书签 → 图标库 → 线条/彩色图标 → 选一个 → 保存」，
  * 然后用像素采样证明存下来的图标不是一整块黑。
  *
  * 背景：旧实现把颜色里的 # 预转义成 %23，又对整个 SVG 做 encodeURIComponent，
@@ -151,22 +151,26 @@ async function main() {
     )
     check('添加书签弹窗已打开', true)
 
-    // 2. 打开图标库并切到分类图标
+    // 2. 打开图标库（图标库按需加载），切到「线条」样式
     await evaluate(
       `document.querySelector('button[title="从图标库选择或自定义图标"]')?.click()`,
     )
     await poll(
       () =>
         evaluate(
-          `[...document.querySelectorAll('button')].some((b) => b.textContent.trim().startsWith('分类图标'))`,
+          `[...document.querySelectorAll('button')].some((b) => b.textContent.trim() === '代码')`,
         ),
       10000,
       '图标选择器',
     )
     await evaluate(
-      `(() => { const b = [...document.querySelectorAll('button')].find((x) => x.textContent.trim().startsWith('分类图标')); b?.click(); return Boolean(b) })()`,
+      `(() => { const b = [...document.querySelectorAll('[role=radio]')].find((x) => x.textContent.trim() === '线条'); b?.click(); return Boolean(b) })()`,
     )
-    check('已切换到分类图标页签', true)
+    check('图标库已加载并切换到线条样式', true)
+    const count = await evaluate(`Number((document.querySelector('.nav-dialog h3')?.nextElementSibling?.textContent || '').replace(/\\D/g, ''))`)
+    check('图标库数量明显扩充（≥ 200）', count >= 200, `${count} 个`)
+    check('不再有「常用品牌」页签', await evaluate(`![...document.querySelectorAll('button')].some((b) => b.textContent.includes('常用品牌'))`))
+    await sleep(200)
 
     // 3. 点选「代码」图标
     await evaluate(
@@ -227,6 +231,31 @@ async function main() {
       pixels.current.ratio >= 0 && pixels.current.ratio < 0.5,
       `暗色像素占比 ${pixels.current.ratio.toFixed(2)}`,
     )
+
+    // 5b. 彩色样式：重新打开图标库，选「旅行」，应生成带底色的彩色图标
+    await evaluate(`document.querySelector('button[title="从图标库选择或自定义图标"]')?.click()`)
+    await poll(() => evaluate(`[...document.querySelectorAll('button')].some((b) => b.textContent.trim() === '旅行')`), 10000, '图标库再次打开')
+    await evaluate(`(() => { const b = [...document.querySelectorAll('button')].find((x) => x.textContent.trim() === '旅行'); b?.click(); return Boolean(b) })()`)
+    await sleep(400)
+    const colorSrc = await evaluate(`document.querySelector('button[title="从图标库选择或自定义图标"] img')?.src || ''`)
+    check('彩色样式存的是带底色的「旅行」图标', decodeURIComponent(colorSrc).includes('data-icon="Mountain@color"') && decodeURIComponent(colorSrc).includes('<rect'))
+    const colorPixels = await evaluate(`(async () => {
+      const img = await new Promise((resolve, reject) => { const i = new Image(); i.onload = () => resolve(i); i.onerror = reject; i.src = ${JSON.stringify(colorSrc)} })
+      const cv = document.createElement('canvas'); cv.width = img.naturalWidth; cv.height = img.naturalHeight
+      const ctx = cv.getContext('2d', { willReadFrequently: true }); ctx.drawImage(img, 0, 0)
+      const d = ctx.getImageData(0, 0, cv.width, cv.height).data
+      let tint = 0, white = 0, opaque = 0
+      for (let i = 0; i < d.length; i += 4) { if (d[i + 3] < 128) continue; opaque++; if (d[i] > 230 && d[i + 1] > 230 && d[i + 2] > 230) white++; else if (Math.max(d[i], d[i + 1], d[i + 2]) - Math.min(d[i], d[i + 1], d[i + 2]) > 80) tint++ }
+      return { tint: tint / opaque, white: white / opaque }
+    })()`)
+    check('彩色图标渲染出彩色底和白色线条', colorPixels.tint > 0.5 && colorPixels.white > 0.03, JSON.stringify(colorPixels))
+    // 选回线条「代码」，后续落库断言沿用
+    await evaluate(`document.querySelector('button[title="从图标库选择或自定义图标"]')?.click()`)
+    await poll(() => evaluate(`[...document.querySelectorAll('button')].some((b) => b.textContent.trim() === '代码')`), 10000, '图标库第三次打开')
+    await evaluate(`[...document.querySelectorAll('[role=radio]')].find((x) => x.textContent.trim() === '线条')?.click()`)
+    await sleep(150)
+    await evaluate(`[...document.querySelectorAll('button')].find((x) => x.textContent.trim() === '代码')?.click()`)
+    await sleep(300)
 
     // 6. 保存书签，验证落库的 iconUrl
     await setInput('input[placeholder="网站名称"]', TITLE)

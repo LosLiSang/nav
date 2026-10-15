@@ -47,7 +47,6 @@ type TodoFilter = 'all' | 'pending' | 'done'
  export function RightSidebar({
    scratchpadContent,
   memos,
-   cardOpacity,
    settings,
    collapsed = false,
   activeTab: controlledTab,
@@ -59,7 +58,6 @@ type TodoFilter = 'all' | 'pending' | 'done'
   onToggleMemo,
   onDeleteMemo,
  }: Props) {
-   const isDark = settings.themeMode === 'dark'
   const [internalTab, setInternalTab] = useState<ActiveTab>('scratchpad')
   const activeTab = controlledTab ?? internalTab
 
@@ -214,9 +212,6 @@ type TodoFilter = 'all' | 'pending' | 'done'
   const focusedMemo = memos.find((m) => m.id === focusedMemoId)
 
    // ----------------- 容器样式 -----------------
-   const cardBg = isDark
-     ? `rgba(24, 24, 27, ${cardOpacity / 100})`
-     : `rgba(255, 255, 255, ${cardOpacity / 100})`
   const accentColor = settings.highlightColor || '#ff6900'
  
    const cardRadius =
@@ -230,16 +225,15 @@ type TodoFilter = 'all' | 'pending' | 'done'
    if (collapsed) {
      return (
       <>
-      <aside id="right-workbench-collapsed" className="sticky top-14 hidden shrink-0 xl:block z-30">
+      <aside id="right-workbench-collapsed" className="shrink-0 z-30 xl:sticky xl:top-14">
          <button
            type="button"
            onClick={onToggleCollapse}
            title="展开常驻工作台 (Alt + \)"
-          className={`flex h-24 w-8 flex-col items-center justify-center gap-1.5 ${cardRadius} border border-white/60 dark:border-white/10 shadow-lg backdrop-blur-md transition hover:scale-105 hover:border-blue-400`}
-           style={{ backgroundColor: cardBg }}
+          className={`flex h-10 w-full items-center justify-center gap-1.5 xl:h-24 xl:w-8 xl:flex-col ${cardRadius} nav-glass transition hover:scale-105 hover:border-blue-400`}
          >
            <PanelRightOpen className="h-4 w-4 text-neutral-600 dark:text-neutral-300" />
-           <span className="text-[10px] font-semibold text-neutral-700 dark:text-neutral-300 [writing-mode:vertical-lr] tracking-wider">
+           <span className="text-[10px] font-semibold text-neutral-700 dark:text-neutral-300 xl:[writing-mode:vertical-lr] tracking-wider">
              工作台
            </span>
          </button>
@@ -255,8 +249,7 @@ type TodoFilter = 'all' | 'pending' | 'done'
     <>
      <aside
       id="right-workbench"
-      className={`sticky top-14 hidden shrink-0 xl:flex flex-col w-[290px] 2xl:w-[310px] max-h-[calc(100vh-4.6rem)] h-auto ${cardRadius} border border-white/60 dark:border-white/10 shadow-2xl backdrop-blur-md overflow-hidden z-30 transition-all duration-200`}
-       style={{ backgroundColor: cardBg }}
+      className={`flex shrink-0 flex-col w-full max-h-[70vh] xl:sticky xl:top-14 xl:w-[290px] 2xl:w-[310px] xl:max-h-[calc(100vh-4.6rem)] h-auto ${cardRadius} nav-glass overflow-hidden z-30 transition-all duration-200`}
      >
        {/* Top Header */}
        <div className="flex h-11 shrink-0 items-center justify-between border-b border-black/5 dark:border-white/10 px-3.5">
@@ -328,7 +321,7 @@ type TodoFilter = 'all' | 'pending' | 'done'
                value={text}
                onChange={(e) => handleTextChange(e.target.value)}
                placeholder="随手粘贴临时代码、调试命令、JSON、网址或思路... 本地即写即存。"
-              className="scratchpad-textarea w-full min-h-[140px] resize-none !overflow-hidden bg-transparent text-[13px] leading-relaxed text-neutral-800 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 outline-none font-mono"
+              className="scratchpad-textarea w-full min-h-[140px] resize-none !overflow-hidden bg-transparent text-[13px] leading-relaxed text-neutral-800 dark:text-neutral-100 placeholder-neutral-500 dark:placeholder-neutral-400 outline-none font-mono"
                spellCheck={false}
               style={{
                 fieldSizing: 'content',
@@ -428,7 +421,7 @@ type TodoFilter = 'all' | 'pending' | 'done'
              {/* Todo Items List */}
             <div className="max-h-[380px] overflow-y-auto space-y-1.5 pr-0.5">
                {filteredMemos.length === 0 ? (
-                 <div className="flex flex-col items-center justify-center py-12 text-center text-neutral-400">
+                 <div className="flex flex-col items-center justify-center py-12 text-center text-neutral-600 dark:text-neutral-300">
                    <CheckCircle2 className="h-8 w-8 text-neutral-300 dark:text-neutral-600 mb-2" />
                    <span className="text-xs">暂无待办事项，今天也是轻松高效的一天 ✨</span>
                  </div>

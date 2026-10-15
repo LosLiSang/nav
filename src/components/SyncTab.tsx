@@ -52,7 +52,10 @@ const ACCOUNT_STATUS_TEXT: Record<AccountStatus, string> = {
 }
 
 const BUTTON =
-  'flex items-center justify-center gap-1.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition shadow-sm disabled:opacity-50'
+  'flex items-center justify-center gap-1.5 rounded-md border border-black/10 dark:border-white/10 bg-white dark:bg-white/10 px-3 py-1.5 text-[12px] text-neutral-800 dark:text-neutral-100 hover:bg-neutral-50 dark:hover:bg-white/15 active:bg-neutral-100 dark:active:bg-white/20 transition shadow-[0_0.5px_1px_rgba(0,0,0,0.12)] disabled:opacity-50'
+
+/** 与设置面板分组卡片一致的白卡样式 */
+const CARD = 'rounded-xl bg-white dark:bg-white/[0.05] ring-1 ring-black/[0.06] dark:ring-white/[0.08] shadow-[0_1px_2px_rgba(0,0,0,0.04)]'
 
 function formatTime(ts: number): string {
   if (!ts) return '—'
@@ -149,7 +152,7 @@ export function SyncTab() {
 
       {/* 账号 */}
       {account ? (
-        <div className="flex items-center gap-3 rounded-xl border border-neutral-200/80 dark:border-neutral-700/80 bg-neutral-50 dark:bg-neutral-800/60 p-3">
+        <div className={`flex items-center gap-3 p-3 ${CARD}`}>
           {account.avatarUrl ? (
             <img src={account.avatarUrl} alt="" className="h-9 w-9 rounded-full" />
           ) : (
@@ -177,7 +180,7 @@ export function SyncTab() {
           </button>
         </div>
       ) : (
-        <div className="space-y-2.5 rounded-xl border border-neutral-200/80 dark:border-neutral-700/80 bg-neutral-50 dark:bg-neutral-800/60 p-3.5">
+        <div className={`space-y-2.5 p-3.5 ${CARD}`}>
           <p className="leading-relaxed text-[11px] text-neutral-500 dark:text-neutral-400">
             数据默认保存在本浏览器。用 GitHub 登录后，改动会同步到云端，换设备登录同一账号即可恢复。新账号需要管理员审批后才能同步。
           </p>
@@ -187,7 +190,7 @@ export function SyncTab() {
               saveServerUrl(serverUrl)
               login()
             }}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-neutral-900 dark:bg-neutral-100 px-4 py-2 text-xs font-medium text-white dark:text-neutral-900 shadow-sm hover:opacity-90 transition"
+            className="flex w-full items-center justify-center gap-2 rounded-lg bg-neutral-900 dark:bg-white/15 px-4 py-2 text-[13px] font-medium text-white shadow-sm hover:opacity-90 dark:hover:bg-white/20 transition"
           >
             <Github className="h-4 w-4" />
             使用 GitHub 登录
@@ -199,7 +202,7 @@ export function SyncTab() {
               onChange={(e) => setServerUrl(e.target.value)}
               onBlur={() => setServerUrl(normalizeSyncUrl(serverUrl) || DEFAULT_SYNC_URL)}
               placeholder={DEFAULT_SYNC_URL}
-              className="mt-1.5 w-full rounded-xl border border-neutral-200 dark:border-neutral-700 px-3 py-2 text-xs outline-none focus:border-orange-500 bg-transparent"
+              className="mt-1.5 w-full rounded-md border border-black/10 dark:border-white/10 bg-white dark:bg-white/[0.06] px-2.5 py-1.5 text-[13px] outline-none transition focus:border-orange-500 focus:ring-[3px] focus:ring-orange-500/20"
             />
           </details>
         </div>
@@ -236,18 +239,19 @@ export function SyncTab() {
 
       {/* 同步 */}
       {syncConfig && !importOffer && (
-        <div className="space-y-3 rounded-2xl border border-neutral-200/80 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/60 p-3.5">
-          <label className="flex cursor-pointer items-center justify-between font-medium text-neutral-700 dark:text-neutral-200">
+        <div className={`space-y-3 p-3.5 ${CARD}`}>
+          <label className="flex cursor-pointer items-center justify-between text-[13px] text-neutral-900 dark:text-neutral-100">
             <span>改动自动上传</span>
             <input
               type="checkbox"
+              role="switch"
               checked={autoSync}
               onChange={(e) => setAutoSync(e.target.checked)}
-              className="h-4 w-4 accent-orange-500"
+              className="nav-switch"
             />
           </label>
 
-          <div className="space-y-1 font-mono text-[10px] text-neutral-500 dark:text-neutral-400 border-t border-neutral-200/60 dark:border-neutral-700/60 pt-2.5">
+          <div className="space-y-1 text-[11px] tabular-nums text-neutral-500 dark:text-neutral-400 border-t border-black/[0.07] dark:border-white/[0.08] pt-2.5">
             <div className="flex justify-between">
               <span>本机版本</span>
               <span>{formatTime(localUpdatedAt)}</span>
@@ -285,7 +289,7 @@ export function SyncTab() {
             </button>
           </div>
 
-          <p className="leading-relaxed text-[10px] text-neutral-400 dark:text-neutral-500 pt-1">
+          <p className="leading-relaxed text-[11px] text-neutral-500 dark:text-neutral-400 pt-1">
             同步按「谁更新谁生效」处理，两边冲突时会暂停并提示。强制上传会覆盖云端数据。
           </p>
         </div>
@@ -347,7 +351,7 @@ function UserAdmin({ currentUserId }: { currentUserId: string }) {
   const pendingCount = users?.filter((u) => u.status === 'pending').length ?? 0
 
   return (
-    <div className="space-y-2.5 rounded-2xl border border-neutral-200/80 dark:border-neutral-700 p-3.5">
+    <div className={`space-y-2.5 p-3.5 ${CARD}`}>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5 font-semibold text-neutral-900 dark:text-neutral-100">
           <Users className="h-4 w-4 text-orange-500" />
