@@ -301,6 +301,8 @@ let remoteConfirmed = false
 let bootstrapPromise: Promise<void> | null = null
 let workbenchPromise: Promise<void> | null = null
 let workbenchTimer: ReturnType<typeof setTimeout> | null = null
+const WORKBENCH_POLL_MS = 10_000
+let quietWorkbenchPull = false
 
 function scheduleWorkbench() {
   const state = useNavStore.getState()
@@ -592,7 +594,8 @@ export const useNavStore = create<NavState>((set, get) => ({
     }
     workbenchPromise = (async () => {
       const previouslyReady = get().workbenchBackendReady
-      set({ workbenchStatus: 'syncing', workbenchMessage: '正在同步便签与共享剪贴板…' })
+      // 后台定时拉取不切换成「同步中」，避免图标每隔几秒闪黄。
+      if (!quietWorkbenchPull) set({ workbenchStatus: 'syncing', workbenchMessage: '正在同步便签与共享剪贴板…' })
       try {
         const result = await synchronizeWorkbench(config, resolution)
         set({ memos: result.memos, scratchpadContent: result.content,
@@ -1965,4 +1968,14 @@ if (typeof window !== 'undefined') {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') refreshWorkbench()
   })
+  // 页面一直停留在前台时不会触发 focus/visibilitychange，定时拉取其他设备的草稿与便签。
+  // 只在可见且空闲时请求；本机未同步的编辑由 dirty 标记保护，不会被云端覆盖。
+  setInterval(() => {
+    const s = useNavStore.getState()
+    if (document.visibilityState !== 'visible' || !s.ready || workbenchPromise || workbenchTimer) return
+    // 只在上次同步成功时轮询；失败/冲突等状态留给用户重试或 focus 触发。
+    if (!s.autoSync || s.workbenchStatus !== 'synced') return
+    quietWorkbenchPull = true
+    void s.syncWorkbench().finally(() => { quietWorkbenchPull = false })
+  }, WORKBENCH_POLL_MS)
 }

@@ -375,6 +375,12 @@ async function main() {
     await evaluate('window.dispatchEvent(new Event("focus"))')
     await poll(() => evaluate(STATE(`s.scratchpadContent === '另一设备的新草稿'`)), 15000, 'focus clipboard')
     check('重新获得焦点拉取其他设备的剪贴板', true)
+    // 页面一直停留在前台（不切窗口）时，也要自动拿到其他设备的草稿和便签。
+    const clipStay = (await api('/api/clipboard', tokenWorkbench)).body
+    await api('/api/clipboard', tokenWorkbench, { method: 'PUT', body: JSON.stringify({ content: '停留页面也能收到', expectedUpdatedAt: clipStay.updatedAt }) })
+    await api('/api/memos/stay-memo', tokenWorkbench, { method: 'PUT', body: JSON.stringify({ text: '停留页面的新便签', done: false, createdAt: Date.now(), expectedUpdatedAt: 0 }) })
+    const stayed = await poll(() => evaluate(STATE(`s.scratchpadContent === '停留页面也能收到' && s.memos.some(m => m.text === '停留页面的新便签')`)), 20000, 'stay page pull').catch(() => false)
+    check('页面保持前台时定时拉取其他设备的草稿与便签', stayed === true)
     await evaluate(`(async () => {
       const m = ${STORE}; m.useNavStore.getState().setAutoSync(false);
       const clip = await fetch(${JSON.stringify(WORKER_URL + '/api/clipboard')}, {headers: {Authorization: 'Bearer ' + m.useNavStore.getState().session.token}}).then(r => r.json());
